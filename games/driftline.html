@@ -36,13 +36,14 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   color: rgba(223,230,223,0.85); pointer-events: none;
 }
 .hud-chip b { color: #e8b878; font-weight: 700; }
-#backpackBtn {
+.hud-right { display: flex; gap: 8px; }
+#backpackBtn, #gambleBtn {
   width: 34px; height: 34px; border-radius: 8px;
   background: rgba(18,26,22,0.62); border: 1px solid rgba(180,200,170,0.22);
   backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center;
   font-size: 17px; cursor: pointer; transition: all 0.15s; user-select: none;
 }
-#backpackBtn:hover { background: rgba(232,184,120,0.18); border-color: rgba(232,184,120,0.5); }
+#backpackBtn:hover, #gambleBtn:hover { background: rgba(232,184,120,0.18); border-color: rgba(232,184,120,0.5); }
 
 /* --- Overlays (scaffolding for later phases) --- */
 .overlay {
@@ -159,6 +160,52 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   color: rgba(223,230,223,0.5); font-size: 13px; letter-spacing: 1px;
   width: 100%; text-align: center; margin-top: 40px;
 }
+
+/* --- Phase 5: gamble / slot machine --- */
+#gambleClose {
+  position: absolute; top: 14px; left: 16px;
+  width: 30px; height: 30px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(217,72,60,0.15); border: 1px solid rgba(217,72,60,0.6);
+  color: #d9483c; font-size: 17px; font-weight: 700; cursor: pointer;
+  transition: all 0.15s; user-select: none;
+}
+#gambleClose:hover { background: rgba(217,72,60,0.3); box-shadow: 0 0 14px rgba(217,72,60,0.4); }
+.stack-select { display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; justify-content: center; }
+.stack-chip {
+  position: relative; width: 48px; height: 48px; border-radius: 8px;
+  background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.16);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: all 0.15s;
+}
+.stack-chip:hover { border-color: rgba(232,184,120,0.5); }
+.stack-chip.active { border-color: #f0cf9a; box-shadow: 0 0 14px rgba(240,207,154,0.5); }
+.stack-chip-count {
+  position: absolute; bottom: -3px; right: -3px;
+  background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 5px; padding: 0 4px; font-size: 10px; font-weight: 700; color: #f0cf9a;
+}
+#gambleEmpty { color: rgba(223,230,223,0.5); font-size: 13px; letter-spacing: 1px; margin-bottom: 20px; display: none; }
+.reel-row { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.reel-canvas {
+  width: 56px; height: 56px; border-radius: 8px; image-rendering: pixelated;
+  background: rgba(0,0,0,0.35); border: 2px solid rgba(232,184,120,0.35);
+}
+#lever { position: relative; width: 26px; height: 70px; display: flex; justify-content: center; cursor: pointer; padding-top: 4px; }
+#lever::before {
+  content: ''; position: absolute; top: 8px; left: 10px; width: 6px; height: 54px;
+  background: rgba(180,190,180,0.3); border-radius: 3px;
+}
+#leverHandle {
+  position: relative; width: 20px; height: 20px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #d9483c, #8a2a20);
+  border: 2px solid rgba(255,255,255,0.25); transition: transform 0.22s ease-in;
+}
+#leverHandle.pulled { transform: translateY(46px); }
+#gambleResult {
+  font-size: 24px; font-weight: 700; letter-spacing: 1px; min-height: 32px;
+  text-shadow: 0 0 16px rgba(240,207,154,0.4);
+}
 </style>
 </head>
 <body>
@@ -166,7 +213,10 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   <canvas id="game"></canvas>
   <div id="hud">
     <div class="hud-chip">$ <b id="money">0</b></div>
-    <div id="backpackBtn" title="Inventory">🎒</div>
+    <div class="hud-right">
+      <div id="gambleBtn" title="Gamble" style="display:none;">🪙</div>
+      <div id="backpackBtn" title="Inventory">🎒</div>
+    </div>
   </div>
   <div id="castHint">Press <kbd>Space</kbd> to cast</div>
 
@@ -196,6 +246,22 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
     <div id="inventoryTitle">Tackle Box</div>
     <div class="inventory-grid" id="inventoryGrid"></div>
     <div id="inventoryEmpty">Nothing caught yet — go cast a line!</div>
+  </div>
+
+  <!-- Phase 5: gamble / slot machine -->
+  <div class="overlay" id="gambleScreen">
+    <div id="gambleClose">✕</div>
+    <div class="title" style="font-size:28px;">Lucky Dip</div>
+    <div class="subtitle" id="gambleSub">Spend 3 of a kind for a spin</div>
+    <div class="stack-select" id="stackSelect"></div>
+    <div id="gambleEmpty">Need at least 3 of one fish to play.</div>
+    <div class="reel-row">
+      <canvas class="reel-canvas" id="reel0" width="56" height="56"></canvas>
+      <canvas class="reel-canvas" id="reel1" width="56" height="56"></canvas>
+      <canvas class="reel-canvas" id="reel2" width="56" height="56"></canvas>
+      <div id="lever"><div id="leverHandle"></div></div>
+    </div>
+    <div id="gambleResult"></div>
   </div>
 </div>
 
@@ -284,6 +350,10 @@ const sfx = {
   reveal: () => { blip(500, 0.1, 'triangle', 0.05, 700); setTimeout(() => blip(700, 0.14, 'triangle', 0.06, 980), 100); setTimeout(() => blip(980, 0.2, 'triangle', 0.06, 1200), 220); },
   sell: () => { blip(880, 0.06, 'square', 0.05, 1180); setTimeout(() => blip(1180, 0.1, 'square', 0.05, 1480), 70); },
   store: () => blip(320, 0.12, 'sine', 0.06, 220),
+  leverPull: () => { noiseBurst(0.08, 0.1, 500, 'lowpass'); blip(200, 0.1, 'square', 0.05, 120); },
+  reelStop: () => blip(500, 0.05, 'square', 0.05, 380),
+  gambleWin: () => { blip(700, 0.1, 'triangle', 0.06, 940); setTimeout(() => blip(940, 0.16, 'triangle', 0.07, 1250), 100); },
+  gambleLose: () => blip(220, 0.22, 'sawtooth', 0.06, 90),
 };
 
 // -------------------------------------------------------------------
@@ -548,6 +618,215 @@ function rollFish() {
 }
 
 // -------------------------------------------------------------------
+//  PHASE 5 — gamble / 3-lane slot machine
+// -------------------------------------------------------------------
+// Small icon tokens for the reels — a distinct visual language from the
+// caught-fish sprites, since these are slot symbols, not real species.
+function makeIconBoot() {
+  return makeSprite(24, 24, (g) => {
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(9, 4, 7, 10, '#6b4a2c');
+    rect(9, 4, 7, 2, '#8a6440');
+    rect(6, 14, 13, 5, '#5a3c22');
+    rect(6, 18, 13, 3, '#3c2814');
+    rect(16, 14, 3, 3, '#3c2814');
+  });
+}
+function makeIconChest() {
+  return makeSprite(24, 24, (g) => {
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(4, 11, 16, 9, '#6b4a2c');
+    rect(4, 8, 16, 4, '#8a6440');
+    rect(4, 11, 16, 2, '#3c2814');
+    rect(10, 9, 4, 4, '#e8c25a');
+    rect(3, 8, 1, 12, '#3c2814'); rect(20, 8, 1, 12, '#3c2814');
+  });
+}
+function makeIconCoin(coinCol, coinDk, emblemCol) {
+  return makeSprite(24, 24, (g) => {
+    g.fillStyle = coinCol;
+    g.beginPath(); g.arc(12, 12, 10, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = coinDk; g.lineWidth = 2;
+    g.beginPath(); g.arc(12, 12, 9, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = emblemCol;
+    g.beginPath(); g.ellipse(11, 12, 5, 3, 0, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.moveTo(16, 12); g.lineTo(19, 9); g.lineTo(19, 15); g.closePath(); g.fill();
+  });
+}
+function makeIconGold() {
+  return makeSprite(24, 24, (g) => {
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(4, 9, 16, 8, '#f0cf6a');
+    rect(4, 9, 16, 2, '#fce89a');
+    rect(4, 15, 16, 2, '#c9a03c');
+    rect(4, 9, 2, 8, '#c9a03c'); rect(18, 9, 2, 8, '#c9a03c');
+    g.fillStyle = '#fff6d0';
+    g.fillRect(7, 5, 2, 2); g.fillRect(17, 17, 2, 2);
+  });
+}
+function makeIconPirate() {
+  return makeSprite(24, 24, (g) => {
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(7, 6, 10, 9, '#e8e2d0');
+    rect(8, 15, 8, 2, '#e8e2d0');
+    rect(9, 9, 2, 3, '#1a1a1a'); rect(13, 9, 2, 3, '#1a1a1a');
+    rect(11, 13, 2, 2, '#1a1a1a');
+    rect(6, 5, 12, 3, '#b83c3c');
+    rect(4, 6, 3, 2, '#b83c3c'); rect(17, 6, 3, 2, '#b83c3c');
+    rect(6, 18, 12, 2, '#e8e2d0');
+  });
+}
+const SLOT_ICONS = {
+  boot: makeIconBoot(),
+  chest: makeIconChest(),
+  bronzeFish: makeIconCoin('#b87a3c', '#8a5228', '#5c3a1c'),
+  goldfish: makeIconCoin('#f0cf6a', '#c9a03c', '#8a6a1e'),
+  gold: makeIconGold(),
+  pirate: makeIconPirate(),
+};
+
+// Gold is a fixed 2% chance; the remaining 98% is split evenly across
+// the other five symbols (confirmed with the user rather than assumed).
+const SLOT_SYMBOLS = [
+  { id: 'gold', name: 'Gold', value: 1000, chance: 0.02 },
+  { id: 'boot', name: 'Boot', value: -20, chance: 0.196 },
+  { id: 'chest', name: 'Treasure Chest', value: 25, chance: 0.196 },
+  { id: 'bronzeFish', name: 'Bronze Fish', value: 50, chance: 0.196 },
+  { id: 'goldfish', name: 'Goldfish', value: 100, chance: 0.196 },
+  { id: 'pirate', name: 'Pirate', value: -100, chance: 0.196 },
+];
+function rollSlotSymbol() {
+  const r = Math.random();
+  let acc = 0;
+  for (const s of SLOT_SYMBOLS) {
+    acc += s.chance;
+    if (r <= acc) return s;
+  }
+  return SLOT_SYMBOLS[1];   // floating-point safety net, should be unreachable
+}
+
+const gambleScreenEl = document.getElementById('gambleScreen');
+let selectedGambleFish = null;
+let gambleSpinning = false;
+const reels = [
+  { elapsed: 0, duration: 0.9, resultId: 'boot', displayId: 'boot', locked: true },
+  { elapsed: 0, duration: 1.3, resultId: 'boot', displayId: 'boot', locked: true },
+  { elapsed: 0, duration: 1.7, resultId: 'boot', displayId: 'boot', locked: true },
+];
+
+function eligibleGambleStacks() {
+  return FISH_CONFIG.filter(f => (save.inventory[f.id] || 0) >= 3);
+}
+function updateGambleButtonVisibility() {
+  document.getElementById('gambleBtn').style.display = eligibleGambleStacks().length ? 'flex' : 'none';
+}
+
+function openGamble() {
+  if (castState !== CastState.IDLE || minigame || currentCatch || inventoryScreenEl.classList.contains('show')) return;
+  if (!eligibleGambleStacks().length) return;
+  sfx.click();
+  selectedGambleFish = null;
+  document.getElementById('gambleResult').textContent = '';
+  renderStackSelect();
+  gambleScreenEl.classList.add('show');
+}
+
+function renderStackSelect() {
+  const el = document.getElementById('stackSelect');
+  el.innerHTML = '';
+  const eligible = eligibleGambleStacks();
+  if (!eligible.some(f => f.id === selectedGambleFish)) {
+    selectedGambleFish = eligible.length ? eligible[0].id : null;
+  }
+  document.getElementById('gambleEmpty').style.display = eligible.length ? 'none' : 'block';
+  for (const f of eligible) {
+    const chip = document.createElement('div');
+    chip.className = 'stack-chip' + (f.id === selectedGambleFish ? ' active' : '');
+    const spr = FISH_SPRITES[f.id];
+    const canvas = document.createElement('canvas');
+    canvas.width = 32; canvas.height = 32;
+    const cctx = canvas.getContext('2d');
+    cctx.imageSmoothingEnabled = false;
+    const scale = Math.min(32 / spr.width, 32 / spr.height);
+    cctx.drawImage(spr, (32 - spr.width * scale) / 2, (32 - spr.height * scale) / 2, spr.width * scale, spr.height * scale);
+    chip.appendChild(canvas);
+    const label = document.createElement('div');
+    label.className = 'stack-chip-count';
+    label.textContent = '×' + save.inventory[f.id];
+    chip.appendChild(label);
+    chip.onclick = () => {
+      if (gambleSpinning) return;
+      selectedGambleFish = f.id; sfx.click(); renderStackSelect();
+    };
+    el.appendChild(chip);
+  }
+}
+
+function pullHandle() {
+  if (gambleSpinning || !selectedGambleFish) return;
+  if ((save.inventory[selectedGambleFish] || 0) < 3) return;
+  save.inventory[selectedGambleFish] -= 3;
+  if (save.inventory[selectedGambleFish] <= 0) delete save.inventory[selectedGambleFish];
+  writeSave();
+
+  gambleSpinning = true;
+  document.getElementById('gambleResult').textContent = '';
+  sfx.leverPull();
+  const durations = [0.9, 1.3, 1.7];
+  reels.forEach((r, i) => {
+    r.elapsed = 0; r.duration = durations[i]; r.locked = false;
+    r.resultId = rollSlotSymbol().id;
+  });
+  renderStackSelect();
+}
+
+function updateGamble(dt) {
+  if (!gambleSpinning) return;
+  let allLocked = true;
+  for (const r of reels) {
+    if (r.locked) continue;
+    r.elapsed += dt;
+    if (r.elapsed >= r.duration) {
+      r.locked = true;
+      r.displayId = r.resultId;
+      sfx.reelStop();
+    } else {
+      allLocked = false;
+      if (Math.floor(r.elapsed / 0.07) !== Math.floor((r.elapsed - dt) / 0.07)) {
+        r.displayId = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)].id;
+      }
+    }
+  }
+  if (allLocked) {
+    gambleSpinning = false;
+    resolveGambleSpin();
+  }
+}
+
+function resolveGambleSpin() {
+  const total = reels.reduce((sum, r) => sum + SLOT_SYMBOLS.find(s => s.id === r.resultId).value, 0);
+  setMoney(Math.max(0, save.money + total));
+  const resultEl = document.getElementById('gambleResult');
+  resultEl.textContent = (total >= 0 ? '+$' : '-$') + Math.abs(total);
+  resultEl.style.color = total >= 0 ? '#8fc48a' : '#d9483c';
+  if (total >= 0) sfx.gambleWin(); else sfx.gambleLose();
+  renderStackSelect();
+  updateGambleButtonVisibility();
+}
+
+function drawGambleReels() {
+  if (!gambleScreenEl.classList.contains('show')) return;
+  reels.forEach((r, i) => {
+    const canvas = document.getElementById('reel' + i);
+    const cctx = canvas.getContext('2d');
+    cctx.imageSmoothingEnabled = false;
+    cctx.clearRect(0, 0, canvas.width, canvas.height);
+    const spr = SLOT_ICONS[r.displayId];
+    if (spr) cctx.drawImage(spr, 0, 0, canvas.width, canvas.height);
+  });
+}
+
+// -------------------------------------------------------------------
 //  RIPPLES — expanding rings that fade, spawned on splash / idle bob
 // -------------------------------------------------------------------
 let ripples = [];
@@ -809,6 +1088,7 @@ document.getElementById('storeBtn').addEventListener('click', () => {
   writeSave();
   currentCatch = null;
   catchScreenEl.classList.remove('show');
+  updateGambleButtonVisibility();
   returnToPond();
 });
 
@@ -838,7 +1118,7 @@ window.addEventListener('keydown', (e) => {
 const inventoryScreenEl = document.getElementById('inventoryScreen');
 
 function openInventory() {
-  if (castState !== CastState.IDLE || minigame || currentCatch) return;
+  if (castState !== CastState.IDLE || minigame || currentCatch || gambleScreenEl.classList.contains('show')) return;
   sfx.click();
   renderInventory();
   inventoryScreenEl.classList.add('show');
@@ -881,7 +1161,22 @@ document.getElementById('inventoryClose').addEventListener('click', () => {
   inventoryScreenEl.classList.remove('show');
 });
 
+document.getElementById('gambleBtn').addEventListener('click', openGamble);
+document.getElementById('gambleClose').addEventListener('click', () => {
+  if (gambleSpinning) return;
+  sfx.click();
+  gambleScreenEl.classList.remove('show');
+});
+document.getElementById('lever').addEventListener('click', () => {
+  if (!selectedGambleFish || gambleSpinning) return;
+  const handle = document.getElementById('leverHandle');
+  handle.classList.add('pulled');
+  setTimeout(() => handle.classList.remove('pulled'), 260);
+  pullHandle();
+});
+
 document.getElementById('money').textContent = save.money;
+updateGambleButtonVisibility();
 
 // -------------------------------------------------------------------
 //  UPDATE
@@ -901,6 +1196,7 @@ function update(dt) {
 
   updateCast(dt);
   updateMinigame(dt);
+  updateGamble(dt);
 }
 
 // -------------------------------------------------------------------
@@ -952,6 +1248,8 @@ function draw() {
     ctx.fillRect(p.x, p.y, p.size, p.size);
     ctx.globalAlpha = 1;
   }
+
+  drawGambleReels();
 }
 
 function loop(t) {
