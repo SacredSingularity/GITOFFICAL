@@ -36,14 +36,16 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   color: rgba(223,230,223,0.85); pointer-events: none;
 }
 .hud-chip b { color: #e8b878; font-weight: 700; }
+.hud-left { display: flex; gap: 8px; pointer-events: none; }
+.hud-left > * { pointer-events: auto; }
 .hud-right { display: flex; gap: 8px; }
-#backpackBtn, #gambleBtn {
+#backpackBtn, #gambleBtn, #upgradeBtn {
   width: 34px; height: 34px; border-radius: 8px;
   background: rgba(18,26,22,0.62); border: 1px solid rgba(180,200,170,0.22);
   backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center;
   font-size: 17px; cursor: pointer; transition: all 0.15s; user-select: none;
 }
-#backpackBtn:hover, #gambleBtn:hover { background: rgba(232,184,120,0.18); border-color: rgba(232,184,120,0.5); }
+#backpackBtn:hover, #gambleBtn:hover, #upgradeBtn:hover { background: rgba(232,184,120,0.18); border-color: rgba(232,184,120,0.5); }
 
 /* --- Overlays (scaffolding for later phases) --- */
 .overlay {
@@ -128,7 +130,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   background: #05070a; backdrop-filter: none;
   align-items: flex-start; justify-content: flex-start; padding: 54px 22px 24px;
 }
-#inventoryClose {
+.close-x {
   position: absolute; top: 14px; left: 16px;
   width: 30px; height: 30px; border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
@@ -136,7 +138,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   color: #d9483c; font-size: 17px; font-weight: 700; cursor: pointer;
   transition: all 0.15s; user-select: none;
 }
-#inventoryClose:hover { background: rgba(217,72,60,0.3); box-shadow: 0 0 14px rgba(217,72,60,0.4); }
+.close-x:hover { background: rgba(217,72,60,0.3); box-shadow: 0 0 14px rgba(217,72,60,0.4); }
 #inventoryTitle {
   font-size: 20px; letter-spacing: 4px; color: #eef2ea; margin-bottom: 22px;
   width: 100%; text-align: center; text-transform: uppercase;
@@ -162,15 +164,6 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 }
 
 /* --- Phase 5: gamble / slot machine --- */
-#gambleClose {
-  position: absolute; top: 14px; left: 16px;
-  width: 30px; height: 30px; border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(217,72,60,0.15); border: 1px solid rgba(217,72,60,0.6);
-  color: #d9483c; font-size: 17px; font-weight: 700; cursor: pointer;
-  transition: all 0.15s; user-select: none;
-}
-#gambleClose:hover { background: rgba(217,72,60,0.3); box-shadow: 0 0 14px rgba(217,72,60,0.4); }
 .stack-select { display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; justify-content: center; }
 .stack-chip {
   position: relative; width: 48px; height: 48px; border-radius: 8px;
@@ -206,13 +199,59 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   font-size: 24px; font-weight: 700; letter-spacing: 1px; min-height: 32px;
   text-shadow: 0 0 16px rgba(240,207,154,0.4);
 }
+
+/* --- Phase 6: upgrades --- */
+#upgradeScreen {
+  background: #0a0f0d; backdrop-filter: none;
+  align-items: flex-start; justify-content: flex-start; padding: 54px 22px 24px;
+}
+.menu-tabs { display: flex; gap: 8px; margin-bottom: 18px; width: 100%; justify-content: center; }
+.tab-btn {
+  padding: 6px 18px; border-radius: 16px; font-size: 11px; letter-spacing: 2px;
+  text-transform: uppercase; font-weight: 700; cursor: pointer; user-select: none;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.16); color: rgba(223,230,223,0.6);
+  transition: all 0.15s;
+}
+.tab-btn.active { background: rgba(232,184,120,0.2); border-color: #f0cf9a; color: #fff6e6; }
+.panel { width: 100%; display: none; }
+.panel.active { display: block; }
+
+.stat-upgrade-list { display: flex; flex-direction: column; gap: 10px; }
+.upg-box {
+  text-align: left; border-radius: 10px; padding: 12px 14px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.upg-text { flex: 1; }
+.upg-name { font-size: 13px; font-weight: 700; letter-spacing: 1px; color: #f0cf9a; text-transform: uppercase; margin-bottom: 3px; }
+.upg-desc { font-size: 11px; color: rgba(223,230,223,0.6); line-height: 1.35; margin-bottom: 5px; }
+.upg-level { font-size: 11px; color: rgba(223,230,223,0.75); }
+.upg-level b { color: #f0cf9a; }
+.upg-btn { padding: 9px 16px; font-size: 11px; letter-spacing: 1px; white-space: nowrap; }
+
+.rod-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.rod-card {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  border-radius: 10px; padding: 12px 8px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14);
+}
+.rod-card.active { border-color: #f0cf9a; box-shadow: 0 0 14px rgba(240,207,154,0.4); }
+.rod-card canvas { image-rendering: pixelated; }
+.rod-name { font-size: 12px; font-weight: 700; color: #eef2ea; letter-spacing: 0.5px; }
+.rod-btn { padding: 7px 14px; font-size: 10px; }
+
+.btn.locked { opacity: 0.4; cursor: not-allowed; }
+.btn.locked:hover { background: rgba(232,184,120,0.12); color: #f0cf9a; box-shadow: none; }
 </style>
 </head>
 <body>
 <div id="stage">
   <canvas id="game"></canvas>
   <div id="hud">
-    <div class="hud-chip">$ <b id="money">0</b></div>
+    <div class="hud-left">
+      <div class="hud-chip">$ <b id="money">0</b></div>
+      <div id="upgradeBtn" title="Upgrades">🛠️</div>
+    </div>
     <div class="hud-right">
       <div id="gambleBtn" title="Gamble" style="display:none;">🪙</div>
       <div id="backpackBtn" title="Inventory">🎒</div>
@@ -242,7 +281,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 
   <!-- Phase 4: inventory -->
   <div class="overlay" id="inventoryScreen">
-    <div id="inventoryClose">✕</div>
+    <div id="inventoryClose" class="close-x">✕</div>
     <div id="inventoryTitle">Tackle Box</div>
     <div class="inventory-grid" id="inventoryGrid"></div>
     <div id="inventoryEmpty">Nothing caught yet — go cast a line!</div>
@@ -250,7 +289,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 
   <!-- Phase 5: gamble / slot machine -->
   <div class="overlay" id="gambleScreen">
-    <div id="gambleClose">✕</div>
+    <div id="gambleClose" class="close-x">✕</div>
     <div class="title" style="font-size:28px;">Lucky Dip</div>
     <div class="subtitle" id="gambleSub">Spend 3 of a kind for a spin</div>
     <div class="stack-select" id="stackSelect"></div>
@@ -262,6 +301,22 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
       <div id="lever"><div id="leverHandle"></div></div>
     </div>
     <div id="gambleResult"></div>
+  </div>
+
+  <!-- Phase 6: upgrades -->
+  <div class="overlay" id="upgradeScreen">
+    <div id="upgradeClose" class="close-x">✕</div>
+    <div class="title" style="font-size:26px; margin-bottom:14px;">Upgrades</div>
+    <div class="menu-tabs">
+      <div class="tab-btn active" id="tabStats">Stats</div>
+      <div class="tab-btn" id="tabRods">Rods</div>
+    </div>
+    <div class="panel active" id="panelStats">
+      <div class="stat-upgrade-list" id="statUpgradeList"></div>
+    </div>
+    <div class="panel" id="panelRods">
+      <div class="rod-grid" id="rodGrid"></div>
+    </div>
   </div>
 </div>
 
@@ -354,6 +409,7 @@ const sfx = {
   reelStop: () => blip(500, 0.05, 'square', 0.05, 380),
   gambleWin: () => { blip(700, 0.1, 'triangle', 0.06, 940); setTimeout(() => blip(940, 0.16, 'triangle', 0.07, 1250), 100); },
   gambleLose: () => blip(220, 0.22, 'sawtooth', 0.06, 90),
+  upgrade: () => { blip(440, 0.08, 'triangle', 0.05, 660); setTimeout(() => blip(660, 0.1, 'triangle', 0.05, 880), 70); },
 };
 
 // -------------------------------------------------------------------
@@ -363,8 +419,16 @@ const SAVE_KEY = 'driftlineSave';
 function loadSave() {
   try {
     const raw = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
-    return { money: raw.money || 0, inventory: raw.inventory || {} };
-  } catch (e) { return { money: 0, inventory: {} }; }
+    return {
+      money: raw.money || 0,
+      inventory: raw.inventory || {},
+      upgrades: Object.assign({ luck: 0, speed: 0, market: 0 }, raw.upgrades || {}),
+      rods: raw.rods || ['basic'],
+      equippedRod: raw.equippedRod || 'basic',
+    };
+  } catch (e) {
+    return { money: 0, inventory: {}, upgrades: { luck: 0, speed: 0, market: 0 }, rods: ['basic'], equippedRod: 'basic' };
+  }
 }
 function writeSave() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
@@ -607,15 +671,128 @@ const FISH_CONFIG = [
 ];
 const RARITY_COLORS = { common: '#c9c9c9', uncommon: '#5fa868', rare: '#5a8fc9', epic: '#a878c9', legendary: '#e8b83c' };
 
+// Luck (Phase 6) shifts weight away from the common tier toward the rest,
+// proportional to their existing relative split. Common has an effective
+// floor of 5% so odds never go negative or degenerate even though Luck
+// itself has no purchase cap — see buyStatUpgrade's comment for how that
+// plays out at high levels.
+function getEffectiveFishWeights() {
+  const commonFish = FISH_CONFIG.find(f => f.rarity === 'common');
+  const baseCommon = commonFish.chance * 100;
+  const commonFloorPct = 5;
+  const maxRemovable = Math.max(0, baseCommon - commonFloorPct);
+  const luckPercent = save.upgrades.luck * 2;
+  const removed = Math.min(luckPercent, maxRemovable);
+
+  const weights = { [commonFish.id]: baseCommon - removed };
+  for (const f of FISH_CONFIG) {
+    if (f.id === commonFish.id) continue;
+    const oldWeight = f.chance * 100;
+    weights[f.id] = oldWeight + removed * (oldWeight / baseCommon);
+  }
+  // re-normalize to guard against floating-point drift
+  const total = Object.values(weights).reduce((a, b) => a + b, 0);
+  for (const k in weights) weights[k] = weights[k] / total * 100;
+  return weights;
+}
+
 function rollFish() {
-  const r = Math.random();
+  const weights = getEffectiveFishWeights();
+  const r = Math.random() * 100;
   let acc = 0;
   for (const f of FISH_CONFIG) {
-    acc += f.chance;
+    acc += weights[f.id];
     if (r <= acc) return f;
   }
   return FISH_CONFIG[0];   // floating-point safety net, should be unreachable
 }
+
+// Market (Phase 6) increases sell price only; Store still adds the fish
+// at face value, unaffected.
+function effectiveSellValue(fish) {
+  return Math.round(fish.value * (1 + 0.05 * save.upgrades.market));
+}
+
+// -------------------------------------------------------------------
+//  PHASE 6 — stat upgrades (Luck / Speed / Market) and cosmetic rods
+// -------------------------------------------------------------------
+// Config-driven, same pattern as FISH_CONFIG — new upgrades or tiers can
+// be added here without touching the buy/render logic.
+const STAT_UPGRADES = {
+  luck: {
+    name: 'Luck', maxLevel: Infinity,
+    desc: 'Shifts the odds away from Common toward rarer fish.',
+    cost: (level) => 300 * (level + 1),
+    bonusText: (level) => `+${level * 2}%`,
+  },
+  speed: {
+    name: 'Speed', maxLevel: 10,
+    desc: 'Shortens the wait between casting and the reel-in.',
+    cost: (level) => 100 + 300 * level,
+    bonusText: (level) => `${level * 2}% faster`,
+  },
+  market: {
+    name: 'Market', maxLevel: 10,
+    desc: 'Increases the sell price of every fish.',
+    cost: (level) => 350 * (level + 1),
+    bonusText: (level) => `+${level * 5}%`,
+  },
+};
+function buyStatUpgrade(key) {
+  const u = STAT_UPGRADES[key];
+  const level = save.upgrades[key];
+  if (level >= u.maxLevel) return;
+  const cost = u.cost(level);
+  if (save.money < cost) return;
+  save.money -= cost;
+  save.upgrades[key] = level + 1;
+  writeSave();
+  sfx.upgrade();
+  document.getElementById('money').textContent = save.money;
+  renderStatUpgrades();
+}
+// Speed's effective wait time, used by updateCast() instead of a fixed
+// constant so purchases take effect immediately on the next cast.
+function currentWaitDuration() {
+  return 3.0 * (1 - 0.02 * save.upgrades.speed);
+}
+
+// Cosmetic rod skins — 'basic' is the free starting rod already used in
+// Phase 1; the other five are the paid tiers from the brief. Palette
+// mirrors quickdraw's skin system: shared draw function, per-rod colors.
+const ROD_PALETTES = {
+  basic:    { main: '#4a3826', hi: '#6e5638' },
+  bronze:   { main: '#8a5a2c', hi: '#c98a4c' },
+  silver:   { main: '#9aa8ac', hi: '#d4e0e2' },
+  gold:     { main: '#c9a03c', hi: '#f0d876' },
+  diamond:  { main: '#7fd4dc', hi: '#dff8fa', glow: 'rgba(150,230,240,0.6)' },
+  obsidian: { main: '#1a1420', hi: '#3a2a4a', vein: '#a84adf', glow: 'rgba(160,60,220,0.45)' },
+};
+const ROD_CONFIG = [
+  { id: 'basic', name: 'Basic', price: 0 },
+  { id: 'bronze', name: 'Bronze', price: 150 },
+  { id: 'silver', name: 'Silver', price: 300 },
+  { id: 'gold', name: 'Gold', price: 600 },
+  { id: 'diamond', name: 'Diamond', price: 1500 },
+  { id: 'obsidian', name: 'Obsidian', price: 3333 },
+];
+function makeRodPreview(pal) {
+  return makeSprite(50, 60, (g) => {
+    g.strokeStyle = pal.main; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(10, 54); g.lineTo(42, 6); g.stroke();
+    g.strokeStyle = pal.hi; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(10, 54); g.lineTo(42, 6); g.stroke();
+    if (pal.vein) {
+      g.strokeStyle = pal.vein; g.lineWidth = 1.2;
+      for (let t = 0.18; t < 0.9; t += 0.2) {
+        const px = 10 + (42 - 10) * t, py = 54 + (6 - 54) * t;
+        g.beginPath(); g.moveTo(px - 2, py); g.lineTo(px + 2, py + 4); g.stroke();
+      }
+    }
+  });
+}
+const ROD_PREVIEWS = {};
+for (const id in ROD_PALETTES) ROD_PREVIEWS[id] = makeRodPreview(ROD_PALETTES[id]);
 
 // -------------------------------------------------------------------
 //  PHASE 5 — gamble / 3-lane slot machine
@@ -722,7 +899,7 @@ function updateGambleButtonVisibility() {
 }
 
 function openGamble() {
-  if (castState !== CastState.IDLE || minigame || currentCatch || inventoryScreenEl.classList.contains('show')) return;
+  if (castState !== CastState.IDLE || minigame || currentCatch || inventoryScreenEl.classList.contains('show') || upgradeScreenEl.classList.contains('show')) return;
   if (!eligibleGambleStacks().length) return;
   sfx.click();
   selectedGambleFish = null;
@@ -856,7 +1033,6 @@ const CastState = { IDLE: 0, CASTING: 1, WAITING: 2, REELING: 3 };
 let castState = CastState.IDLE;
 let stateT = 0;                 // time elapsed in the current state
 const CAST_DURATION = 0.45;
-const WAIT_DURATION = 3.0;
 const REEL_DURATION = 0.9;
 
 // resting (idle) and back-cast / forward-cast rod angles, in radians,
@@ -913,7 +1089,7 @@ function updateCast(dt) {
     if (Math.floor(stateT * 1.5) !== Math.floor((stateT - dt) * 1.5)) {
       spawnRipple(landPoint.x, landPoint.y, 22, 1.6);
     }
-    if (stateT >= WAIT_DURATION) {
+    if (stateT >= currentWaitDuration()) {
       castState = CastState.REELING;
       stateT = 0;
     }
@@ -1055,7 +1231,7 @@ function showCatchReveal(fish) {
   rarityEl.textContent = fish.rarity;
   rarityEl.style.color = RARITY_COLORS[fish.rarity];
   document.getElementById('catchName').textContent = fish.name;
-  document.getElementById('catchValue').textContent = fish.value;
+  document.getElementById('catchValue').textContent = effectiveSellValue(fish);
 
   const spr = FISH_SPRITES[fish.id];
   const canvas = catchSpriteCtx.canvas;
@@ -1076,7 +1252,7 @@ function setMoney(amount) {
 document.getElementById('sellBtn').addEventListener('click', () => {
   if (!currentCatch) return;
   sfx.sell();
-  setMoney(save.money + currentCatch.value);
+  setMoney(save.money + effectiveSellValue(currentCatch));
   currentCatch = null;
   catchScreenEl.classList.remove('show');
   returnToPond();
@@ -1118,7 +1294,7 @@ window.addEventListener('keydown', (e) => {
 const inventoryScreenEl = document.getElementById('inventoryScreen');
 
 function openInventory() {
-  if (castState !== CastState.IDLE || minigame || currentCatch || gambleScreenEl.classList.contains('show')) return;
+  if (castState !== CastState.IDLE || minigame || currentCatch || gambleScreenEl.classList.contains('show') || upgradeScreenEl.classList.contains('show')) return;
   sfx.click();
   renderInventory();
   inventoryScreenEl.classList.add('show');
@@ -1175,6 +1351,114 @@ document.getElementById('lever').addEventListener('click', () => {
   pullHandle();
 });
 
+// -------------------------------------------------------------------
+//  PHASE 6 — upgrade panel (Stats + Rods sub-tabs)
+// -------------------------------------------------------------------
+const upgradeScreenEl = document.getElementById('upgradeScreen');
+
+function openUpgradePanel() {
+  if (castState !== CastState.IDLE || minigame || currentCatch ||
+      inventoryScreenEl.classList.contains('show') || gambleScreenEl.classList.contains('show')) return;
+  sfx.click();
+  renderStatUpgrades();
+  renderRodGrid();
+  upgradeScreenEl.classList.add('show');
+}
+
+function renderStatUpgrades() {
+  const list = document.getElementById('statUpgradeList');
+  list.innerHTML = '';
+  for (const key in STAT_UPGRADES) {
+    const u = STAT_UPGRADES[key];
+    const level = save.upgrades[key];
+    const maxed = level >= u.maxLevel;
+    const cost = maxed ? null : u.cost(level);
+    const affordable = !maxed && save.money >= cost;
+    const box = document.createElement('div');
+    box.className = 'upg-box';
+    box.innerHTML = `
+      <div class="upg-text">
+        <div class="upg-name">${u.name}</div>
+        <div class="upg-desc">${u.desc}</div>
+        <div class="upg-level">LV <b>${level}</b>${u.maxLevel === Infinity ? '' : '/' + u.maxLevel} &middot; ${u.bonusText(level)}</div>
+      </div>
+      <div class="btn upg-btn${affordable ? '' : ' locked'}">${maxed ? 'MAXED' : '$' + cost}</div>
+    `;
+    if (affordable) box.querySelector('.upg-btn').onclick = () => buyStatUpgrade(key);
+    list.appendChild(box);
+  }
+}
+
+function renderRodGrid() {
+  const grid = document.getElementById('rodGrid');
+  grid.innerHTML = '';
+  for (const rod of ROD_CONFIG) {
+    const owned = save.rods.includes(rod.id);
+    const equipped = save.equippedRod === rod.id;
+    const card = document.createElement('div');
+    card.className = 'rod-card' + (equipped ? ' active' : '');
+
+    const preview = document.createElement('canvas');
+    preview.width = 50; preview.height = 60;
+    const pctx = preview.getContext('2d');
+    pctx.imageSmoothingEnabled = false;
+    pctx.drawImage(ROD_PREVIEWS[rod.id], 0, 0);
+    card.appendChild(preview);
+
+    const name = document.createElement('div');
+    name.className = 'rod-name'; name.textContent = rod.name;
+    card.appendChild(name);
+
+    const btn = document.createElement('div');
+    const affordable = owned || save.money >= rod.price;
+    btn.className = 'btn rod-btn' + (affordable ? '' : ' locked');
+    btn.textContent = owned ? (equipped ? 'Equipped' : 'Equip') : ('$' + rod.price);
+    if (affordable) btn.onclick = () => (owned ? equipRod(rod.id) : buyRod(rod.id));
+    card.appendChild(btn);
+
+    grid.appendChild(card);
+  }
+}
+
+function buyRod(id) {
+  const rod = ROD_CONFIG.find(r => r.id === id);
+  if (save.rods.includes(id) || save.money < rod.price) return;
+  save.money -= rod.price;
+  save.rods.push(id);
+  save.equippedRod = id;
+  writeSave();
+  sfx.upgrade();
+  document.getElementById('money').textContent = save.money;
+  renderRodGrid();
+}
+function equipRod(id) {
+  if (!save.rods.includes(id) || save.equippedRod === id) return;
+  save.equippedRod = id;
+  writeSave();
+  sfx.click();
+  renderRodGrid();
+}
+
+document.getElementById('upgradeBtn').addEventListener('click', openUpgradePanel);
+document.getElementById('upgradeClose').addEventListener('click', () => {
+  sfx.click();
+  upgradeScreenEl.classList.remove('show');
+});
+document.getElementById('tabStats').addEventListener('click', () => {
+  sfx.click();
+  document.getElementById('tabStats').classList.add('active');
+  document.getElementById('tabRods').classList.remove('active');
+  document.getElementById('panelStats').classList.add('active');
+  document.getElementById('panelRods').classList.remove('active');
+});
+document.getElementById('tabRods').addEventListener('click', () => {
+  sfx.click();
+  document.getElementById('tabRods').classList.add('active');
+  document.getElementById('tabStats').classList.remove('active');
+  document.getElementById('panelRods').classList.add('active');
+  document.getElementById('panelStats').classList.remove('active');
+});
+
 document.getElementById('money').textContent = save.money;
 updateGambleButtonVisibility();
 
@@ -1204,11 +1488,22 @@ function update(dt) {
 // -------------------------------------------------------------------
 function drawRodAndLine() {
   const tip = rodTipPos(rodAngle);
-  // rod
-  ctx.strokeStyle = '#4a3826'; ctx.lineWidth = 3;
+  const pal = ROD_PALETTES[save.equippedRod] || ROD_PALETTES.basic;
+
+  ctx.save();
+  if (pal.glow) { ctx.shadowColor = pal.glow; ctx.shadowBlur = 6; }
+  ctx.strokeStyle = pal.main; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(ROD_PIVOT.x, ROD_PIVOT.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
-  ctx.strokeStyle = '#6e5638'; ctx.lineWidth = 1;
+  ctx.restore();
+  ctx.strokeStyle = pal.hi; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(ROD_PIVOT.x, ROD_PIVOT.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+  if (pal.vein) {
+    ctx.strokeStyle = pal.vein; ctx.lineWidth = 1.2;
+    for (let t = 0.15; t < 0.9; t += 0.22) {
+      const px = lerp(ROD_PIVOT.x, tip.x, t), py = lerp(ROD_PIVOT.y, tip.y, t);
+      ctx.beginPath(); ctx.moveTo(px - 2, py); ctx.lineTo(px + 2, py + 4); ctx.stroke();
+    }
+  }
 
   if (hook.visible) {
     // line from rod tip to hook, with a slight sag for a natural curve
