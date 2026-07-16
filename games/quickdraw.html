@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quickdraw</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: #1a120b; overflow: hidden;
+  font-family: Rockwell, 'Rockwell Nova', Georgia, 'Times New Roman', serif;
+  display: flex; align-items: center; justify-content: center;
+  color: #e8d9b8;
+}
+#stage {
+  position: relative;
+  width: 480px; height: 720px;
+  transform-origin: center center;
+  box-shadow: 0 0 60px rgba(255,140,40,0.10), inset 0 0 140px rgba(0,0,0,0.65);
+  border: 3px solid #4a2e18;
+  border-radius: 10px; overflow: hidden;
+  background: #2b1d12;
+}
+canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* --- HUD --- */
+#hud {
+  position: absolute; top: 14px; left: 0; right: 0;
+  display: flex; justify-content: space-between; padding: 0 18px;
+  pointer-events: none; z-index: 10;
+  font-size: 13px; letter-spacing: 1px;
+}
+.hud-chip {
+  background: rgba(30,18,8,0.62); border: 1px solid rgba(214,160,90,0.28);
+  border-radius: 6px; padding: 6px 14px; backdrop-filter: blur(4px);
+  color: rgba(232,217,184,0.8);
+}
+.hud-chip b { color: #ff9a3c; font-weight: 700; }
+#bullets-chip b { color: #d94f3c; }
+
+/* --- Overlays --- */
+.overlay {
+  position: absolute; inset: 0; z-index: 20;
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(60,32,10,0.55), rgba(15,9,4,0.92));
+  backdrop-filter: blur(3px); text-align: center; padding: 20px;
+  overflow-y: auto;
+}
+.overlay.show { display: flex; }
+.title {
+  font-size: 46px; font-weight: 800; letter-spacing: 6px;
+  color: #f6e6c4; text-shadow: 0 0 26px rgba(255,140,40,0.55);
+  margin-bottom: 6px; text-transform: uppercase;
+}
+.western-title {
+  position: relative; padding: 6px 0; margin-bottom: 4px;
+  text-shadow: 2px 2px 0 #2c1a0e, 0 0 24px rgba(255,140,40,0.5);
+}
+.western-title::before, .western-title::after {
+  content: ''; display: block; height: 3px; width: 70%; margin: 0 auto;
+  background: repeating-linear-gradient(90deg, #b57c3c 0, #b57c3c 8px, transparent 8px, transparent 14px);
+  opacity: 0.7;
+}
+.western-title::before { margin-bottom: 8px; }
+.western-title::after { margin-top: 8px; }
+.subtitle { color: rgba(232,217,184,0.6); font-size: 12px; letter-spacing: 3px; margin-bottom: 18px; text-transform: uppercase; font-style: italic; }
+.death-msg {
+  font-size: 38px; font-weight: 800; letter-spacing: 2px; margin-bottom: 8px;
+  text-shadow: 0 0 26px rgba(217,79,60,0.6); text-transform: uppercase;
+}
+.death-sub { color: rgba(232,217,184,0.55); font-size: 12px; letter-spacing: 2px; margin-bottom: 24px; text-transform: uppercase; }
+.stat-box {
+  background: rgba(30,18,8,0.6); border: 1px solid rgba(214,160,90,0.28);
+  border-radius: 10px; padding: 16px 30px; margin-bottom: 22px; backdrop-filter: blur(6px);
+  display: flex; gap: 26px;
+}
+.stat-item { display: flex; flex-direction: column; align-items: center; }
+.stat-num { font-size: 32px; font-weight: 800; color: #ff9a3c; line-height: 1; text-shadow: 0 0 18px rgba(255,140,40,0.4); }
+.stat-label { font-size: 9px; letter-spacing: 2px; color: rgba(232,217,184,0.5); margin-top: 6px; text-transform: uppercase; }
+.btn {
+  background: rgba(255,140,40,0.12); border: 1px solid rgba(255,154,60,0.5);
+  border-radius: 24px; padding: 13px 38px; color: #ffb066; font-size: 14px;
+  font-weight: 700; letter-spacing: 2px; cursor: pointer; transition: all 0.18s;
+  user-select: none; backdrop-filter: blur(4px); text-transform: uppercase;
+}
+.btn:hover { background: rgba(255,140,40,0.26); color: #fff2df; box-shadow: 0 0 22px rgba(255,140,40,0.4); }
+.btn-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.btn-play {
+  font-size: 18px; padding: 15px 54px; margin-top: 6px;
+  background: rgba(255,140,40,0.2); border: 2px solid #ff9a3c; color: #fff2df;
+}
+.btn-play:hover { box-shadow: 0 0 28px rgba(255,154,60,0.55); }
+.btn.locked { opacity: 0.4; cursor: not-allowed; }
+.btn.locked:hover { background: rgba(255,140,40,0.12); color: #ffb066; box-shadow: none; }
+
+/* --- Menu layout --- */
+.menu-stats-row { display: flex; gap: 8px; margin-bottom: 10px; }
+#menuScreen {
+  justify-content: flex-start; padding-top: 14px;
+  background:
+    radial-gradient(ellipse at center, rgba(60,32,10,0.58), rgba(15,9,4,0.93)),
+    repeating-linear-gradient(180deg, #7a4e30 0px, #7a4e30 3px, #6e4424 3px, #6e4424 44px, #5c3a24 44px, #5c3a24 47px);
+}
+.gun-plaque {
+  background: linear-gradient(180deg, #6e4424, #4a2e18);
+  border: 2px solid #2c1a0e; border-radius: 8px;
+  box-shadow: inset 0 0 14px rgba(0,0,0,0.55), 0 3px 6px rgba(0,0,0,0.4);
+  padding: 8px 14px; margin-bottom: 10px;
+}
+#gunDisplay { width: 220px; height: 148px; image-rendering: pixelated; display: block; }
+.panel { width: 100%; max-width: 440px; display: none; }
+.panel.active { display: block; }
+
+.upgrade-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.upg-box {
+  flex: 1; text-align: left; border-radius: 8px; padding: 10px 8px;
+  background: linear-gradient(160deg, #7a5638, #5c3a24);
+  border: 1px solid #2c1a0e;
+  box-shadow: inset 0 0 0 2px rgba(214,160,90,0.18), inset 0 1px 3px rgba(255,220,170,0.15), 0 2px 4px rgba(0,0,0,0.35);
+}
+.upg-name { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #ffcf8a; text-transform: uppercase; margin-bottom: 4px; text-shadow: 1px 1px 0 rgba(0,0,0,0.4); }
+.upg-desc { font-size: 10px; color: rgba(245,230,200,0.75); line-height: 1.35; min-height: 40px; margin-bottom: 6px; }
+.upg-level { font-size: 10px; color: rgba(245,230,200,0.85); margin-bottom: 6px; letter-spacing: 1px; }
+.upg-level b { color: #ffcf8a; }
+.upg-btn {
+  width: 100%; text-align: center; padding: 7px 4px; font-size: 10px; letter-spacing: 1px;
+}
+
+.item-box {
+  margin-top: 8px; text-align: left; border-radius: 8px; padding: 10px 12px;
+  background: linear-gradient(160deg, #7a5638, #5c3a24);
+  border: 1px solid #2c1a0e;
+  box-shadow: inset 0 0 0 2px rgba(214,160,90,0.18), inset 0 1px 3px rgba(255,220,170,0.15), 0 2px 4px rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.item-box .item-text { flex: 1; }
+.item-box .item-name { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #ff6a56; text-transform: uppercase; margin-bottom: 3px; text-shadow: 1px 1px 0 rgba(0,0,0,0.4); }
+.item-box .item-desc { font-size: 10px; color: rgba(245,230,200,0.75); line-height: 1.35; }
+.item-box .btn { padding: 8px 16px; font-size: 10px; letter-spacing: 1px; white-space: nowrap; }
+.item-box .btn.laser-off { opacity: 0.55; color: rgba(232,217,184,0.7); border-color: rgba(214,160,90,0.3); background: rgba(30,18,8,0.4); }
+
+.restart-rounds-btn { margin-top: 10px; font-size: 10px; padding: 8px 20px; opacity: 0.75; }
+.restart-rounds-btn:hover { opacity: 1; }
+
+.skin-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+.skin-chip {
+  position: relative; width: 100px; padding: 8px 4px 7px; border-radius: 8px;
+  background: linear-gradient(160deg, #7a5638, #5c3a24);
+  border: 1px solid #2c1a0e;
+  box-shadow: inset 0 0 0 2px rgba(214,160,90,0.18), inset 0 1px 3px rgba(255,220,170,0.15);
+  cursor: pointer; transition: all 0.15s; user-select: none;
+}
+.skin-chip:hover { border-color: #ff9a3c; box-shadow: inset 0 0 0 2px rgba(255,154,60,0.4), 0 0 10px rgba(255,154,60,0.25); }
+.skin-chip.active { border-color: #ff9a3c; box-shadow: inset 0 0 0 2px #ff9a3c, 0 0 14px rgba(255,154,60,0.4); }
+.skin-chip.locked { cursor: not-allowed; opacity: 0.6; }
+.skin-chip canvas { display: block; margin: 0 auto 4px; image-rendering: pixelated; }
+.skin-chip .skin-name { font-size: 10px; font-weight: 700; color: #fff2df; letter-spacing: 0.5px; }
+.skin-chip .skin-price { font-size: 9px; letter-spacing: 1px; color: rgba(255,221,150,0.75); margin-top: 2px; }
+.skin-chip.locked .skin-price { color: #ffd24a; }
+
+#missFlash {
+  position: absolute; top: 42%; left: 50%; transform: translate(-50%,-50%);
+  z-index: 15; display: none; pointer-events: none;
+  font-size: 26px; font-weight: 800; letter-spacing: 4px; color: #d94f3c;
+  text-shadow: 0 0 16px rgba(217,79,60,0.8);
+}
+#reloadFlash {
+  position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%);
+  z-index: 15; display: none; pointer-events: none;
+  font-size: 13px; font-weight: 700; letter-spacing: 2px; color: #ffd24a;
+  text-shadow: 0 0 12px rgba(255,210,74,0.7);
+  background: rgba(20,12,4,0.6); border: 1px solid rgba(255,210,74,0.35);
+  border-radius: 6px; padding: 5px 14px; white-space: nowrap;
+}
+#underpoweredWarn {
+  position: absolute; top: 82px; left: 50%; transform: translateX(-50%);
+  z-index: 15; display: none; pointer-events: none; width: 90%; text-align: center;
+  font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #ffd24a;
+  text-shadow: 0 0 10px rgba(255,210,74,0.6);
+  background: rgba(60,20,4,0.7); border: 1px solid rgba(255,154,60,0.5);
+  border-radius: 6px; padding: 6px 10px;
+}
+#comboBadge {
+  position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
+  z-index: 15; display: none; pointer-events: none;
+  font-size: 18px; font-weight: 800; letter-spacing: 2px; color: #ffd24a;
+  text-shadow: 0 0 14px rgba(255,210,74,0.8), 0 0 4px rgba(0,0,0,0.6);
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game"></canvas>
+  <div id="hud">
+    <div class="hud-chip" id="money-chip">$ <b id="money">0</b></div>
+    <div class="hud-chip" id="round-chip">ROUND <b id="round">1</b></div>
+    <div class="hud-chip" id="bullets-chip">SHOTS <b id="bullets">3</b></div>
+  </div>
+  <div id="missFlash">MISS</div>
+  <div id="reloadFlash">⟳ RELOADING</div>
+  <div id="underpoweredWarn">⚠ UNDERGUNNED FOR THIS ROUND — UPGRADE POWER OR AMMO IN THE ARMORY</div>
+  <div id="comboBadge">COMBO x1</div>
+
+  <!-- Menu / Armory overlay -->
+  <div class="overlay show" id="menuScreen">
+    <div class="title western-title" style="font-size:32px;margin-top:2px;">☆ Quickdraw ☆</div>
+    <div class="subtitle">Time the swing &bull; break the glass &bull; earn your keep</div>
+    <div class="menu-stats-row">
+      <div class="hud-chip">$ <b id="menuMoney">0</b></div>
+      <div class="hud-chip">ROUND <b id="menuRound">1</b></div>
+    </div>
+    <div class="gun-plaque"><canvas id="gunDisplay"></canvas></div>
+    <div class="panel active" id="panelUpgrades">
+      <div class="upgrade-row" id="upgradeRow"></div>
+      <div class="item-box" id="laserBox"></div>
+    </div>
+    <div class="panel" id="panelSkins">
+      <div class="skin-row" id="skinRow"></div>
+    </div>
+    <div class="btn-row" style="margin-top:2px;">
+      <div class="btn" id="skinsToggleBtn">🎨 Change Skin</div>
+    </div>
+    <div class="btn btn-play" id="playBtn">▸ Play</div>
+    <div class="btn restart-rounds-btn" id="restartRoundsBtn">↺ Restart Rounds</div>
+  </div>
+
+  <!-- Restart-rounds confirmation overlay -->
+  <div class="overlay" id="confirmResetScreen">
+    <div class="title" style="font-size:28px;">Restart Rounds?</div>
+    <div class="subtitle" style="margin-bottom:26px;">This resets your progress back to Round 1.<br>Money and upgrades are kept.</div>
+    <div class="btn-row">
+      <div class="btn btn-play" id="confirmResetYes">Yes</div>
+      <div class="btn" id="confirmResetNo">No</div>
+    </div>
+  </div>
+
+  <!-- Win overlay -->
+  <div class="overlay" id="winScreen">
+    <div class="title">Clean Shot</div>
+    <div class="subtitle" id="winSub">— ROUND CLEARED —</div>
+    <div class="stat-box">
+      <div class="stat-item"><div class="stat-num" id="winMoney">0</div><div class="stat-label">Earned</div></div>
+      <div class="stat-item"><div class="stat-num" id="winBonus">0</div><div class="stat-label">Shots Left</div></div>
+    </div>
+    <div class="btn-row">
+      <div class="btn btn-play" id="nextRoundBtn">Next Round</div>
+      <div class="btn" id="winMenuBtn">Return to Menu</div>
+    </div>
+  </div>
+
+  <!-- Lose overlay -->
+  <div class="overlay" id="loseScreen">
+    <div class="death-msg">You've Been Outdrawn</div>
+    <div class="death-sub" id="loseSub">— OUT OF BULLETS —</div>
+    <div class="stat-box">
+      <div class="stat-item"><div class="stat-num" id="loseRound">1</div><div class="stat-label">Round Reached</div></div>
+      <div class="stat-item"><div class="stat-num" id="loseBest">1</div><div class="stat-label">Best Round</div></div>
+    </div>
+    <div class="btn-row">
+      <div class="btn btn-play" id="retryBtn">Try Again</div>
+      <div class="btn" id="loseMenuBtn">Return to Menu</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================================================================
+//  QUICKDRAW — a timing-based western shooting-gallery game
+//  Structural sibling of the sci-fi reference: canvas-drawn procedural
+//  pixel sprites, teal-glow UI swapped for campfire-orange, Web-Audio SFX.
+// ===================================================================
+
+// Visible error banner: if anything throws, show it on-screen instead of
+// failing silently (this is the only way to diagnose a bug on a machine
+// we can't open devtools on).
+window.addEventListener('error', (e) => {
+  let el = document.getElementById('jsErrorBanner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'jsErrorBanner';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#a00;color:#fff;' +
+      'font:12px monospace;padding:8px;white-space:pre-wrap;max-height:40%;overflow:auto;';
+    document.body.appendChild(el);
+  }
+  el.textContent += 'JS ERROR: ' + e.message + '  (' + e.filename + ':' + e.lineno + ')\n';
+});
+
+const VW = 480, VH = 720;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const stage = document.getElementById('stage');
+canvas.width = VW; canvas.height = VH;
+ctx.imageSmoothingEnabled = false;
+
+let SCALE = 1;
+function fitStage() {
+  const pad = 20;
+  const s = Math.min((window.innerWidth - pad) / VW, (window.innerHeight - pad) / VH);
+  SCALE = (isFinite(s) && s > 0) ? Math.max(0.25, s) : 1;
+  stage.style.transform = 'scale(' + SCALE + ')';
+}
+window.addEventListener('resize', fitStage);
+window.addEventListener('load', fitStage);
+fitStage();
+requestAnimationFrame(fitStage);
+setTimeout(fitStage, 200);
+
+// -------------------------------------------------------------------
+//  PIXEL SPRITE FACTORY
+// -------------------------------------------------------------------
+function makeSprite(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  draw(g, w, h);
+  return c;
+}
+
+// --- Gun sprite: procedural pixel revolver, palette-driven for skins ---
+// Modeled on a classic side-profile revolver reference, rotated so the
+// muzzle points up (toward y=0) on a 28x48 grid: long highlighted barrel,
+// a wide fluted cylinder, a side hammer spur, an open trigger-guard loop,
+// and a flared wood grip.
+function makeGunSprite(pal) {
+  return makeSprite(28, 48, (g) => {
+    const P = (x, y, col) => { g.fillStyle = col; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+    // front sight + long barrel, with a bright highlight stripe running
+    // its full length (the reference's shiny top-of-barrel reflection)
+    rect(13, 0, 2, 2, pal.accent);
+    rect(12, 2, 4, 18, pal.barrel);
+    rect(12, 2, 1, 18, pal.barrelLt);
+    rect(15, 2, 1, 18, pal.metalDk);
+    // cylinder — wide fluted block, clearly broader than the barrel
+    rect(10, 20, 8, 1, pal.metal);
+    rect(8, 21, 12, 8, pal.metal);
+    rect(8, 21, 2, 1, pal.metalDk); rect(18, 21, 2, 1, pal.metalDk);   // corner trim
+    rect(8, 28, 2, 1, pal.metalDk); rect(18, 28, 2, 1, pal.metalDk);
+    rect(10, 29, 8, 1, pal.metal);
+    rect(8, 22, 12, 2, pal.metalLt);   // top-lit band
+    for (let y = 23; y < 28; y += 2) { P(11, y, pal.metalDk); P(14, y, pal.metalDk); P(17, y, pal.metalDk); }
+    P(14, 25, pal.accent);   // cylinder pin
+    // hammer, cocked back to the side
+    rect(20, 22, 2, 4, pal.metalDk);
+    rect(21, 20, 2, 3, pal.metalDk);
+    P(22, 19, pal.accent);
+    // frame tapering from the cylinder down into the grip (kept solid so
+    // the silhouette reads as one continuous piece, not floating parts)
+    rect(9, 30, 10, 2, pal.metal);
+    rect(10, 32, 8, 1, pal.metal);
+    // grip: narrow at the frame, flaring wide toward the butt, wood-toned
+    rect(11, 32, 6, 4, pal.grip);
+    rect(9, 36, 10, 5, pal.grip);
+    rect(7, 41, 14, 4, pal.grip);
+    rect(6, 45, 16, 3, pal.grip);
+    rect(8, 32, 1, 17, pal.gripLt);   // left highlight edge
+    rect(19, 36, 1, 13, pal.gripDk);  // right shadow edge
+    // grain texture + a small screw/emblem dot like the reference's grip pin
+    for (let y = 39; y < 47; y += 2) P(10 + (y % 4), y, pal.gripDk);
+    P(13, 40, pal.accent);
+    rect(6, 47, 16, 1, pal.gripDk);   // butt base
+    // open trigger-guard loop (a real ring, like the reference, not a
+    // filled block) — drawn last so it sits visibly on top of the grip.
+    // Uses the LIGHT metal tone (not metalDk) so it stays visible against
+    // a dark wood grip instead of blending invisibly into it.
+    g.strokeStyle = pal.metalLt; g.lineWidth = 1.8;
+    g.beginPath(); g.ellipse(14, 36.5, 4.4, 4, 0, 0, Math.PI * 2); g.stroke();
+    rect(13, 34, 2, 3, pal.metalLt);
+    // optional fire pattern (Demonspawn skin): jagged red/orange licks
+    // climbing the barrel and grip, on top of the base silhouette
+    if (pal.flame) {
+      const licks = [
+        [13, 4, pal.accent], [14, 7, pal.flameHot], [12, 10, pal.accent], [13, 13, pal.flameHot], [14, 16, pal.accent],
+        [20, 23, pal.flameHot], [9, 26, pal.accent],
+        [10, 37, pal.flameHot], [16, 39, pal.accent], [8, 42, pal.flameHot], [13, 43, pal.accent], [11, 45, pal.flameHot], [17, 46, pal.accent],
+      ];
+      for (const [fx, fy, fc] of licks) P(fx, fy, fc);
+    }
+  });
+}
+const SKIN_PALETTES = {
+  rusty:  { barrel:'#8a7a68', barrelLt:'#ac9c86', metal:'#6e5f50', metalLt:'#8a7a68', metalDk:'#4a3f34',
+            grip:'#5c3a24', gripLt:'#7a4e30', gripDk:'#3c2416', accent:'#c98a3c' },
+  silver: { barrel:'#c9d2d6', barrelLt:'#eef4f6', metal:'#a8b4ba', metalLt:'#d4dee2', metalDk:'#727e84',
+            grip:'#3c2a1c', gripLt:'#5a4028', gripDk:'#241608', accent:'#7fd4dc' },
+  outlaw: { barrel:'#26221e', barrelLt:'#423c34', metal:'#1c1a16', metalLt:'#3a342c', metalDk:'#0c0a08',
+            grip:'#1a1512', gripLt:'#2e2620', gripDk:'#0a0806', accent:'#d94f3c' },
+  gilded: { barrel:'#e8c25a', barrelLt:'#fce89a', metal:'#c9a03c', metalLt:'#f0d876', metalDk:'#8a6a1e',
+            grip:'#4a2e18', gripLt:'#6e4626', gripDk:'#2c1a0e', accent:'#ffe9a8' },
+  demonspawn: { barrel:'#0e0a0a', barrelLt:'#2a1010', metal:'#100c0c', metalLt:'#2c1212', metalDk:'#050303',
+            grip:'#0a0808', gripLt:'#2a1010', gripDk:'#000000', accent:'#ff2200', flame: true, flameHot: '#ff9a1a' },
+};
+const GUN_SPRITES = {};
+for (const id in SKIN_PALETTES) GUN_SPRITES[id] = makeGunSprite(SKIN_PALETTES[id]);
+
+// --- Bottle target sprite: 3 damage stages (whole / cracked / heavily cracked) ---
+function makeBottle(stage_) {
+  return makeSprite(14, 26, (g) => {
+    const P = (x, y, col) => { g.fillStyle = col; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+    const glass = '#3d7a4a', glassLt = '#5fa868', glassDk = '#245030', hi = '#a8e0a8';
+    rect(5, 0, 4, 5, glassDk);      // neck
+    rect(5, 0, 1, 5, glass);
+    rect(3, 5, 8, 3, glass);        // shoulder
+    rect(2, 8, 10, 16, glass);      // body
+    rect(2, 8, 2, 16, glassLt);     // left highlight strip
+    rect(9, 8, 2, 16, glassDk);     // right shadow strip
+    rect(2, 22, 10, 2, glassDk);    // base
+    P(4, 11, hi); P(4, 15, hi); P(4, 19, hi);
+    if (stage_ >= 1) {
+      g.strokeStyle = 'rgba(230,255,230,0.8)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(6, 6); g.lineTo(8, 12); g.lineTo(6, 17); g.stroke();
+      g.beginPath(); g.moveTo(8, 12); g.lineTo(11, 16); g.stroke();
+    }
+    if (stage_ >= 2) {
+      g.beginPath(); g.moveTo(4, 9); g.lineTo(5, 14); g.lineTo(3, 20); g.stroke();
+      g.beginPath(); g.moveTo(5, 14); g.lineTo(2, 17); g.stroke();
+      g.fillStyle = 'rgba(10,20,10,0.25)'; g.fillRect(6, 12, 3, 4);
+    }
+  });
+}
+const BOTTLE_SPRITES = [makeBottle(0), makeBottle(1), makeBottle(2)];
+
+// --- Tin can target sprite: 3 crush stages, flattens & widens when struck ---
+function makeCan(stage_) {
+  return makeSprite(16, 22, (g) => {
+    const P = (x, y, col) => { g.fillStyle = col; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+    const metal = '#b8bcc0', metalLt = '#e0e4e8', metalDk = '#7a7e82', rim = '#8a8e92';
+    const label = '#c94a3c', labelDk = '#8a2e22';
+    const heights = [16, 11, 6], widths = [12, 13, 14];
+    const bodyH = heights[stage_], width = widths[stage_];
+    const topY = 20 - bodyH;
+    const x0 = Math.floor((16 - width) / 2);
+    rect(x0, topY, width, bodyH, metal);
+    rect(x0, topY, 2, bodyH, metalLt);
+    rect(x0 + width - 2, topY, 2, bodyH, metalDk);
+    const labelY = topY + Math.floor(bodyH * 0.3);
+    const labelH = Math.max(2, Math.floor(bodyH * 0.35));
+    rect(x0 + 1, labelY, width - 2, labelH, label);
+    rect(x0 + 1, labelY, width - 2, 1, labelDk);
+    if (stage_ < 2) {
+      rect(x0 - 1, topY - 1, width + 2, 2, rim);
+    } else {
+      rect(x0 - 1, topY - 1, width + 2, 2, metalDk);
+      P(x0 + 2, topY - 2, metalDk); P(x0 + width - 3, topY - 2, metalDk);
+    }
+    rect(x0 - 1, 20, width + 2, 2, rim);
+    if (stage_ >= 1) { P(x0 + 2, topY + 2, metalDk); P(x0 + width - 3, topY + bodyH - 3, metalDk); }
+    if (stage_ >= 2) { rect(x0 + 3, topY + 1, width - 6, 1, metalDk); }
+  });
+}
+const CAN_SPRITES = [makeCan(0), makeCan(1), makeCan(2)];
+
+// -------------------------------------------------------------------
+//  BACKGROUND — dusty horizon, sun, cacti, wooden arc shelf
+// -------------------------------------------------------------------
+const BG = makeSprite(VW, VH, (g, w, h) => {
+  const sky = g.createLinearGradient(0, 0, 0, h * 0.62);
+  sky.addColorStop(0, '#e8b06a'); sky.addColorStop(0.5, '#e89a5c'); sky.addColorStop(1, '#d97a48');
+  g.fillStyle = sky; g.fillRect(0, 0, w, h * 0.62);
+  // sun
+  g.fillStyle = 'rgba(255,230,160,0.9)';
+  g.beginPath(); g.arc(w * 0.78, h * 0.16, 46, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255,240,190,0.5)';
+  g.beginPath(); g.arc(w * 0.78, h * 0.16, 70, 0, Math.PI * 2); g.fill();
+  // distant mesa silhouettes
+  g.fillStyle = 'rgba(120,60,30,0.35)';
+  g.fillRect(0, h * 0.5, w * 0.3, h * 0.08);
+  g.fillRect(w * 0.55, h * 0.46, w * 0.22, h * 0.1);
+  g.fillRect(w * 0.8, h * 0.52, w * 0.2, h * 0.06);
+  // ground
+  const ground = g.createLinearGradient(0, h * 0.6, 0, h);
+  ground.addColorStop(0, '#a8703c'); ground.addColorStop(1, '#6e4424');
+  g.fillStyle = ground; g.fillRect(0, h * 0.6, w, h * 0.4);
+  // cacti silhouettes — solid, with a darker shaded side for depth
+  function cactus(x, y, s) {
+    g.fillStyle = '#2d4a2a';
+    g.fillRect(x, y, 6 * s, 26 * s);
+    g.fillRect(x - 8 * s, y + 8 * s, 8 * s, 5 * s);
+    g.fillRect(x - 8 * s, y + 4 * s, 5 * s, 12 * s);
+    g.fillRect(x + 6 * s, y + 12 * s, 8 * s, 5 * s);
+    g.fillRect(x + 9 * s, y + 6 * s, 5 * s, 12 * s);
+    g.fillStyle = '#1f3a1f';
+    g.fillRect(x + 4 * s, y, 2 * s, 26 * s);
+    g.fillRect(x + 9 * s, y + 6 * s, 2 * s, 12 * s);
+    g.fillStyle = '#3f5f3a';
+    g.fillRect(x, y, 1 * s, 26 * s);
+  }
+  cactus(30, h * 0.58, 1.1);
+  cactus(w - 46, h * 0.6, 0.9);
+
+  // dry scrub bushes dotting the ground, for a little untamed-desert texture
+  function bush(x, y, s) {
+    const cols = ['#8a6a3c', '#6e5228', '#a8834c'];
+    let seed = x * 13 + y * 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed % 1000) / 1000; };
+    for (let i = 0; i < 7; i++) {
+      const bx = x + (rnd() - 0.5) * 18 * s, by = y - rnd() * 8 * s;
+      const r = (2 + rnd() * 2.5) * s;
+      g.fillStyle = cols[i % cols.length];
+      g.beginPath(); g.arc(bx, by, r, 0, Math.PI * 2); g.fill();
+    }
+  }
+  bush(90, h * 0.66, 1);
+  bush(w * 0.42, h * 0.7, 0.8);
+  bush(w * 0.64, h * 0.62, 0.65);
+  bush(w - 100, h * 0.72, 0.9);
+
+  // wooden fence posts along the ground
+  g.fillStyle = '#5c3a24';
+  for (let x = 10; x < w; x += 46) g.fillRect(x, h * 0.63, 5, 22);
+});
+
+// --- Tumbleweed: a tangled ball of dry brush that occasionally rolls
+// across the foreground, rotating as it goes. ---
+function makeTumbleweed(seed, size) {
+  let s = seed * 911 + 47;
+  const rnd = () => { s = (s * 16807) % 2147483647; return (s % 1000) / 1000; };
+  return makeSprite(size, size, (g, cw, ch) => {
+    const cx = cw / 2, cy = ch / 2, r = cw * 0.42;
+    // sun-bleached tan strands, kept light so it reads clearly against
+    // the darker dirt instead of blending into it
+    g.strokeStyle = '#d9b878'; g.lineWidth = Math.max(1.4, size * 0.07);
+    for (let i = 0; i < 10; i++) {
+      const a1 = rnd() * Math.PI * 2, a2 = rnd() * Math.PI * 2;
+      const r1 = r * (0.3 + rnd() * 0.7), r2 = r * (0.3 + rnd() * 0.7);
+      g.beginPath();
+      g.moveTo(cx + Math.cos(a1) * r1, cy + Math.sin(a1) * r1);
+      g.quadraticCurveTo(cx, cy, cx + Math.cos(a2) * r2, cy + Math.sin(a2) * r2);
+      g.stroke();
+    }
+    g.strokeStyle = '#f0dca0'; g.lineWidth = Math.max(1, size * 0.045);
+    g.beginPath(); g.arc(cx, cy, r, 0.2, Math.PI * 1.4); g.stroke();
+    g.beginPath(); g.arc(cx, cy, r * 0.7, Math.PI * 0.6, Math.PI * 1.9); g.stroke();
+    g.strokeStyle = '#7a5a2e'; g.lineWidth = Math.max(1, size * 0.03);
+    g.beginPath(); g.arc(cx, cy, r * 0.85, Math.PI * 1.1, Math.PI * 1.7); g.stroke();
+  });
+}
+const TUMBLEWEED_SPRITES = [makeTumbleweed(1, 26), makeTumbleweed(2, 34), makeTumbleweed(3, 20)];
+let tumbleweeds = [];
+let tumbleweedTimer = 10 + Math.random() * 10;
+
+// --- Drifting clouds: scalloped silhouette (rounded bumps over a flat
+// base), same warm cream tone as the sun. Sizes vary per sprite. ---
+function makeCloud(seed, w) {
+  let s = seed * 733 + 91;
+  const rnd = () => { s = (s * 16807) % 2147483647; return (s % 1000) / 1000; };
+  const h = Math.round(w * 0.42);
+  const bumpCount = 4 + Math.floor(rnd() * 3);
+  return makeSprite(w, h, (g, cw, ch) => {
+    g.fillStyle = 'rgba(255,230,160,0.85)';
+
+    // flattened base ellipse — a smooth curved bottom (no straight cutoff),
+    // instead of a rectangle with hard corners
+    const baseCx = cw / 2, baseCy = ch * 0.66, baseRx = cw * 0.46, baseRy = ch * 0.32;
+    g.beginPath();
+    g.ellipse(baseCx, baseCy, baseRx, baseRy, 0, 0, Math.PI * 2);
+    g.fill();
+
+    // scalloped lobes bulging up from the top of the base, same fill so
+    // they blend seamlessly into one soft silhouette with no visible seam
+    let x = cw * 0.18;
+    const topY = baseCy - baseRy * 0.45;
+    for (let i = 0; i < bumpCount; i++) {
+      const r = ch * 0.32 * (0.65 + rnd() * 0.55);
+      g.beginPath(); g.arc(x, topY, r, 0, Math.PI * 2); g.fill();
+      x += r * 1.2;
+    }
+  });
+}
+const CLOUD_SPRITES = [makeCloud(1, 100), makeCloud(2, 150), makeCloud(3, 80), makeCloud(4, 190)];
+let clouds = [
+  { x: 40, y: 46, speed: 7, spr: CLOUD_SPRITES[0] },
+  { x: 260, y: 100, speed: 4, spr: CLOUD_SPRITES[2] },
+  { x: 380, y: 24, speed: 9, spr: CLOUD_SPRITES[1] },
+  { x: 150, y: 130, speed: 5.5, spr: CLOUD_SPRITES[3] },
+];
+
+// -------------------------------------------------------------------
+//  AUDIO
+// -------------------------------------------------------------------
+let actx = null;
+let audioFailed = false;
+function audio() {
+  if (actx || audioFailed) return actx;
+  try { actx = new (window.AudioContext || window.webkitAudioContext)(); }
+  catch (e) { audioFailed = true; actx = null; }
+  return actx;
+}
+function blip(freq, dur, type, vol, slideTo) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'square'; o.frequency.value = freq;
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, a.currentTime + dur);
+  g.gain.setValueAtTime(vol || 0.06, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(); o.stop(a.currentTime + dur + 0.02);
+}
+function noiseBurst(dur, vol, filterHz) {
+  const a = audio(); if (!a) return;
+  const buf = a.createBuffer(1, a.sampleRate * dur, a.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+  const src = a.createBufferSource(); src.buffer = buf;
+  const g = a.createGain(); g.gain.value = vol || 0.15;
+  const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = filterHz || 1600;
+  src.connect(f); f.connect(g); g.connect(a.destination); src.start();
+}
+const sfx = {
+  gunshot: () => { noiseBurst(0.12, 0.22, 2600); blip(140, 0.14, 'sawtooth', 0.09, 55); },
+  hitCrack: () => { noiseBurst(0.1, 0.14, 3200); blip(900, 0.06, 'triangle', 0.05, 1400); },
+  shatter: () => { noiseBurst(0.3, 0.22, 4000); blip(1400, 0.12, 'triangle', 0.05, 400); },
+  miss: () => blip(180, 0.08, 'square', 0.04, 120),
+  reloadClick: () => { blip(220, 0.04, 'square', 0.05, 340); },
+  reloadReady: () => blip(520, 0.06, 'triangle', 0.05, 700),
+  win: () => { [0,4,7,12].forEach((n,i)=>setTimeout(()=>blip(220*Math.pow(2,n/12),0.22,'triangle',0.06),i*90)); },
+  lose: () => { blip(220,0.3,'sawtooth',0.08,90); setTimeout(()=>blip(160,0.35,'sawtooth',0.08,60),160); },
+  click: () => blip(500, 0.04, 'square', 0.035, 700),
+  upgrade: () => { blip(440, 0.08, 'triangle', 0.05, 660); setTimeout(()=>blip(660,0.1,'triangle',0.05,880),70); },
+};
+
+// -------------------------------------------------------------------
+//  PERSISTENCE
+// -------------------------------------------------------------------
+const SAVE_KEY = 'quickdrawSave';
+function loadSave() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
+    return {
+      money: raw.money || 0,
+      power: raw.power || 0,
+      ammo: raw.ammo || 0,
+      reload: raw.reload || 0,
+      skins: raw.skins || ['rusty'],
+      equippedSkin: raw.equippedSkin || 'rusty',
+      bestRound: raw.bestRound || 0,
+      currentRound: raw.currentRound || 1,
+      laser: raw.laser || false,
+      laserEquipped: raw.laserEquipped !== undefined ? raw.laserEquipped : true,
+    };
+  } catch (e) { return { money: 0, power: 0, ammo: 0, reload: 0, skins: ['rusty'], equippedSkin: 'rusty', bestRound: 0, currentRound: 1, laser: false, laserEquipped: true }; }
+}
+function writeSave() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
+}
+let save = loadSave();
+
+// -------------------------------------------------------------------
+//  UPGRADE CONFIG — modular, easy to extend with new upgrade types
+// -------------------------------------------------------------------
+// Power and Ammo scale without limit (exponential cost) since rounds keep
+// getting harder forever — a player who keeps investing must always be able
+// to keep pace. Reload has a real physical floor (0.3s) so it stays finite.
+const UPGRADES = {
+  power: {
+    name: 'Power', maxLevel: Infinity,
+    desc: 'Bullets hit harder — break tougher targets in fewer shots.',
+    cost: (lvl) => Math.round(60 * Math.pow(1.55, lvl)),
+    display: (lvl) => `DMG ${lvl + 1}`,
+  },
+  ammo: {
+    name: 'Ammo', maxLevel: Infinity,
+    desc: 'Carry more bullets into each round.',
+    cost: (lvl) => Math.round(50 * Math.pow(1.4, lvl)),
+    display: (lvl) => `${3 + lvl} shots`,
+  },
+  reload: {
+    name: 'Reload', maxLevel: 4,
+    desc: 'Reload faster between shots.',
+    cost: (lvl) => [50, 120, 220, 360][lvl],
+    display: (lvl) => `${(0.9 - lvl * 0.15).toFixed(2)}s`,
+  },
+};
+function upgradeCost(key) {
+  const u = UPGRADES[key], lvl = save[key];
+  return lvl >= u.maxLevel ? null : u.cost(lvl);
+}
+function buyUpgrade(key) {
+  const cost = upgradeCost(key);
+  if (cost === null || save.money < cost) return;
+  save.money -= cost; save[key]++; writeSave(); sfx.upgrade(); renderMenu();
+}
+function currentDamage() { return 1 + save.power; }
+function currentMaxAmmo() { return 3 + save.ammo; }
+function currentReloadTime() { return Math.max(0.3, 0.9 - save.reload * 0.15); }
+
+// Laser Sight: one-time item purchase (not leveled) — draws a real-time
+// aim line so the player can see exactly where the next shot will land.
+const LASER_PRICE = 3000;
+function buyLaser() {
+  if (save.laser || save.money < LASER_PRICE) return;
+  save.money -= LASER_PRICE; save.laser = true; save.laserEquipped = true; writeSave(); sfx.upgrade(); renderMenu();
+}
+function toggleLaser() {
+  if (!save.laser) return;
+  save.laserEquipped = !save.laserEquipped; writeSave(); sfx.click(); renderMenu();
+}
+
+// -------------------------------------------------------------------
+//  SKIN CONFIG
+// -------------------------------------------------------------------
+const SKINS = [
+  { id: 'rusty', name: 'Rusty Six-Shooter', price: 0 },
+  { id: 'silver', name: 'Silver Star', price: 150 },
+  { id: 'outlaw', name: 'Outlaw Black', price: 300 },
+  { id: 'gilded', name: 'Gilded Peacemaker', price: 600 },
+  { id: 'demonspawn', name: 'Demonspawn', price: 3333 },
+];
+function isSkinOwned(id) { return save.skins.includes(id); }
+function buySelectSkin(id) {
+  const skin = SKINS.find(s => s.id === id);
+  if (!isSkinOwned(id)) {
+    if (save.money < skin.price) return;
+    save.money -= skin.price; save.skins.push(id); sfx.upgrade();
+  } else { sfx.click(); }
+  save.equippedSkin = id; writeSave(); renderMenu();
+}
+
+// -------------------------------------------------------------------
+//  ROUND CONFIG — modular difficulty table, procedural and unbounded
+//  beyond round 8. Rounds never stop getting harder: once target count,
+//  swing speed and window size approach their practical limits, moving
+//  targets take over as the escalating axis, so the game never plateaus
+//  into a repeating pattern.
+// -------------------------------------------------------------------
+// period = seconds per full swing oscillation (lower = faster).
+// windowDeg = full width of the angular hit window per target.
+// targets = [{hits, type, moveAmpDeg, movePeriod}] — type is 'bottle' or
+// 'can'; moveAmpDeg is 0 for a stationary target.
+const ROUNDS = [
+  { targets: [{ hits: 1, type: 'bottle' }], period: 2.6, windowDeg: 34 },
+  { targets: [{ hits: 1, type: 'bottle' }], period: 2.2, windowDeg: 28 },
+  { targets: [{ hits: 1, type: 'bottle' }, { hits: 1, type: 'bottle' }], period: 2.0, windowDeg: 26 },
+  { targets: [{ hits: 2, type: 'can' }], period: 1.9, windowDeg: 24 },
+  { targets: [{ hits: 1, type: 'bottle' }, { hits: 1, type: 'bottle' }, { hits: 1, type: 'can' }], period: 1.8, windowDeg: 22 },
+  { targets: [{ hits: 2, type: 'can' }, { hits: 1, type: 'bottle' }], period: 1.7, windowDeg: 20 },
+  { targets: [{ hits: 2, type: 'can' }, { hits: 2, type: 'can' }], period: 1.6, windowDeg: 18 },
+  { targets: [{ hits: 1, type: 'bottle' }, { hits: 1, type: 'bottle' }, { hits: 1, type: 'can' }, { hits: 1, type: 'can' }], period: 1.5, windowDeg: 17 },
+];
+// Payout is a fixed, deterministic function of round number only — no
+// performance-based bonus — so earnings climb linearly and predictably
+// instead of varying with how many bullets happened to be left over.
+function roundPayout(roundNum) { return 10 + roundNum * 10; }
+// Procedural generation for round 9+, unbounded. Target count and total
+// hit-points keep growing slowly forever (paired with the now-infinite
+// Power/Ammo upgrades so a player who keeps investing can always keep
+// pace); swing period and window size tighten with a slow asymptotic
+// decay; and from round ~17 onward targets start drifting back and forth
+// along the arc, with amplitude and speed that keep climbing — this is
+// the axis that keeps the game escalating even once timing parameters
+// approach their practical floor.
+function generateRound(roundNum) {
+  const n = roundNum - ROUNDS.length; // 1-based steps past the curated table
+  const targetCount = Math.min(6, 4 + Math.floor(n / 5));
+  const totalHits = targetCount + Math.floor(n / 2);   // grows forever, slowly
+  const hits = new Array(targetCount).fill(1);
+  let remaining = totalHits - targetCount;
+  let i = 0;
+  while (remaining > 0) { hits[i % targetCount]++; remaining--; i++; }
+
+  const period = 0.7 + (1.5 - 0.7) * Math.pow(0.97, n);
+  const windowDeg = 8 + (17 - 8) * Math.pow(0.97, n);
+
+  const moveAmpDeg = Math.min(14, Math.max(0, (n - 8) * 0.9));
+  const movePeriod = Math.max(1.2, 3.2 - n * 0.03);
+  const movingCount = Math.round(targetCount * Math.min(1, Math.max(0, (n - 8) / 12)));
+
+  const targets = hits.map((h, idx) => ({
+    hits: h,
+    type: (idx + Math.floor(n / 3)) % 3 === 0 ? 'can' : 'bottle',
+    moveAmpDeg: idx < movingCount ? moveAmpDeg : 0,
+    movePeriod,
+  }));
+
+  return { targets, period, windowDeg };
+}
+function roundConfig(roundNum) {
+  return roundNum <= ROUNDS.length ? ROUNDS[roundNum - 1] : generateRound(roundNum);
+}
+
+// -------------------------------------------------------------------
+//  GEOMETRY — gun pivot + arc the swing traces
+// -------------------------------------------------------------------
+const PIVOT = { x: VW / 2, y: 660 };
+const MAX_ANGLE = 50 * Math.PI / 180;   // full swing half-range, radians
+const TARGET_RADIUS = 260;
+const BARREL_VISUAL_LEN = 130;
+
+function targetAngles(count) {
+  if (count === 1) return [0];
+  const spread = MAX_ANGLE * 0.72;
+  const angles = [];
+  for (let i = 0; i < count; i++) angles.push(-spread + (2 * spread * i) / (count - 1));
+  return angles;
+}
+function angleToPos(angle, radius) {
+  return { x: PIVOT.x + Math.sin(angle) * radius, y: PIVOT.y - Math.cos(angle) * radius };
+}
+
+// -------------------------------------------------------------------
+//  GAME STATE
+// -------------------------------------------------------------------
+const State = { MENU: 0, PLAYING: 1, WIN: 2, LOSE: 3 };
+let state = State.MENU;
+
+let run = null;      // per-run stats locked in when Play is pressed
+let round = null;    // active round runtime state
+let particles = [];
+let tracers = [];    // visible bullets flying out from the muzzle
+let shake = 0;
+let missFlashTimer = 0;
+let hitFlash = 0;    // brief white screen flash on hit
+
+const missFlashEl = document.getElementById('missFlash');
+const reloadFlashEl = document.getElementById('reloadFlash');
+const underpoweredEl = document.getElementById('underpoweredWarn');
+const comboEl = document.getElementById('comboBadge');
+
+function startRun() {
+  audio();
+  run = {
+    maxAmmo: currentMaxAmmo(),
+    damage: currentDamage(),
+    reloadTime: currentReloadTime(),
+    roundNum: save.currentRound,
+  };
+  beginRound(save.currentRound);
+  document.getElementById('menuScreen').classList.remove('show');
+  document.getElementById('winScreen').classList.remove('show');
+  document.getElementById('loseScreen').classList.remove('show');
+  state = State.PLAYING;
+}
+
+function beginRound(num) {
+  const cfg = roundConfig(num);
+  const angles = targetAngles(cfg.targets.length);
+  round = {
+    num, cfg,
+    bullets: run.maxAmmo,
+    angle: 0, phase: 0, combo: 0,
+    reloading: false, reloadT: 0,
+    targets: cfg.targets.map((t, i) => {
+      const moveAmpRad = (t.moveAmpDeg || 0) * Math.PI / 180;
+      return {
+        hitsLeft: t.hits, maxHits: t.hits, type: t.type || 'bottle',
+        baseAngle: angles[i], angle: angles[i],
+        moveAmpRad, movePeriod: t.movePeriod || 2, movePhase: Math.random() * Math.PI * 2,
+        alive: true, pos: angleToPos(angles[i], TARGET_RADIUS), shakeT: 0,
+      };
+    }),
+  };
+  particles = []; shake = 0;
+  missFlashEl.style.display = 'none'; missFlashTimer = 0;
+  reloadFlashEl.style.display = 'none';
+  comboEl.style.display = 'none';
+
+  // Fairness check: with truly endless, ever-harder rounds, a fixed loadout
+  // will eventually fall behind. Rather than silently letting the player
+  // lose a round that was never winnable, detect it up front (minimum
+  // shots needed to break everything, assuming perfect timing, vs. bullets
+  // actually carried) and tell them to go upgrade instead of guessing why.
+  const shotsNeeded = round.targets.reduce((sum, t) => sum + Math.ceil(t.maxHits / run.damage), 0);
+  round.undergunned = shotsNeeded > run.maxAmmo;
+  underpoweredEl.style.display = round.undergunned ? 'block' : 'none';
+
+  updateHUD();
+}
+
+function updateHUD() {
+  document.getElementById('money').textContent = save.money;
+  document.getElementById('round').textContent = run ? run.roundNum : 1;
+  document.getElementById('bullets').textContent = round ? round.bullets : currentMaxAmmo();
+}
+
+// -------------------------------------------------------------------
+//  FIRING
+// -------------------------------------------------------------------
+function tryFire() {
+  if (state !== State.PLAYING || !round || round.reloading || round.bullets <= 0) return;
+  round.bullets--;
+  sfx.gunshot();
+  shake = Math.max(shake, 6);
+
+  const halfWin = (round.cfg.windowDeg * Math.PI / 180) / 2;
+  let hitTarget = null;
+  for (const t of round.targets) {
+    if (!t.alive) continue;
+    const diff = Math.abs(angleDiff(round.angle, t.angle));
+    if (diff <= halfWin) { hitTarget = t; break; }
+  }
+
+  // visible bullet: a fast tracer flying out from the muzzle to the hit
+  // point (or off into the distance on a miss)
+  const muzzleR = BARREL_VISUAL_LEN * 0.9;
+  const endR = hitTarget ? TARGET_RADIUS : TARGET_RADIUS + 40;
+  const tracerSpeed = 1500;
+  tracers.push({ angle: round.angle, startR: muzzleR, endR, t: 0, dur: Math.max(0.05, (endR - muzzleR) / tracerSpeed) });
+
+  if (hitTarget) {
+    hitTarget.hitsLeft -= run.damage;
+    hitTarget.shakeT = 0.2;
+    hitFlash = 0.12;
+    round.combo++;
+    comboEl.textContent = `COMBO x${round.combo}`;
+    comboEl.style.display = 'block';
+    if (hitTarget.hitsLeft <= 0) {
+      hitTarget.alive = false;
+      sfx.shatter();
+      burstParticles(hitTarget.pos.x, hitTarget.pos.y, 20, ['#5fa868','#3d7a4a','#a8e0a8','#e8d9b8']);
+      shake = Math.max(shake, 12);
+    } else {
+      sfx.hitCrack();
+      burstParticles(hitTarget.pos.x, hitTarget.pos.y, 6, ['#5fa868','#3d7a4a']);
+    }
+  } else {
+    round.combo = 0;
+    comboEl.style.display = 'none';
+    flashMiss();
+    sfx.miss();
+  }
+
+  const allDead = round.targets.every(t => !t.alive);
+  if (allDead) {
+    setTimeout(() => winRound(), 500);
+    return;
+  }
+  if (round.bullets <= 0) {
+    setTimeout(() => loseRound(), 550);
+    return;
+  }
+
+  round.reloading = true; round.reloadT = run.reloadTime;
+  sfx.reloadClick();
+  reloadFlashEl.style.display = 'block';
+}
+
+function angleDiff(a, b) { return a - b; }
+
+function flashMiss() {
+  missFlashEl.style.display = 'block';
+  missFlashTimer = 0.5;
+}
+
+function burstParticles(x, y, n, colors) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 40 + Math.random() * 160;
+    particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40,
+      life: 0.4 + Math.random() * 0.5, age: 0, size: 1 + Math.random() * 2.5,
+      col: colors[Math.floor(Math.random() * colors.length)],
+    });
+  }
+}
+
+function winRound() {
+  state = State.WIN;
+  const bonus = round.bullets;
+  const earned = roundPayout(round.num);
+  save.money += earned;
+  run.roundNum = round.num + 1;
+  save.currentRound = run.roundNum;   // persist progress so the menu resumes here
+  if (round.num > save.bestRound) save.bestRound = round.num;
+  writeSave();
+  sfx.win();
+  document.getElementById('winSub').textContent = `— ROUND ${round.num} CLEARED —`;
+  document.getElementById('winMoney').textContent = '$' + earned;
+  document.getElementById('winBonus').textContent = bonus;
+  document.getElementById('winScreen').classList.add('show');
+}
+
+function loseRound() {
+  state = State.LOSE;
+  sfx.lose();
+  shake = 16;
+  // Losing does NOT reset round progress — "Try Again" retries this same
+  // round, and the menu still resumes at it. Progress only resets via the
+  // explicit "Restart Rounds" button in the Armory.
+  document.getElementById('loseSub').textContent = round.targets.some(t => t.alive) ? '— OUT OF BULLETS —' : '— TOO SLOW —';
+  document.getElementById('loseRound').textContent = run.roundNum;
+  document.getElementById('loseBest').textContent = save.bestRound;
+  document.getElementById('loseScreen').classList.add('show');
+}
+
+// -------------------------------------------------------------------
+//  INPUT
+// -------------------------------------------------------------------
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') e.preventDefault();
+  if (e.repeat) return;
+  if (e.code === 'Space' && state === State.PLAYING) tryFire();
+});
+
+document.getElementById('playBtn').addEventListener('click', startRun);
+document.getElementById('nextRoundBtn').addEventListener('click', () => {
+  document.getElementById('winScreen').classList.remove('show');
+  beginRound(run.roundNum);
+  state = State.PLAYING;
+});
+document.getElementById('winMenuBtn').addEventListener('click', () => {
+  document.getElementById('winScreen').classList.remove('show');
+  goToMenu();
+});
+document.getElementById('retryBtn').addEventListener('click', () => {
+  document.getElementById('loseScreen').classList.remove('show');
+  beginRound(run.roundNum);
+  state = State.PLAYING;
+});
+document.getElementById('loseMenuBtn').addEventListener('click', () => {
+  document.getElementById('loseScreen').classList.remove('show');
+  goToMenu();
+});
+
+// Restart Rounds — explicit, confirmed action only. This is the one and
+// only way progress resets to round 1; losing a round no longer does it.
+document.getElementById('restartRoundsBtn').addEventListener('click', () => {
+  sfx.click();
+  document.getElementById('confirmResetScreen').classList.add('show');
+});
+document.getElementById('confirmResetYes').addEventListener('click', () => {
+  sfx.click();
+  save.currentRound = 1; writeSave();
+  document.getElementById('confirmResetScreen').classList.remove('show');
+  renderMenu();
+});
+document.getElementById('confirmResetNo').addEventListener('click', () => {
+  sfx.click();
+  document.getElementById('confirmResetScreen').classList.remove('show');
+});
+
+function goToMenu() {
+  state = State.MENU;
+  document.getElementById('menuScreen').classList.add('show');
+  renderMenu();
+}
+
+// -------------------------------------------------------------------
+//  MENU RENDERING
+// -------------------------------------------------------------------
+const panelUpgrades = document.getElementById('panelUpgrades');
+const panelSkins = document.getElementById('panelSkins');
+const skinsToggleBtn = document.getElementById('skinsToggleBtn');
+let showingSkins = false;
+skinsToggleBtn.onclick = () => {
+  sfx.click();
+  showingSkins = !showingSkins;
+  panelUpgrades.classList.toggle('active', !showingSkins);
+  panelSkins.classList.toggle('active', showingSkins);
+  skinsToggleBtn.textContent = showingSkins ? '◂ Back to Armory' : '🎨 Change Skin';
+};
+
+const gunDisplayCanvas = document.getElementById('gunDisplay');
+const gunDisplayCtx = gunDisplayCanvas.getContext('2d');
+const GUN_DISPLAY_W = 220, GUN_DISPLAY_H = 148;
+gunDisplayCanvas.width = GUN_DISPLAY_W; gunDisplayCanvas.height = GUN_DISPLAY_H;
+gunDisplayCtx.imageSmoothingEnabled = false;
+
+function renderGunDisplay() {
+  const spr = GUN_SPRITES[save.equippedSkin];
+  gunDisplayCtx.clearRect(0, 0, GUN_DISPLAY_W, GUN_DISPLAY_H);
+  const scale = Math.min((GUN_DISPLAY_W - 40) / spr.width, (GUN_DISPLAY_H - 16) / spr.height);
+  const w = spr.width * scale, h = spr.height * scale;
+  gunDisplayCtx.drawImage(spr, GUN_DISPLAY_W / 2 - w / 2, GUN_DISPLAY_H - h - 6, w, h);
+}
+
+function renderMenu() {
+  document.getElementById('money').textContent = save.money;
+  document.getElementById('round').textContent = save.bestRound || 1;
+  document.getElementById('menuMoney').textContent = save.money;
+  document.getElementById('menuRound').textContent = save.currentRound;
+  document.getElementById('playBtn').textContent = save.currentRound > 1 ? ('▸ Continue — Round ' + save.currentRound) : '▸ Play';
+  renderGunDisplay();
+
+  const row = document.getElementById('upgradeRow');
+  row.innerHTML = '';
+  for (const key in UPGRADES) {
+    const u = UPGRADES[key];
+    const lvl = save[key];
+    const maxed = lvl >= u.maxLevel;
+    const cost = upgradeCost(key);
+    const affordable = !maxed && save.money >= cost;
+    const box = document.createElement('div');
+    box.className = 'upg-box';
+    box.innerHTML = `
+      <div class="upg-name">${u.name}</div>
+      <div class="upg-desc">${u.desc}</div>
+      <div class="upg-level">LV <b>${lvl}</b>${u.maxLevel === Infinity ? '' : '/' + u.maxLevel} &middot; ${u.display(lvl)}</div>
+      <div class="btn upg-btn${affordable ? '' : ' locked'}">${maxed ? 'MAXED' : '$' + cost}</div>
+    `;
+    if (affordable) box.querySelector('.upg-btn').onclick = () => buyUpgrade(key);
+    row.appendChild(box);
+  }
+
+  const laserBox = document.getElementById('laserBox');
+  const laserAffordable = !save.laser && save.money >= LASER_PRICE;
+  const laserBtnLabel = save.laser ? (save.laserEquipped ? 'Equipped ✓' : 'Unequipped') : ('$' + LASER_PRICE);
+  laserBox.innerHTML = `
+    <div class="item-text">
+      <div class="item-name">🔴 Laser Sight</div>
+      <div class="item-desc">A red aim line shows exactly where your next shot will land.</div>
+    </div>
+    <div class="btn${(save.laser || laserAffordable) ? '' : ' locked'}${save.laser && !save.laserEquipped ? ' laser-off' : ''}">${laserBtnLabel}</div>
+  `;
+  if (save.laser) laserBox.querySelector('.btn').onclick = toggleLaser;
+  else if (laserAffordable) laserBox.querySelector('.btn').onclick = buyLaser;
+
+  document.getElementById('restartRoundsBtn').style.display = save.currentRound > 1 ? 'inline-block' : 'none';
+
+  const srow = document.getElementById('skinRow');
+  srow.innerHTML = '';
+  for (const skin of SKINS) {
+    const owned = isSkinOwned(skin.id);
+    const active = save.equippedSkin === skin.id;
+    const chip = document.createElement('div');
+    chip.className = 'skin-chip' + (active ? ' active' : '') + (!owned && save.money < skin.price ? ' locked' : '');
+    const prevCanvas = document.createElement('canvas');
+    prevCanvas.width = 60; prevCanvas.height = 96;
+    const pctx = prevCanvas.getContext('2d');
+    pctx.imageSmoothingEnabled = false;
+    const pspr = GUN_SPRITES[skin.id];
+    const pscale = Math.min((60 - 14) / pspr.width, (96 - 14) / pspr.height);
+    const pw = pspr.width * pscale, ph = pspr.height * pscale;
+    pctx.drawImage(pspr, 30 - pw / 2, 96 - ph - 4, pw, ph);
+    chip.appendChild(prevCanvas);
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'skin-name'; nameDiv.textContent = skin.name;
+    chip.appendChild(nameDiv);
+    const priceDiv = document.createElement('div');
+    priceDiv.className = 'skin-price';
+    priceDiv.textContent = owned ? (active ? 'EQUIPPED' : 'OWNED') : ('🔒 $' + skin.price);
+    chip.appendChild(priceDiv);
+    chip.onclick = () => buySelectSkin(skin.id);
+    srow.appendChild(chip);
+  }
+}
+renderMenu();
+
+// -------------------------------------------------------------------
+//  UPDATE
+// -------------------------------------------------------------------
+let lastT = performance.now();
+function update(dt) {
+  for (const c of clouds) {
+    c.x += c.speed * dt;
+    if (c.x - c.spr.width / 2 > VW) c.x = -c.spr.width / 2;
+  }
+
+  tumbleweedTimer -= dt;
+  if (tumbleweedTimer <= 0) {
+    const spr = TUMBLEWEED_SPRITES[Math.floor(Math.random() * TUMBLEWEED_SPRITES.length)];
+    const fromLeft = Math.random() < 0.5;
+    const speed = 70 + Math.random() * 50;
+    tumbleweeds.push({
+      x: fromLeft ? -spr.width : VW + spr.width,
+      y: VH * (0.68 + Math.random() * 0.2),
+      vx: fromLeft ? speed : -speed,
+      spin: 0, spinSpeed: (speed / 20) * (fromLeft ? 1 : -1),
+      bobPhase: Math.random() * Math.PI * 2,
+      spr,
+    });
+    tumbleweedTimer = 14 + Math.random() * 16;
+  }
+  for (const tw of tumbleweeds) {
+    tw.x += tw.vx * dt;
+    tw.spin += tw.spinSpeed * dt;
+    tw.bobPhase += dt * 4;
+  }
+  tumbleweeds = tumbleweeds.filter(tw => tw.x > -tw.spr.width * 1.5 && tw.x < VW + tw.spr.width * 1.5);
+
+  if (missFlashTimer > 0) {
+    missFlashTimer -= dt;
+    if (missFlashTimer <= 0) missFlashEl.style.display = 'none';
+  }
+  if (hitFlash > 0) hitFlash -= dt;
+  if (shake > 0) shake = Math.max(0, shake - dt * 40);
+
+  for (const p of particles) {
+    p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 220 * dt;
+  }
+  particles = particles.filter(p => p.age < p.life);
+
+  for (const tr of tracers) tr.t += dt;
+  tracers = tracers.filter(tr => tr.t < tr.dur);
+
+  if (round) {
+    for (const t of round.targets) if (t.shakeT > 0) t.shakeT -= dt;
+  }
+
+  if (state === State.PLAYING && round) {
+    round.phase += dt / round.cfg.period * Math.PI * 2;
+    round.angle = MAX_ANGLE * Math.sin(round.phase);
+    for (const t of round.targets) {
+      if (!t.alive || t.moveAmpRad <= 0) continue;
+      t.movePhase += dt / t.movePeriod * Math.PI * 2;
+      t.angle = t.baseAngle + Math.sin(t.movePhase) * t.moveAmpRad;
+      t.pos = angleToPos(t.angle, TARGET_RADIUS);
+    }
+    if (round.reloading) {
+      round.reloadT -= dt;
+      if (round.reloadT <= 0) {
+        round.reloading = false;
+        reloadFlashEl.style.display = 'none';
+        sfx.reloadReady();
+      }
+    }
+  }
+}
+
+// -------------------------------------------------------------------
+//  DRAW
+// -------------------------------------------------------------------
+function drawArcShelf() {
+  ctx.strokeStyle = 'rgba(92,58,36,0.7)';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  for (let a = -MAX_ANGLE; a <= MAX_ANGLE + 0.001; a += 0.05) {
+    const p = angleToPos(a, TARGET_RADIUS + 14);
+    if (a === -MAX_ANGLE) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(140,90,50,0.5)'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let a = -MAX_ANGLE; a <= MAX_ANGLE + 0.001; a += 0.05) {
+    const p = angleToPos(a, TARGET_RADIUS + 18);
+    if (a === -MAX_ANGLE) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+}
+
+function drawGun() {
+  const spr = GUN_SPRITES[save.equippedSkin];
+  const angle = round ? round.angle : 0;
+  ctx.save();
+  ctx.translate(PIVOT.x, PIVOT.y);
+  ctx.rotate(angle);
+  if (round && round.reloading) {
+    const flashOn = Math.floor(performance.now() / 90) % 2 === 0;
+    ctx.globalAlpha = flashOn ? 0.55 : 1;
+  }
+  const scale = BARREL_VISUAL_LEN / spr.height;
+  ctx.drawImage(spr, -spr.width * scale / 2, -spr.height * scale * 0.72, spr.width * scale, spr.height * scale);
+  ctx.restore();
+}
+
+function drawTarget(t) {
+  if (!t.alive) return;
+  const stage_ = t.maxHits <= 1 ? (t.hitsLeft < t.maxHits ? 2 : 0) : Math.min(2, t.maxHits - t.hitsLeft);
+  const spr = (t.type === 'can' ? CAN_SPRITES : BOTTLE_SPRITES)[stage_];
+  const jitter = t.shakeT > 0 ? (Math.random() - 0.5) * 4 : 0;
+  const scale = 2.2;
+  ctx.drawImage(spr, t.pos.x - spr.width * scale / 2 + jitter, t.pos.y - spr.height * scale + 6, spr.width * scale, spr.height * scale);
+  // crate the bottle sits on
+  ctx.fillStyle = '#6e4424';
+  ctx.fillRect(t.pos.x - 16, t.pos.y, 32, 10);
+  ctx.fillStyle = '#5c3a24';
+  ctx.fillRect(t.pos.x - 16, t.pos.y, 32, 2);
+}
+
+function drawHitWindowHint() {
+  if (!round || state !== State.PLAYING) return;
+  const halfWin = (round.cfg.windowDeg * Math.PI / 180) / 2;
+  for (const t of round.targets) {
+    if (!t.alive) continue;
+    ctx.save();
+    ctx.translate(PIVOT.x, PIVOT.y);
+    ctx.rotate(t.angle - halfWin);
+    ctx.fillStyle = 'rgba(255,154,60,0.06)';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, TARGET_RADIUS + 10, -Math.PI / 2, -Math.PI / 2 + halfWin * 2);
+    ctx.closePath();
+    ctx.restore();
+  }
+}
+
+// Laser Sight (purchasable item): a real-time aim line from the muzzle
+// showing exactly where the next shot will land, updated every frame.
+function drawLaserSight() {
+  if (!save.laser || !save.laserEquipped || !round || state !== State.PLAYING || round.reloading) return;
+  const angle = round.angle;
+  const start = angleToPos(angle, BARREL_VISUAL_LEN * 0.9);
+  const end = angleToPos(angle, TARGET_RADIUS + 30);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(150,0,0,0.85)';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(150,0,0,0.95)';
+  ctx.beginPath(); ctx.arc(end.x, end.y, 2.6, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// Visible bullets: a short bright tracer streaking from the muzzle out to
+// its target radius (hit point, or past the arc on a miss).
+function drawTracers() {
+  for (const tr of tracers) {
+    const progress = Math.min(1, tr.t / tr.dur);
+    const r = tr.startR + (tr.endR - tr.startR) * progress;
+    const trailR = Math.max(tr.startR, r - 14);
+    const p1 = angleToPos(tr.angle, trailR);
+    const p2 = angleToPos(tr.angle, r);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,230,150,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    ctx.fillStyle = '#fff8dc';
+    ctx.beginPath(); ctx.arc(p2.x, p2.y, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function draw() {
+  ctx.save();
+  if (shake > 0) {
+    ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+  }
+  ctx.drawImage(BG, 0, 0);
+  for (const c of clouds) ctx.drawImage(c.spr, c.x - c.spr.width / 2, c.y);
+  for (const tw of tumbleweeds) {
+    const bob = Math.sin(tw.bobPhase) * 2;
+    ctx.save();
+    ctx.translate(tw.x, tw.y + bob);
+    ctx.rotate(tw.spin);
+    ctx.drawImage(tw.spr, -tw.spr.width / 2, -tw.spr.height / 2);
+    ctx.restore();
+  }
+  drawArcShelf();
+  if (round) {
+    drawHitWindowHint();
+    for (const t of round.targets) drawTarget(t);
+  }
+  drawLaserSight();
+  drawGun();
+  drawTracers();
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, 1 - p.age / p.life);
+    ctx.fillStyle = p.col;
+    ctx.fillRect(p.x, p.y, p.size, p.size);
+    ctx.globalAlpha = 1;
+  }
+  if (hitFlash > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${hitFlash * 0.5})`;
+    ctx.fillRect(0, 0, VW, VH);
+  }
+  ctx.restore();
+}
+
+function loop(t) {
+  const dt = Math.min(0.05, (t - lastT) / 1000);
+  lastT = t;
+  update(dt);
+  draw();
+  updateHUD();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

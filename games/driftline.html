@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Driftline</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: #0e1512; overflow: hidden;
+  font-family: Georgia, 'Times New Roman', serif;
+  display: flex; align-items: center; justify-content: center;
+  color: #dfe6df;
+}
+#stage {
+  position: relative;
+  width: 480px; height: 720px;
+  transform-origin: center center;
+  box-shadow: 0 0 60px rgba(140,180,150,0.10), inset 0 0 140px rgba(0,0,0,0.6);
+  border: 3px solid #1c2420;
+  border-radius: 10px; overflow: hidden;
+  background: #16211c;
+}
+canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* --- HUD --- */
+#hud {
+  position: absolute; top: 14px; left: 0; right: 0;
+  display: flex; justify-content: space-between; align-items: flex-start; padding: 0 18px;
+  z-index: 10; font-size: 13px; letter-spacing: 1px;
+}
+.hud-chip {
+  background: rgba(18,26,22,0.62); border: 1px solid rgba(180,200,170,0.22);
+  border-radius: 6px; padding: 6px 14px; backdrop-filter: blur(4px);
+  color: rgba(223,230,223,0.85); pointer-events: none;
+}
+.hud-chip b { color: #e8b878; font-weight: 700; }
+#backpackBtn {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: rgba(18,26,22,0.62); border: 1px solid rgba(180,200,170,0.22);
+  backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center;
+  font-size: 17px; cursor: pointer; transition: all 0.15s; user-select: none;
+}
+#backpackBtn:hover { background: rgba(232,184,120,0.18); border-color: rgba(232,184,120,0.5); }
+
+/* --- Overlays (scaffolding for later phases) --- */
+.overlay {
+  position: absolute; inset: 0; z-index: 20;
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(20,32,26,0.55), rgba(6,10,8,0.92));
+  backdrop-filter: blur(3px); text-align: center; padding: 20px;
+}
+.overlay.show { display: flex; }
+.title {
+  font-size: 40px; font-weight: 700; letter-spacing: 4px;
+  color: #eef2ea; text-shadow: 0 0 24px rgba(232,184,120,0.5);
+  margin-bottom: 6px;
+}
+.subtitle { color: rgba(223,230,223,0.6); font-size: 12px; letter-spacing: 2px; margin-bottom: 18px; text-transform: uppercase; }
+.btn {
+  background: rgba(232,184,120,0.12); border: 1px solid rgba(232,184,120,0.5);
+  border-radius: 22px; padding: 12px 34px; color: #f0cf9a; font-size: 14px;
+  font-weight: 700; letter-spacing: 2px; cursor: pointer; transition: all 0.18s;
+  user-select: none; backdrop-filter: blur(4px);
+}
+.btn:hover { background: rgba(232,184,120,0.24); color: #fff6e6; box-shadow: 0 0 22px rgba(232,184,120,0.35); }
+
+#castHint {
+  position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%);
+  z-index: 10; pointer-events: none; text-align: center;
+  font-size: 12px; letter-spacing: 2px; color: rgba(223,230,223,0.65);
+  text-shadow: 0 0 8px rgba(0,0,0,0.6);
+}
+#castHint kbd {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px; padding: 2px 8px; font-family: inherit; color: #f0cf9a; margin: 0 2px;
+}
+
+/* --- Phase 2: colour-matching minigame --- */
+#timerBarTrack {
+  width: 260px; height: 10px; border-radius: 5px; overflow: hidden;
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+  margin-bottom: 26px;
+}
+#timerBarFill {
+  height: 100%; width: 100%; background: #8fc48a; transition: width 0.1s linear, background 0.3s;
+}
+#timerBarFill.low { background: #d9483c; }
+.square-grid {
+  display: grid; grid-template-columns: repeat(4, 64px); grid-template-rows: repeat(2, 64px);
+  gap: 14px; margin-bottom: 28px;
+}
+.color-square {
+  width: 64px; height: 64px; border-radius: 10px; cursor: pointer;
+  border: 3px solid rgba(255,255,255,0.18);
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.35);
+  transition: transform 0.12s, border-color 0.15s;
+}
+.color-square:hover { transform: scale(1.05); }
+.color-square.selected { border-color: #f0cf9a; box-shadow: 0 0 16px rgba(240,207,154,0.6); }
+.color-square.solved { opacity: 0.12; cursor: default; pointer-events: none; transform: scale(0.9); }
+.color-square.wrong { animation: shakeWrong 0.4s; border-color: #d9483c; }
+@keyframes shakeWrong {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+#minigameMessage {
+  font-size: 26px; font-weight: 700; letter-spacing: 2px; margin-top: 6px;
+  color: #f0cf9a; text-shadow: 0 0 20px rgba(240,207,154,0.5);
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game"></canvas>
+  <div id="hud">
+    <div class="hud-chip">$ <b id="money">0</b></div>
+    <div id="backpackBtn" title="Inventory (coming soon)">🎒</div>
+  </div>
+  <div id="castHint">Press <kbd>Space</kbd> to cast</div>
+
+  <!-- Phase 2: colour-matching minigame -->
+  <div class="overlay" id="minigameScreen">
+    <div class="subtitle">Something's biting — match the colours!</div>
+    <div id="timerBarTrack"><div id="timerBarFill"></div></div>
+    <div class="square-grid" id="squareGrid"></div>
+    <div id="minigameMessage"></div>
+  </div>
+</div>
+
+<script>
+// ===================================================================
+//  DRIFTLINE — a misty-pond fishing game
+//  Phase 1: scene, boat/character, and the cast -> wait -> reel loop.
+//  Structural sibling of quickdraw.html / asteroid-shooter.html: canvas-
+//  drawn procedural pixel sprites, fixed virtual stage scaled via
+//  transform, HUD chips, Web-Audio SFX, requestAnimationFrame loop.
+// ===================================================================
+
+const VW = 480, VH = 720;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const stage = document.getElementById('stage');
+canvas.width = VW; canvas.height = VH;
+ctx.imageSmoothingEnabled = false;
+
+let SCALE = 1;
+function fitStage() {
+  const pad = 20;
+  const s = Math.min((window.innerWidth - pad) / VW, (window.innerHeight - pad) / VH);
+  SCALE = (isFinite(s) && s > 0) ? Math.max(0.25, s) : 1;
+  stage.style.transform = 'scale(' + SCALE + ')';
+}
+window.addEventListener('resize', fitStage);
+window.addEventListener('load', fitStage);
+fitStage();
+requestAnimationFrame(fitStage);
+setTimeout(fitStage, 200);
+
+// -------------------------------------------------------------------
+//  PIXEL SPRITE FACTORY
+// -------------------------------------------------------------------
+function makeSprite(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  draw(g, w, h);
+  return c;
+}
+
+// -------------------------------------------------------------------
+//  AUDIO — synthesized Web Audio SFX, same approach as the other games
+// -------------------------------------------------------------------
+let actx = null;
+let audioFailed = false;
+function audio() {
+  if (actx || audioFailed) return actx;
+  try { actx = new (window.AudioContext || window.webkitAudioContext)(); }
+  catch (e) { audioFailed = true; actx = null; }
+  return actx;
+}
+function blip(freq, dur, type, vol, slideTo) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'sine'; o.frequency.value = freq;
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, a.currentTime + dur);
+  g.gain.setValueAtTime(vol || 0.06, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(); o.stop(a.currentTime + dur + 0.02);
+}
+function noiseBurst(dur, vol, filterHz, type) {
+  const a = audio(); if (!a) return;
+  const buf = a.createBuffer(1, a.sampleRate * dur, a.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+  const src = a.createBufferSource(); src.buffer = buf;
+  const g = a.createGain(); g.gain.value = vol || 0.15;
+  const f = a.createBiquadFilter(); f.type = type || 'lowpass'; f.frequency.value = filterHz || 1600;
+  src.connect(f); f.connect(g); g.connect(a.destination); src.start();
+}
+const sfx = {
+  castWhoosh: () => blip(500, 0.16, 'sawtooth', 0.05, 180),
+  splash: () => { noiseBurst(0.28, 0.18, 900, 'lowpass'); blip(160, 0.18, 'sine', 0.08, 70); },
+  reelClick: () => blip(700, 0.03, 'square', 0.04, 900),
+  click: () => blip(500, 0.04, 'square', 0.035, 700),
+  select: () => blip(620, 0.05, 'triangle', 0.05, 760),
+  match: () => { blip(660, 0.1, 'triangle', 0.06, 880); setTimeout(() => blip(880, 0.14, 'triangle', 0.06, 1180), 90); },
+  wrong: () => blip(160, 0.18, 'sawtooth', 0.07, 90),
+  tick: () => blip(900, 0.04, 'square', 0.03, 900),
+  fail: () => { blip(300, 0.3, 'sawtooth', 0.07, 100); setTimeout(() => blip(220, 0.35, 'sawtooth', 0.07, 70), 140); },
+};
+
+// -------------------------------------------------------------------
+//  PERSISTENCE
+// -------------------------------------------------------------------
+const SAVE_KEY = 'driftlineSave';
+function loadSave() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
+    return { money: raw.money || 0, inventory: raw.inventory || {} };
+  } catch (e) { return { money: 0, inventory: {} }; }
+}
+function writeSave() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
+}
+let save = loadSave();
+
+// -------------------------------------------------------------------
+//  BACKGROUND — misty pond: sky, treeline, water with reflection bands
+// -------------------------------------------------------------------
+const BG = makeSprite(VW, VH, (g, w, h) => {
+  const sky = g.createLinearGradient(0, 0, 0, h * 0.5);
+  sky.addColorStop(0, '#3a4a44'); sky.addColorStop(0.6, '#5a6b62'); sky.addColorStop(1, '#7a8d80');
+  g.fillStyle = sky; g.fillRect(0, 0, w, h * 0.5);
+
+  // soft pale sun/moon glow, low and muted (lantern-glow accent, not a
+  // bright sci-fi/western sun)
+  g.fillStyle = 'rgba(232,200,150,0.22)';
+  g.beginPath(); g.arc(w * 0.72, h * 0.22, 60, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(232,200,150,0.4)';
+  g.beginPath(); g.arc(w * 0.72, h * 0.22, 30, 0, Math.PI * 2); g.fill();
+
+  // distant pine treeline silhouette
+  function pine(x, y, s, col) {
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(x, y - 30 * s);
+    g.lineTo(x - 13 * s, y);
+    g.lineTo(x + 13 * s, y);
+    g.closePath(); g.fill();
+    g.beginPath();
+    g.moveTo(x, y - 20 * s);
+    g.lineTo(x - 16 * s, y + 8 * s);
+    g.lineTo(x + 16 * s, y + 8 * s);
+    g.closePath(); g.fill();
+    g.fillRect(x - 2 * s, y + 6 * s, 4 * s, 8 * s);
+  }
+  const treeY = h * 0.5;
+  for (let x = -10; x < w + 30; x += 34) pine(x, treeY, 0.8 + ((x * 7) % 5) * 0.08, '#22322a');
+  for (let x = 10; x < w + 30; x += 46) pine(x, treeY - 6, 1.05 + ((x * 3) % 4) * 0.07, '#2c3f34');
+
+  // water body
+  const water = g.createLinearGradient(0, h * 0.5, 0, h);
+  water.addColorStop(0, '#4a6058'); water.addColorStop(0.35, '#324840'); water.addColorStop(1, '#1c2a26');
+  g.fillStyle = water; g.fillRect(0, h * 0.5, w, h * 0.5);
+
+  // faint reflected treeline + soft horizontal reflection streaks
+  g.save();
+  g.globalAlpha = 0.18;
+  for (let x = -10; x < w + 30; x += 34) pine(x, h * 0.5 + 22, 0.6, '#22322a');
+  g.restore();
+  g.fillStyle = 'rgba(232,200,150,0.10)';
+  g.fillRect(w * 0.6, h * 0.52, w * 0.24, 5);
+  g.fillRect(w * 0.66, h * 0.58, w * 0.14, 3);
+  g.fillStyle = 'rgba(220,230,225,0.06)';
+  for (let y = h * 0.55; y < h; y += 16) g.fillRect(0, y, w, 2);
+
+  // small wooden dock jutting in from the left edge
+  g.fillStyle = '#4a3826';
+  g.fillRect(0, h * 0.56, w * 0.22, 10);
+  g.fillStyle = '#5c4630';
+  g.fillRect(0, h * 0.56, w * 0.22, 3);
+  g.fillStyle = '#382a1c';
+  for (let x = 6; x < w * 0.22; x += 16) g.fillRect(x, h * 0.56 + 8, 5, 20);
+});
+
+// -------------------------------------------------------------------
+//  DRIFTING FOG — soft translucent blobs drifting slowly across the
+//  treeline, same technique as quickdraw's clouds but hazier
+// -------------------------------------------------------------------
+function makeFog(seed, w) {
+  let s = seed * 733 + 91;
+  const rnd = () => { s = (s * 16807) % 2147483647; return (s % 1000) / 1000; };
+  const h = Math.round(w * 0.36);
+  return makeSprite(w, h, (g, cw, ch) => {
+    g.fillStyle = 'rgba(225,232,225,0.16)';
+    const baseCx = cw / 2, baseCy = ch * 0.6, baseRx = cw * 0.48, baseRy = ch * 0.34;
+    g.beginPath(); g.ellipse(baseCx, baseCy, baseRx, baseRy, 0, 0, Math.PI * 2); g.fill();
+    let x = cw * 0.2;
+    const bumps = 3 + Math.floor(rnd() * 2);
+    for (let i = 0; i < bumps; i++) {
+      const r = ch * 0.3 * (0.6 + rnd() * 0.5);
+      g.beginPath(); g.arc(x, baseCy - baseRy * 0.4, r, 0, Math.PI * 2); g.fill();
+      x += r * 1.3;
+    }
+  });
+}
+const FOG_SPRITES = [makeFog(1, 160), makeFog(2, 220), makeFog(3, 130)];
+let fogBanks = [
+  { x: 60, y: 150, speed: 4, spr: FOG_SPRITES[0] },
+  { x: 300, y: 190, speed: 2.6, spr: FOG_SPRITES[2] },
+  { x: 420, y: 130, speed: 5.2, spr: FOG_SPRITES[1] },
+];
+
+// -------------------------------------------------------------------
+//  BOAT + ANGLER SPRITE — procedural pixel art, palette-driven so a rod
+//  or clothing recolor later doesn't require redrawing the shape
+// -------------------------------------------------------------------
+function makeAnglerBoat() {
+  return makeSprite(120, 70, (g, w, h) => {
+    const P = (x, y, col) => { g.fillStyle = col; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, cw, ch, col) => { g.fillStyle = col; g.fillRect(x, y, cw, ch); };
+    // boat hull (simple wooden rowboat, viewed from the side)
+    const hull = '#5c4630', hullLt = '#7a5c3c', hullDk = '#3c2c1c';
+    g.beginPath();
+    g.moveTo(6, 44); g.lineTo(114, 44); g.lineTo(102, 60); g.lineTo(18, 60);
+    g.closePath(); g.fillStyle = hull; g.fill();
+    rect(6, 44, 108, 4, hullLt);
+    rect(18, 58, 84, 4, hullDk);
+    for (let x = 20; x < 100; x += 14) rect(x, 46, 1, 12, hullDk);
+    // seated angler: hat, head, torso, arm holding the rod butt
+    const shirt = '#4a5d4a', shirtDk = '#354536', skin = '#c99a72', hat = '#3a4a3a';
+    rect(50, 20, 20, 20, shirt);        // torso
+    rect(50, 20, 20, 4, shirtDk);
+    rect(56, 6, 10, 12, skin);          // head
+    rect(54, 2, 14, 6, hat);            // hat crown
+    rect(50, 6, 22, 3, hat);            // hat brim
+    rect(64, 18, 8, 6, shirt);          // shoulder/arm toward the rod
+    rect(70, 22, 5, 5, skin);           // hand
+  });
+}
+const ANGLER_SPRITE = makeAnglerBoat();
+
+// Rod pivot, in screen space (roughly the angler's hand). The rod and
+// line are drawn dynamically every frame (see drawRodAndLine), not
+// baked into the static sprite, so they can animate through the cast.
+const BOAT_X = VW / 2, BOAT_Y = VH - 118;
+const ANGLER_DRAW_X = BOAT_X - ANGLER_SPRITE.width / 2;
+const ANGLER_DRAW_Y = BOAT_Y - ANGLER_SPRITE.height + 26;
+// matches the hand rect(70, 22, 5, 5) drawn in makeAnglerBoat(), so the
+// rod's pivot actually sits in the angler's hand instead of floating
+const ROD_PIVOT = { x: ANGLER_DRAW_X + 72.5, y: ANGLER_DRAW_Y + 24.5 };
+const ROD_LEN = 96;
+
+// -------------------------------------------------------------------
+//  RIPPLES — expanding rings that fade, spawned on splash / idle bob
+// -------------------------------------------------------------------
+let ripples = [];
+function spawnRipple(x, y, maxR, life) {
+  ripples.push({ x, y, age: 0, life: life || 1.1, maxR: maxR || 34 });
+}
+
+// -------------------------------------------------------------------
+//  SPLASH PARTICLES
+// -------------------------------------------------------------------
+let particles = [];
+function burstSplash(x, y) {
+  for (let i = 0; i < 14; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 30 + Math.random() * 90;
+    particles.push({
+      x, y, vx: Math.cos(a) * sp * 0.6, vy: -Math.abs(Math.sin(a)) * sp - 40,
+      life: 0.35 + Math.random() * 0.3, age: 0, size: 1.5 + Math.random() * 2,
+      col: Math.random() > 0.5 ? '#dfe8e2' : '#8fa89c',
+    });
+  }
+}
+
+// -------------------------------------------------------------------
+//  CAST / REEL STATE MACHINE
+// -------------------------------------------------------------------
+const CastState = { IDLE: 0, CASTING: 1, WAITING: 2, REELING: 3 };
+let castState = CastState.IDLE;
+let stateT = 0;                 // time elapsed in the current state
+const CAST_DURATION = 0.45;
+const WAIT_DURATION = 3.0;
+const REEL_DURATION = 0.9;
+
+// resting (idle) and back-cast / forward-cast rod angles, in radians,
+// measured from straight up (negative = tipped back, positive = forward)
+const ROD_IDLE_ANGLE = 0.25;
+const ROD_BACK_ANGLE = -0.9;
+const ROD_CAST_ANGLE = 0.95;
+
+let rodAngle = ROD_IDLE_ANGLE;
+let hook = { x: 0, y: 0, visible: false };
+let landPoint = { x: 0, y: 0 };
+const castHintEl = document.getElementById('castHint');
+
+function easeOutQuad(t) { return 1 - (1 - t) * (1 - t); }
+function easeInQuad(t) { return t * t; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function startCast() {
+  if (castState !== CastState.IDLE || minigame) return;
+  audio();
+  castState = CastState.CASTING;
+  stateT = 0;
+  // pick a landing spot out on the water, with a little horizontal variety
+  landPoint = { x: BOAT_X + (Math.random() - 0.5) * 140, y: VH * 0.66 + Math.random() * VH * 0.14 };
+  hook.visible = true;
+  sfx.castWhoosh();
+  castHintEl.style.display = 'none';
+}
+
+function updateCast(dt) {
+  stateT += dt;
+
+  if (castState === CastState.CASTING) {
+    const t = Math.min(1, stateT / CAST_DURATION);
+    // quick whip: back-cast to forward-cast with an ease-out snap
+    rodAngle = lerp(ROD_BACK_ANGLE, ROD_CAST_ANGLE, easeOutQuad(t));
+    // hook flies from the rod tip to the landing point along a small arc
+    const tipStart = rodTipPos(ROD_BACK_ANGLE);
+    const flightT = easeInQuad(t);
+    const arcH = 70 * Math.sin(Math.PI * t);
+    hook.x = lerp(tipStart.x, landPoint.x, flightT);
+    hook.y = lerp(tipStart.y, landPoint.y, flightT) - arcH;
+    if (t >= 1) {
+      hook.x = landPoint.x; hook.y = landPoint.y;
+      rodAngle = ROD_IDLE_ANGLE + 0.15;
+      sfx.splash();
+      burstSplash(landPoint.x, landPoint.y);
+      spawnRipple(landPoint.x, landPoint.y, 40, 1.3);
+      castState = CastState.WAITING;
+      stateT = 0;
+    }
+  } else if (castState === CastState.WAITING) {
+    hook.y = landPoint.y + Math.sin(stateT * 2.2) * 2.5;
+    if (Math.floor(stateT * 1.5) !== Math.floor((stateT - dt) * 1.5)) {
+      spawnRipple(landPoint.x, landPoint.y, 22, 1.6);
+    }
+    if (stateT >= WAIT_DURATION) {
+      castState = CastState.REELING;
+      stateT = 0;
+    }
+  } else if (castState === CastState.REELING) {
+    const t = Math.min(1, stateT / REEL_DURATION);
+    const tip = rodTipPos(rodAngle);
+    hook.x = lerp(landPoint.x, tip.x, t);
+    hook.y = lerp(landPoint.y, tip.y, t);
+    rodAngle = ROD_IDLE_ANGLE + 0.15 + Math.sin(stateT * 26) * 0.05 * (1 - t);
+    if (Math.floor(stateT * 8) !== Math.floor((stateT - dt) * 8)) sfx.reelClick();
+    if (t >= 1) {
+      hook.visible = false;
+      rodAngle = ROD_IDLE_ANGLE;
+      castState = CastState.IDLE;
+      stateT = 0;
+      startMinigame();
+    }
+  }
+}
+
+function rodTipPos(angle) {
+  return { x: ROD_PIVOT.x + Math.sin(angle) * ROD_LEN, y: ROD_PIVOT.y - Math.cos(angle) * ROD_LEN };
+}
+
+// -------------------------------------------------------------------
+//  PHASE 2 — colour-matching minigame
+// -------------------------------------------------------------------
+// Four colours, each used twice (8 squares). Kept as a config array so
+// it's easy to add more pairs / difficulty tiers later.
+const MINIGAME_COLORS = [
+  { id: 'amber', col: '#e8b878' },
+  { id: 'moss', col: '#6b8f5a' },
+  { id: 'slate', col: '#5a7a9a' },
+  { id: 'berry', col: '#b85a5a' },
+];
+const MINIGAME_DURATION = 10;
+
+let minigame = null;   // null when not active; see startMinigame()
+const minigameScreenEl = document.getElementById('minigameScreen');
+const minigameMessageEl = document.getElementById('minigameMessage');
+const timerFillEl = document.getElementById('timerBarFill');
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function startMinigame() {
+  const grid = document.getElementById('squareGrid');
+  grid.innerHTML = '';
+  minigameMessageEl.textContent = '';
+  timerFillEl.style.width = '100%'; timerFillEl.classList.remove('low');
+
+  const colorSlots = shuffle([...MINIGAME_COLORS, ...MINIGAME_COLORS]);
+  const squares = [];
+  for (const c of colorSlots) {
+    const el = document.createElement('div');
+    el.className = 'color-square';
+    el.style.background = c.col;
+    const sq = { el, colorId: c.id, solved: false };
+    el.addEventListener('click', () => onSquareClick(sq));
+    grid.appendChild(el);
+    squares.push(sq);
+  }
+
+  minigame = { timeLeft: MINIGAME_DURATION, solvedCount: 0, selected: null, locked: false, squares, lastTickSecond: MINIGAME_DURATION };
+  minigameScreenEl.classList.add('show');
+}
+
+function onSquareClick(sq) {
+  if (!minigame || minigame.locked || sq.solved || minigame.selected === sq) return;
+  sfx.select();
+  if (!minigame.selected) {
+    minigame.selected = sq;
+    sq.el.classList.add('selected');
+    return;
+  }
+  const first = minigame.selected;
+  minigame.selected = null;
+  if (first.colorId === sq.colorId) {
+    first.solved = true; sq.solved = true;
+    first.el.classList.remove('selected');
+    first.el.classList.add('solved');
+    sq.el.classList.add('solved');
+    sfx.match();
+    minigame.solvedCount++;
+    if (minigame.solvedCount >= 4) minigameWin();
+  } else {
+    minigame.locked = true;
+    first.el.classList.remove('selected');
+    first.el.classList.add('wrong');
+    sq.el.classList.add('wrong');
+    sfx.wrong();
+    setTimeout(() => {
+      first.el.classList.remove('wrong');
+      sq.el.classList.remove('wrong');
+      if (minigame) minigame.locked = false;
+    }, 420);
+  }
+}
+
+function updateMinigame(dt) {
+  if (!minigame) return;
+  minigame.timeLeft -= dt;
+  const pct = Math.max(0, minigame.timeLeft / MINIGAME_DURATION) * 100;
+  timerFillEl.style.width = pct + '%';
+  if (minigame.timeLeft <= 3) timerFillEl.classList.add('low');
+  const wholeSecond = Math.ceil(minigame.timeLeft);
+  if (wholeSecond < minigame.lastTickSecond && wholeSecond >= 0 && wholeSecond <= 3) {
+    sfx.tick();
+    minigame.lastTickSecond = wholeSecond;
+  }
+  if (minigame.timeLeft <= 0) minigameLose();
+}
+
+function minigameWin() {
+  minigame = null;
+  minigameMessageEl.textContent = '🎣 Got one!';
+  setTimeout(() => {
+    minigameScreenEl.classList.remove('show');
+    // Phase 3 (fish roll + catch reveal) hooks in here once built.
+    returnToPond();
+  }, 1100);
+}
+
+function minigameLose() {
+  if (!minigame) return;
+  minigame = null;
+  sfx.fail();
+  minigameMessageEl.textContent = "It got away!";
+  setTimeout(() => {
+    minigameScreenEl.classList.remove('show');
+    returnToPond();
+  }, 1100);
+}
+
+function returnToPond() {
+  castHintEl.style.display = 'block';
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') e.preventDefault();
+  if (e.repeat) return;
+  if (e.code === 'Space') startCast();
+});
+document.getElementById('backpackBtn').addEventListener('click', () => {
+  sfx.click();
+  // Phase 4 will open the full inventory overlay here.
+});
+
+document.getElementById('money').textContent = save.money;
+
+// -------------------------------------------------------------------
+//  UPDATE
+// -------------------------------------------------------------------
+let lastT = performance.now();
+function update(dt) {
+  for (const f of fogBanks) {
+    f.x += f.speed * dt;
+    if (f.x - f.spr.width / 2 > VW) f.x = -f.spr.width / 2;
+  }
+  for (const r of ripples) r.age += dt;
+  ripples = ripples.filter(r => r.age < r.life);
+  for (const p of particles) {
+    p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 260 * dt;
+  }
+  particles = particles.filter(p => p.age < p.life);
+
+  updateCast(dt);
+  updateMinigame(dt);
+}
+
+// -------------------------------------------------------------------
+//  DRAW
+// -------------------------------------------------------------------
+function drawRodAndLine() {
+  const tip = rodTipPos(rodAngle);
+  // rod
+  ctx.strokeStyle = '#4a3826'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(ROD_PIVOT.x, ROD_PIVOT.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+  ctx.strokeStyle = '#6e5638'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(ROD_PIVOT.x, ROD_PIVOT.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+
+  if (hook.visible) {
+    // line from rod tip to hook, with a slight sag for a natural curve
+    const midx = (tip.x + hook.x) / 2, midy = (tip.y + hook.y) / 2 + 10;
+    ctx.strokeStyle = 'rgba(230,236,230,0.6)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.quadraticCurveTo(midx, midy, hook.x, hook.y); ctx.stroke();
+    // bobber
+    ctx.fillStyle = '#d9483c';
+    ctx.beginPath(); ctx.arc(hook.x, hook.y, 3.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#eee6d8';
+    ctx.beginPath(); ctx.arc(hook.x, hook.y - 2, 2, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawRipples() {
+  for (const r of ripples) {
+    const p = r.age / r.life;
+    ctx.strokeStyle = `rgba(225,235,228,${0.35 * (1 - p)})`;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.ellipse(r.x, r.y, r.maxR * p, r.maxR * p * 0.35, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
+function draw() {
+  ctx.drawImage(BG, 0, 0);
+  for (const f of fogBanks) ctx.drawImage(f.spr, f.x - f.spr.width / 2, f.y);
+
+  drawRipples();
+
+  // boat + angler, then the dynamically-animated rod/line on top
+  ctx.drawImage(ANGLER_SPRITE, ANGLER_DRAW_X, ANGLER_DRAW_Y);
+  drawRodAndLine();
+
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, 1 - p.age / p.life);
+    ctx.fillStyle = p.col;
+    ctx.fillRect(p.x, p.y, p.size, p.size);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function loop(t) {
+  const dt = Math.min(0.05, (t - lastT) / 1000);
+  lastT = t;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
