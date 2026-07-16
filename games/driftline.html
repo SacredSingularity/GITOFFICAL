@@ -714,47 +714,135 @@ function makeFishSquid() {
     P(11, 9, '#0a0a0a'); P(18, 9, '#0a0a0a');
   });
 }
+function makeFishFlathead() {
+  return makeSprite(32, 16, (g) => {
+    const P = (x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(10, 6, 18, 7, '#7a8a5c');
+    rect(10, 6, 18, 2, '#96a870');
+    rect(4, 2, 10, 10, '#6a7a4e');   // broad flat head, wider than the body
+    rect(4, 2, 10, 2, '#84945e');
+    rect(2, 4, 3, 6, '#566040');
+    rect(26, 8, 4, 4, '#566040');
+    P(9, 6, '#141410');
+  });
+}
+function makeFishSalmon() {
+  return makeSprite(32, 16, (g) => {
+    const P = (x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(6, 5, 20, 8, '#5a7a9a');
+    rect(6, 9, 20, 4, '#d98a8c');    // salmon-pink flank/belly
+    rect(6, 5, 20, 2, '#7a9ab8');
+    rect(1, 5, 6, 3, '#455f78'); rect(1, 10, 6, 3, '#455f78');   // forked tail
+    rect(24, 7, 4, 4, '#3a5268');
+    P(25, 7, '#0e120c');
+  });
+}
+function makeFishCuttlefish() {
+  return makeSprite(26, 26, (g) => {
+    const P = (x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(6, 2, 14, 3, '#a89268');
+    rect(4, 5, 18, 12, '#a89268');
+    rect(6, 2, 14, 1, '#c4ac7c');
+    rect(2, 4, 2, 12, '#8a7454'); rect(22, 4, 2, 12, '#8a7454');   // fin skirt
+    for (let i = 0; i < 3; i++) rect(9 + i * 3, 17, 2, 8, '#786244');   // tentacles
+    rect(9, 9, 3, 3, '#e8e2d0'); rect(15, 9, 3, 3, '#e8e2d0');
+    P(10, 10, '#0a0a0a'); P(16, 10, '#0a0a0a');
+  });
+}
+function makeFishSeaBass() {
+  return makeSprite(34, 22, (g) => {
+    const P = (x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    // bulky tapered body, wide at the head and narrowing toward the tail
+    rect(9, 4, 18, 12, '#4a5540');
+    rect(9, 4, 18, 3, '#5c6a4e');        // top-lit band
+    rect(9, 13, 18, 3, '#333d2c');       // shaded belly
+    rect(6, 6, 4, 8, '#3a4432');         // heavy jowled head
+    rect(4, 14, 4, 2, '#2c3428');        // lower jaw line
+    rect(13, 1, 7, 4, '#3a4432');        // dorsal fin
+    // proper triangular tail fan instead of a flat dark block
+    g.fillStyle = '#3a4432';
+    g.beginPath(); g.moveTo(28, 5); g.lineTo(34, 1); g.lineTo(29, 10); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(28, 15); g.lineTo(34, 20); g.lineTo(29, 11); g.closePath(); g.fill();
+    P(8, 8, '#0c0e0a');
+  });
+}
+function makeFishHammerhead() {
+  return makeSprite(36, 22, (g) => {
+    const P = (x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(10, 7, 20, 8, '#6a7a84');
+    rect(10, 7, 20, 2, '#889aa4');
+    rect(16, 1, 6, 7, '#586772');   // dorsal fin
+    rect(2, 6, 4, 3, '#586772'); rect(2, 12, 4, 3, '#586772');   // hammer wingtips
+    rect(6, 5, 10, 12, '#5a6a74');  // hammer head block
+    rect(28, 8, 6, 6, '#455460');  // tail
+    P(4, 7, '#0a0c0e'); P(4, 13, '#0a0c0e');
+  });
+}
 const FISH_SPRITES = {
   carp: makeFishCarp(),
+  flathead: makeFishFlathead(),
   catfish: makeFishCatfish(),
+  salmon: makeFishSalmon(),
   discus: makeFishDiscus(),
+  cuttlefish: makeFishCuttlefish(),
   angelfish: makeFishAngelfish(),
+  seabass: makeFishSeaBass(),
   squid: makeFishSquid(),
+  hammerhead: makeFishHammerhead(),
 };
 
 // Rarity-weighted fish table — a config array, not hardcoded branching,
 // so more fish can be added later without restructuring the roll logic.
+// `chance` is now each fish's SHARE WITHIN ITS TIER (sums to 1 per tier,
+// not across the whole table) since every tier now holds two species —
+// tier-level odds still come from TIER_WEIGHTS below.
 const FISH_CONFIG = [
-  { id: 'carp', name: 'Carp', rarity: 'common', value: 10, chance: 0.50 },
-  { id: 'catfish', name: 'Catfish', rarity: 'uncommon', value: 25, chance: 0.32 },
-  { id: 'discus', name: 'Discus', rarity: 'rare', value: 75, chance: 0.11 },
-  { id: 'angelfish', name: 'Angelfish', rarity: 'epic', value: 150, chance: 0.05 },
-  { id: 'squid', name: 'Colossal Squid', rarity: 'legendary', value: 500, chance: 0.02 },
+  { id: 'carp', name: 'Carp', rarity: 'common', value: 10, chance: 0.5 },
+  { id: 'flathead', name: 'Flathead', rarity: 'common', value: 15, chance: 0.5 },
+  { id: 'catfish', name: 'Catfish', rarity: 'uncommon', value: 25, chance: 0.5 },
+  { id: 'salmon', name: 'Salmon', rarity: 'uncommon', value: 30, chance: 0.5 },
+  { id: 'discus', name: 'Discus', rarity: 'rare', value: 75, chance: 0.5 },
+  { id: 'cuttlefish', name: 'Cuttlefish', rarity: 'rare', value: 70, chance: 0.5 },
+  { id: 'angelfish', name: 'Angelfish', rarity: 'epic', value: 150, chance: 0.5 },
+  { id: 'seabass', name: 'Giant Sea Bass', rarity: 'epic', value: 160, chance: 0.5 },
+  { id: 'squid', name: 'Colossal Squid', rarity: 'legendary', value: 500, chance: 0.5 },
+  { id: 'hammerhead', name: 'Hammerhead Shark', rarity: 'legendary', value: 750, chance: 0.5 },
 ];
 const RARITY_COLORS = { common: '#c9c9c9', uncommon: '#5fa868', rare: '#5a8fc9', epic: '#a878c9', legendary: '#e8b83c' };
+// Base tier weights (sum to 100) — the same 50/32/11/5/2 split as before,
+// now shared between two fish per tier instead of one.
+const TIER_WEIGHTS = { common: 50, uncommon: 32, rare: 11, epic: 5, legendary: 2 };
 
 // Luck (Phase 6) shifts weight away from the common tier toward the rest,
 // proportional to their existing relative split. Common has an effective
 // floor of 5% so odds never go negative or degenerate even though Luck
 // itself has no purchase cap — see buyStatUpgrade's comment for how that
-// plays out at high levels.
+// plays out at high levels. Operates on tier weights, then splits each
+// tier's weight across its fish by their intra-tier `chance` share.
 function getEffectiveFishWeights() {
-  const commonFish = FISH_CONFIG.find(f => f.rarity === 'common');
-  const baseCommon = commonFish.chance * 100;
+  const baseCommon = TIER_WEIGHTS.common;
   const commonFloorPct = 5;
   const maxRemovable = Math.max(0, baseCommon - commonFloorPct);
   const luckPercent = save.upgrades.luck * 2;
   const removed = Math.min(luckPercent, maxRemovable);
 
-  const weights = { [commonFish.id]: baseCommon - removed };
-  for (const f of FISH_CONFIG) {
-    if (f.id === commonFish.id) continue;
-    const oldWeight = f.chance * 100;
-    weights[f.id] = oldWeight + removed * (oldWeight / baseCommon);
+  const tierWeights = { common: baseCommon - removed };
+  for (const tier in TIER_WEIGHTS) {
+    if (tier === 'common') continue;
+    const oldWeight = TIER_WEIGHTS[tier];
+    tierWeights[tier] = oldWeight + removed * (oldWeight / baseCommon);
   }
   // re-normalize to guard against floating-point drift
-  const total = Object.values(weights).reduce((a, b) => a + b, 0);
-  for (const k in weights) weights[k] = weights[k] / total * 100;
+  const tierTotal = Object.values(tierWeights).reduce((a, b) => a + b, 0);
+  for (const t in tierWeights) tierWeights[t] = tierWeights[t] / tierTotal * 100;
+
+  const weights = {};
+  for (const f of FISH_CONFIG) weights[f.id] = tierWeights[f.rarity] * f.chance;
   return weights;
 }
 
