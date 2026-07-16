@@ -112,6 +112,15 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   font-size: 26px; font-weight: 700; letter-spacing: 2px; margin-top: 6px;
   color: #f0cf9a; text-shadow: 0 0 20px rgba(240,207,154,0.5);
 }
+
+/* --- Phase 3: catch reveal --- */
+.btn-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+#catchRarity {
+  font-size: 13px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+#catchSpriteCanvas { image-rendering: pixelated; margin: 10px 0 18px; }
+#catchValueChip { font-size: 17px; padding: 8px 20px; margin-bottom: 24px; }
 </style>
 </head>
 <body>
@@ -129,6 +138,18 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
     <div id="timerBarTrack"><div id="timerBarFill"></div></div>
     <div class="square-grid" id="squareGrid"></div>
     <div id="minigameMessage"></div>
+  </div>
+
+  <!-- Phase 3: catch reveal -->
+  <div class="overlay" id="catchScreen">
+    <div id="catchRarity">Common</div>
+    <div class="title" id="catchName" style="font-size:32px;">Carp</div>
+    <canvas id="catchSpriteCanvas"></canvas>
+    <div class="hud-chip" id="catchValueChip">$ <b id="catchValue">10</b></div>
+    <div class="btn-row">
+      <div class="btn" id="sellBtn">Sell</div>
+      <div class="btn" id="storeBtn">Store</div>
+    </div>
   </div>
 </div>
 
@@ -214,6 +235,9 @@ const sfx = {
   wrong: () => blip(160, 0.18, 'sawtooth', 0.07, 90),
   tick: () => blip(900, 0.04, 'square', 0.03, 900),
   fail: () => { blip(300, 0.3, 'sawtooth', 0.07, 100); setTimeout(() => blip(220, 0.35, 'sawtooth', 0.07, 70), 140); },
+  reveal: () => { blip(500, 0.1, 'triangle', 0.05, 700); setTimeout(() => blip(700, 0.14, 'triangle', 0.06, 980), 100); setTimeout(() => blip(980, 0.2, 'triangle', 0.06, 1200), 220); },
+  sell: () => { blip(880, 0.06, 'square', 0.05, 1180); setTimeout(() => blip(1180, 0.1, 'square', 0.05, 1480), 70); },
+  store: () => blip(320, 0.12, 'sine', 0.06, 220),
 };
 
 // -------------------------------------------------------------------
@@ -357,6 +381,125 @@ const ANGLER_DRAW_Y = BOAT_Y - ANGLER_SPRITE.height + 26;
 // rod's pivot actually sits in the angler's hand instead of floating
 const ROD_PIVOT = { x: ANGLER_DRAW_X + 72.5, y: ANGLER_DRAW_Y + 24.5 };
 const ROD_LEN = 96;
+
+// -------------------------------------------------------------------
+//  PHASE 3 — fish sprites, rarity table, and catch resolution
+// -------------------------------------------------------------------
+// Blocky pixel-art fish, same P/rect approach as the angler sprite. Each
+// is its own draw function since body plans differ meaningfully by
+// species (a shared palette-only function wouldn't read as distinct
+// fish the way the quickdraw gun skins do).
+function makeFishCarp() {
+  return makeSprite(32, 18, (g) => {
+    const P = (x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(8, 4, 18, 10, '#d68a3c');
+    rect(8, 4, 18, 2, '#e8a860');
+    rect(8, 12, 18, 2, '#b8702c');
+    rect(13, 1, 6, 3, '#c97830');
+    rect(3, 6, 6, 6, '#c97830');
+    rect(1, 7, 3, 4, '#b8702c');
+    P(23, 7, '#1a1410');
+  });
+}
+function makeFishCatfish() {
+  return makeSprite(32, 16, (g) => {
+    const P = (x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(5, 5, 22, 8, '#6b7a5e');
+    rect(5, 5, 22, 2, '#8a9a72');
+    rect(3, 6, 4, 6, '#566349');
+    rect(1, 7, 3, 4, '#455038');
+    rect(26, 8, 3, 4, '#4a5540');
+    for (let i = 0; i < 3; i++) P(29 + i, 8 + i % 2, '#3a4432');
+    P(25, 7, '#0e120c');
+  });
+}
+function makeFishDiscus() {
+  return makeSprite(24, 24, (g) => {
+    const P = (x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(8, 2, 8, 1, '#6a8fae');
+    rect(5, 3, 14, 2, '#6a8fae');
+    rect(3, 5, 18, 14, '#6a8fae');
+    rect(5, 19, 14, 2, '#6a8fae');
+    rect(8, 21, 8, 1, '#6a8fae');
+    for (let x = 6; x < 20; x += 4) rect(x, 5, 1, 14, '#3a5a78');
+    rect(20, 9, 4, 6, '#4a6f8e');
+    P(16, 8, '#101820');
+  });
+}
+function makeFishAngelfish() {
+  return makeSprite(28, 34, (g) => {
+    const P = (x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    const body = '#c9d2d6', bodyDk = '#9aa8ac', stripe = '#1c1f20', fin = '#aab4b8';
+    // tall diamond-ish body, narrow at top/bottom and widest in the middle
+    rect(11, 9, 6, 2, body);
+    rect(9, 11, 10, 3, body);
+    rect(7, 14, 14, 7, body);
+    rect(9, 21, 10, 3, body);
+    rect(11, 24, 6, 2, body);
+    // dorsal fin tapering up from the body (a point, not a full-width block)
+    rect(13, 4, 2, 5, fin);
+    rect(12, 8, 4, 2, fin);
+    // anal fin tapering down from the body, mirroring the dorsal fin
+    rect(13, 26, 2, 5, fin);
+    rect(12, 25, 4, 2, fin);
+    // tail at the back
+    rect(4, 15, 4, 5, fin);
+    rect(2, 16, 3, 3, bodyDk);
+    // stripes across the body only, not the thin fins
+    rect(10, 12, 2, 10, stripe);
+    rect(14, 11, 2, 12, stripe);
+    rect(18, 13, 2, 8, stripe);
+    // eye near the head, opposite the tail
+    P(18, 16, '#0c0e0e');
+  });
+}
+function makeFishSquid() {
+  return makeSprite(30, 34, (g) => {
+    const P = (x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+    const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    rect(9, 2, 12, 3, '#5a2a4a');
+    rect(6, 5, 18, 14, '#5a2a4a');
+    rect(8, 3, 4, 2, '#6e3a5e');
+    for (let i = 0; i < 5; i++) {
+      const x0 = 6 + i * 4.5;
+      rect(x0, 19, 3, 12 + (i % 2) * 3, '#4a2040');
+    }
+    rect(10, 8, 4, 4, '#e8e2d8'); rect(17, 8, 4, 4, '#e8e2d8');
+    P(11, 9, '#0a0a0a'); P(18, 9, '#0a0a0a');
+  });
+}
+const FISH_SPRITES = {
+  carp: makeFishCarp(),
+  catfish: makeFishCatfish(),
+  discus: makeFishDiscus(),
+  angelfish: makeFishAngelfish(),
+  squid: makeFishSquid(),
+};
+
+// Rarity-weighted fish table — a config array, not hardcoded branching,
+// so more fish can be added later without restructuring the roll logic.
+const FISH_CONFIG = [
+  { id: 'carp', name: 'Carp', rarity: 'common', value: 10, chance: 0.50 },
+  { id: 'catfish', name: 'Catfish', rarity: 'uncommon', value: 25, chance: 0.32 },
+  { id: 'discus', name: 'Discus', rarity: 'rare', value: 75, chance: 0.11 },
+  { id: 'angelfish', name: 'Angelfish', rarity: 'epic', value: 150, chance: 0.05 },
+  { id: 'squid', name: 'Colossal Squid', rarity: 'legendary', value: 500, chance: 0.02 },
+];
+const RARITY_COLORS = { common: '#c9c9c9', uncommon: '#5fa868', rare: '#5a8fc9', epic: '#a878c9', legendary: '#e8b83c' };
+
+function rollFish() {
+  const r = Math.random();
+  let acc = 0;
+  for (const f of FISH_CONFIG) {
+    acc += f.chance;
+    if (r <= acc) return f;
+  }
+  return FISH_CONFIG[0];   // floating-point safety net, should be unreachable
+}
 
 // -------------------------------------------------------------------
 //  RIPPLES — expanding rings that fade, spawned on splash / idle bob
@@ -569,10 +712,59 @@ function minigameWin() {
   minigameMessageEl.textContent = '🎣 Got one!';
   setTimeout(() => {
     minigameScreenEl.classList.remove('show');
-    // Phase 3 (fish roll + catch reveal) hooks in here once built.
-    returnToPond();
-  }, 1100);
+    showCatchReveal(rollFish());
+  }, 900);
 }
+
+// -------------------------------------------------------------------
+//  PHASE 3 — catch reveal: fish roll result, sell or store it
+// -------------------------------------------------------------------
+const catchScreenEl = document.getElementById('catchScreen');
+const catchSpriteCtx = document.getElementById('catchSpriteCanvas').getContext('2d');
+let currentCatch = null;
+
+function showCatchReveal(fish) {
+  currentCatch = fish;
+  sfx.reveal();
+  const rarityEl = document.getElementById('catchRarity');
+  rarityEl.textContent = fish.rarity;
+  rarityEl.style.color = RARITY_COLORS[fish.rarity];
+  document.getElementById('catchName').textContent = fish.name;
+  document.getElementById('catchValue').textContent = fish.value;
+
+  const spr = FISH_SPRITES[fish.id];
+  const canvas = catchSpriteCtx.canvas;
+  const scale = Math.min(160 / spr.width, 120 / spr.height);
+  canvas.width = spr.width * scale; canvas.height = spr.height * scale;
+  catchSpriteCtx.imageSmoothingEnabled = false;
+  catchSpriteCtx.drawImage(spr, 0, 0, canvas.width, canvas.height);
+
+  catchScreenEl.classList.add('show');
+}
+
+function setMoney(amount) {
+  save.money = amount;
+  document.getElementById('money').textContent = save.money;
+  writeSave();
+}
+
+document.getElementById('sellBtn').addEventListener('click', () => {
+  if (!currentCatch) return;
+  sfx.sell();
+  setMoney(save.money + currentCatch.value);
+  currentCatch = null;
+  catchScreenEl.classList.remove('show');
+  returnToPond();
+});
+document.getElementById('storeBtn').addEventListener('click', () => {
+  if (!currentCatch) return;
+  sfx.store();
+  save.inventory[currentCatch.id] = (save.inventory[currentCatch.id] || 0) + 1;
+  writeSave();
+  currentCatch = null;
+  catchScreenEl.classList.remove('show');
+  returnToPond();
+});
 
 function minigameLose() {
   if (!minigame) return;
