@@ -439,18 +439,27 @@ let save = loadSave();
 //  BACKGROUND — misty pond: sky, treeline, water with reflection bands
 // -------------------------------------------------------------------
 const BG = makeSprite(VW, VH, (g, w, h) => {
+  // warmer golden-hour sky: deep teal up top, softening to a dusky
+  // amber near the horizon instead of a flat cool grey-green
   const sky = g.createLinearGradient(0, 0, 0, h * 0.5);
-  sky.addColorStop(0, '#3a4a44'); sky.addColorStop(0.6, '#5a6b62'); sky.addColorStop(1, '#7a8d80');
+  sky.addColorStop(0, '#2c3c3e'); sky.addColorStop(0.45, '#4a5c54');
+  sky.addColorStop(0.78, '#7c7458'); sky.addColorStop(1, '#9c8a5e');
   g.fillStyle = sky; g.fillRect(0, 0, w, h * 0.5);
 
-  // soft pale sun/moon glow, low and muted (lantern-glow accent, not a
-  // bright sci-fi/western sun)
-  g.fillStyle = 'rgba(232,200,150,0.22)';
-  g.beginPath(); g.arc(w * 0.72, h * 0.22, 60, 0, Math.PI * 2); g.fill();
-  g.fillStyle = 'rgba(232,200,150,0.4)';
-  g.beginPath(); g.arc(w * 0.72, h * 0.22, 30, 0, Math.PI * 2); g.fill();
+  // a scatter of quiet stars high up, for a bit of stillness/magic
+  g.fillStyle = 'rgba(240,240,225,0.4)';
+  const stars = [[40, 18], [120, 38], [300, 14], [380, 52], [200, 66], [440, 28], [70, 60], [260, 30]];
+  for (const [sx, sy] of stars) g.fillRect(sx, sy, 1, 1);
 
-  // distant pine treeline silhouette
+  // warm lantern-toned sun/moon glow — layered rings for a softer,
+  // richer look than a single flat disc
+  g.fillStyle = 'rgba(240,200,140,0.22)';
+  g.beginPath(); g.arc(w * 0.72, h * 0.22, 64, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(248,212,155,0.42)';
+  g.beginPath(); g.arc(w * 0.72, h * 0.22, 32, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255,232,195,0.75)';
+  g.beginPath(); g.arc(w * 0.72, h * 0.22, 14, 0, Math.PI * 2); g.fill();
+
   function pine(x, y, s, col) {
     g.fillStyle = col;
     g.beginPath();
@@ -465,25 +474,45 @@ const BG = makeSprite(VW, VH, (g, w, h) => {
     g.closePath(); g.fill();
     g.fillRect(x - 2 * s, y + 6 * s, 4 * s, 8 * s);
   }
+  // a lighter, cooler, smaller far-off treeline behind the main one, for
+  // parallax depth
+  const farTreeY = h * 0.45;
+  for (let x = -10; x < w + 30; x += 40) pine(x, farTreeY, 0.5 + ((x * 11) % 4) * 0.06, '#43554c');
+  // main near treeline (kept, slightly warmed)
   const treeY = h * 0.5;
-  for (let x = -10; x < w + 30; x += 34) pine(x, treeY, 0.8 + ((x * 7) % 5) * 0.08, '#22322a');
-  for (let x = 10; x < w + 30; x += 46) pine(x, treeY - 6, 1.05 + ((x * 3) % 4) * 0.07, '#2c3f34');
+  for (let x = -10; x < w + 30; x += 34) pine(x, treeY, 0.8 + ((x * 7) % 5) * 0.08, '#263429');
+  for (let x = 10; x < w + 30; x += 46) pine(x, treeY - 6, 1.05 + ((x * 3) % 4) * 0.07, '#304337');
 
-  // water body
+  // water body, warmed at the top where it catches the sky
   const water = g.createLinearGradient(0, h * 0.5, 0, h);
-  water.addColorStop(0, '#4a6058'); water.addColorStop(0.35, '#324840'); water.addColorStop(1, '#1c2a26');
+  water.addColorStop(0, '#5c6456'); water.addColorStop(0.32, '#374c43'); water.addColorStop(1, '#182420');
   g.fillStyle = water; g.fillRect(0, h * 0.5, w, h * 0.5);
 
-  // faint reflected treeline + soft horizontal reflection streaks
+  // faint reflected treeline + a warm reflected glow beneath the sun/moon
   g.save();
   g.globalAlpha = 0.18;
   for (let x = -10; x < w + 30; x += 34) pine(x, h * 0.5 + 22, 0.6, '#22322a');
   g.restore();
-  g.fillStyle = 'rgba(232,200,150,0.10)';
-  g.fillRect(w * 0.6, h * 0.52, w * 0.24, 5);
-  g.fillRect(w * 0.66, h * 0.58, w * 0.14, 3);
+  g.fillStyle = 'rgba(245,205,145,0.16)';
+  g.fillRect(w * 0.58, h * 0.52, w * 0.3, 6);
+  g.fillRect(w * 0.64, h * 0.6, w * 0.18, 4);
+  g.fillRect(w * 0.68, h * 0.67, w * 0.1, 3);
   g.fillStyle = 'rgba(220,230,225,0.06)';
   for (let y = h * 0.55; y < h; y += 16) g.fillRect(0, y, w, 2);
+
+  // soft grassy banks tucked into the foreground corners, so the water
+  // reads as a framed cove rather than filling the whole lower half
+  function grassTuft(x, y, s, col) {
+    g.fillStyle = col;
+    for (let i = 0; i < 6; i++) {
+      const gx = x + i * 3 * s, gh = (6 + (i % 3) * 3) * s;
+      g.fillRect(gx, y - gh, 2 * s, gh);
+    }
+  }
+  grassTuft(-4, h * 0.99, 1, '#33422e');
+  grassTuft(10, h, 0.8, '#425438');
+  grassTuft(w - 30, h * 0.985, 0.9, '#33422e');
+  grassTuft(w - 14, h, 0.75, '#425438');
 
   // small wooden dock jutting in from the left edge
   g.fillStyle = '#4a3826';
@@ -492,6 +521,19 @@ const BG = makeSprite(VW, VH, (g, w, h) => {
   g.fillRect(0, h * 0.56, w * 0.22, 3);
   g.fillStyle = '#382a1c';
   for (let x = 6; x < w * 0.22; x += 16) g.fillRect(x, h * 0.56 + 8, 5, 20);
+
+  // a lit lantern on a post at the end of the dock — the scene's cozy
+  // focal point, tying into the game's lantern-glow accent colour
+  const lx = w * 0.19, lpy = h * 0.56;
+  g.fillStyle = '#2c2018';
+  g.fillRect(lx, lpy - 34, 3, 34);
+  g.fillRect(lx - 6, lpy - 36, 15, 3);
+  g.fillStyle = 'rgba(245,195,120,0.3)';
+  g.beginPath(); g.arc(lx + 1, lpy - 24, 18, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#3a2c1c';
+  g.fillRect(lx - 3, lpy - 30, 9, 10);
+  g.fillStyle = 'rgba(255,222,155,0.95)';
+  g.fillRect(lx - 1, lpy - 28, 5, 6);
 });
 
 // -------------------------------------------------------------------
@@ -521,6 +563,26 @@ let fogBanks = [
   { x: 300, y: 190, speed: 2.6, spr: FOG_SPRITES[2] },
   { x: 420, y: 130, speed: 5.2, spr: FOG_SPRITES[1] },
 ];
+
+// -------------------------------------------------------------------
+//  FIREFLIES — small warm glowing motes drifting near the treeline, a
+//  cheap bit of magic that reads as "cozy" without adding busyness
+// -------------------------------------------------------------------
+const FIREFLY_SPRITE = makeSprite(4, 4, (g) => {
+  g.fillStyle = 'rgba(255,225,150,0.95)';
+  g.beginPath(); g.arc(2, 2, 1.6, 0, Math.PI * 2); g.fill();
+});
+let fireflies = [];
+for (let i = 0; i < 9; i++) {
+  fireflies.push({
+    baseX: 30 + Math.random() * (VW - 60),
+    baseY: VH * 0.4 + Math.random() * VH * 0.2,
+    x: 0, y: 0,
+    radius: 10 + Math.random() * 14,
+    phase: Math.random() * Math.PI * 2,
+    speed: 0.4 + Math.random() * 0.5,
+  });
+}
 
 // -------------------------------------------------------------------
 //  BOAT + ANGLER SPRITE — procedural pixel art, palette-driven so a rod
@@ -1471,6 +1533,11 @@ function update(dt) {
     f.x += f.speed * dt;
     if (f.x - f.spr.width / 2 > VW) f.x = -f.spr.width / 2;
   }
+  for (const fl of fireflies) {
+    fl.phase += dt * fl.speed;
+    fl.x = fl.baseX + Math.sin(fl.phase) * fl.radius;
+    fl.y = fl.baseY + Math.cos(fl.phase * 0.7) * fl.radius * 0.6;
+  }
   for (const r of ripples) r.age += dt;
   ripples = ripples.filter(r => r.age < r.life);
   for (const p of particles) {
@@ -1530,6 +1597,11 @@ function drawRipples() {
 function draw() {
   ctx.drawImage(BG, 0, 0);
   for (const f of fogBanks) ctx.drawImage(f.spr, f.x - f.spr.width / 2, f.y);
+  for (const fl of fireflies) {
+    ctx.globalAlpha = 0.35 + 0.55 * (0.5 + 0.5 * Math.sin(fl.phase * 2.2));
+    ctx.drawImage(FIREFLY_SPRITE, fl.x - 2, fl.y - 2);
+    ctx.globalAlpha = 1;
+  }
 
   drawRipples();
 
