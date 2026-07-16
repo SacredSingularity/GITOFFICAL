@@ -411,6 +411,10 @@ const sfx = {
   gambleWin: () => { blip(700, 0.1, 'triangle', 0.06, 940); setTimeout(() => blip(940, 0.16, 'triangle', 0.07, 1250), 100); },
   gambleLose: () => blip(220, 0.22, 'sawtooth', 0.06, 90),
   upgrade: () => { blip(440, 0.08, 'triangle', 0.05, 660); setTimeout(() => blip(660, 0.1, 'triangle', 0.05, 880), 70); },
+  cricket: () => { blip(2800, 0.045, 'square', 0.018, 2600); setTimeout(() => blip(2800, 0.045, 'square', 0.018, 2600), 90); },
+  owlHoot: () => { blip(340, 0.28, 'sine', 0.05, 260); setTimeout(() => blip(300, 0.3, 'sine', 0.045, 220), 340); },
+  birdChirp: () => { blip(1600, 0.06, 'triangle', 0.035, 2200); setTimeout(() => blip(2000, 0.05, 'triangle', 0.03, 2600), 70); },
+  rainDrop: () => noiseBurst(0.05, 0.025, 3200, 'bandpass'),
 };
 
 // -------------------------------------------------------------------
@@ -426,10 +430,10 @@ function loadSave() {
       upgrades: Object.assign({ luck: 0, speed: 0, market: 0 }, raw.upgrades || {}),
       rods: raw.rods || ['basic'],
       equippedRod: raw.equippedRod || 'basic',
-      isNight: raw.isNight || false,
+      sceneMode: raw.sceneMode || 'day',
     };
   } catch (e) {
-    return { money: 0, inventory: {}, upgrades: { luck: 0, speed: 0, market: 0 }, rods: ['basic'], equippedRod: 'basic', isNight: false };
+    return { money: 0, inventory: {}, upgrades: { luck: 0, speed: 0, market: 0 }, rods: ['basic'], equippedRod: 'basic', sceneMode: 'day' };
   }
 }
 function writeSave() {
@@ -440,15 +444,21 @@ let save = loadSave();
 // -------------------------------------------------------------------
 //  BACKGROUND — misty pond: sky, treeline, water with reflection bands
 // -------------------------------------------------------------------
-// Day/night are two pre-baked variants of the same scene — a `night`
-// flag swaps the palette (and adds a fuller scatter of stars) but keeps
-// every shape (treeline, dock, lantern, grass) identical between them.
-function makeSceneBG(night) {
+// Day/night/autumn are three pre-baked variants of the same scene —
+// `mode` swaps the palette (and, for autumn, some tree canopy colours)
+// but keeps every shape (treeline, dock, lantern, grass, mug) identical
+// across all three.
+function makeSceneBG(mode) {
+  const night = mode === 'night', autumn = mode === 'autumn';
   return makeSprite(VW, VH, (g, w, h) => {
     const sky = g.createLinearGradient(0, 0, 0, h * 0.5);
     if (night) {
       sky.addColorStop(0, '#0c131e'); sky.addColorStop(0.45, '#16222f');
       sky.addColorStop(0.78, '#26303c'); sky.addColorStop(1, '#3a3646');
+    } else if (autumn) {
+      // crisp autumn afternoon: deeper amber/rust near the horizon
+      sky.addColorStop(0, '#3a4448'); sky.addColorStop(0.45, '#6a5c48');
+      sky.addColorStop(0.78, '#9c6a3e'); sky.addColorStop(1, '#b8823e');
     } else {
       // warmer golden-hour sky: deep teal up top, softening to a dusky
       // amber near the horizon instead of a flat cool grey-green
@@ -458,18 +468,18 @@ function makeSceneBG(night) {
     g.fillStyle = sky; g.fillRect(0, 0, w, h * 0.5);
 
     // a scatter of quiet stars high up, for a bit of stillness/magic —
-    // a fuller, brighter sky at night
-    g.fillStyle = night ? 'rgba(240,240,235,0.8)' : 'rgba(240,240,225,0.4)';
-    const stars = [[40, 18], [120, 38], [300, 14], [380, 52], [200, 66], [440, 28], [70, 60], [260, 30]];
-    for (const [sx, sy] of stars) g.fillRect(sx, sy, 1, 1);
+    // a fuller, brighter sky at night, none in daylight/autumn
     if (night) {
+      g.fillStyle = 'rgba(240,240,235,0.8)';
+      const stars = [[40, 18], [120, 38], [300, 14], [380, 52], [200, 66], [440, 28], [70, 60], [260, 30]];
+      for (const [sx, sy] of stars) g.fillRect(sx, sy, 1, 1);
       g.fillStyle = 'rgba(230,235,245,0.55)';
       const moreStars = [[20, 80], [160, 20], [340, 68], [420, 44], [100, 10], [240, 50], [460, 15], [10, 42]];
       for (const [sx, sy] of moreStars) g.fillRect(sx, sy, 1, 1);
     }
 
-    // warm lantern-toned sun by day / cool pale moon by night — layered
-    // rings for a softer, richer look than a single flat disc
+    // warm lantern-toned sun by day/autumn, cool pale moon by night —
+    // layered rings for a softer, richer look than a single flat disc
     if (night) {
       g.fillStyle = 'rgba(205,215,232,0.18)';
       g.beginPath(); g.arc(w * 0.72, h * 0.2, 52, 0, Math.PI * 2); g.fill();
@@ -478,11 +488,11 @@ function makeSceneBG(night) {
       g.fillStyle = 'rgba(236,240,248,0.85)';
       g.beginPath(); g.arc(w * 0.72, h * 0.2, 13, 0, Math.PI * 2); g.fill();
     } else {
-      g.fillStyle = 'rgba(240,200,140,0.22)';
+      g.fillStyle = autumn ? 'rgba(240,160,90,0.25)' : 'rgba(240,200,140,0.22)';
       g.beginPath(); g.arc(w * 0.72, h * 0.22, 64, 0, Math.PI * 2); g.fill();
-      g.fillStyle = 'rgba(248,212,155,0.42)';
+      g.fillStyle = autumn ? 'rgba(248,180,110,0.45)' : 'rgba(248,212,155,0.42)';
       g.beginPath(); g.arc(w * 0.72, h * 0.22, 32, 0, Math.PI * 2); g.fill();
-      g.fillStyle = 'rgba(255,232,195,0.75)';
+      g.fillStyle = autumn ? 'rgba(255,210,150,0.8)' : 'rgba(255,232,195,0.75)';
       g.beginPath(); g.arc(w * 0.72, h * 0.22, 14, 0, Math.PI * 2); g.fill();
     }
 
@@ -505,14 +515,27 @@ function makeSceneBG(night) {
     const treeY = h * 0.5;
     const treeCol1 = night ? '#0e1712' : '#22322a';
     const treeCol2 = night ? '#122019' : '#2c3f34';
-    for (let x = -10; x < w + 30; x += 34) pine(x, treeY, 0.8 + ((x * 7) % 5) * 0.08, treeCol1);
-    for (let x = 10; x < w + 30; x += 46) pine(x, treeY - 6, 1.05 + ((x * 3) % 4) * 0.07, treeCol2);
+    // autumn: every third tree in each row swaps to a warm amber/rust
+    // canopy, like a few deciduous trees mixed into the pines
+    const autumnCol1 = '#a86a2e', autumnCol2 = '#c47a34';
+    let i1 = 0;
+    for (let x = -10; x < w + 30; x += 34) {
+      pine(x, treeY, 0.8 + ((x * 7) % 5) * 0.08, (autumn && i1 % 3 === 0) ? autumnCol1 : treeCol1);
+      i1++;
+    }
+    let i2 = 0;
+    for (let x = 10; x < w + 30; x += 46) {
+      pine(x, treeY - 6, 1.05 + ((x * 3) % 4) * 0.07, (autumn && i2 % 3 === 1) ? autumnCol2 : treeCol2);
+      i2++;
+    }
 
-    // water body, warmed at the top where it catches the sky by day /
-    // cool and dim by night
+    // water body, warmed at the top where it catches the sky by day/
+    // autumn, cool and dim by night
     const water = g.createLinearGradient(0, h * 0.5, 0, h);
     if (night) {
       water.addColorStop(0, '#1c262c'); water.addColorStop(0.32, '#141c20'); water.addColorStop(1, '#080e10');
+    } else if (autumn) {
+      water.addColorStop(0, '#5c5240'); water.addColorStop(0.32, '#3c3a2c'); water.addColorStop(1, '#1c2018');
     } else {
       water.addColorStop(0, '#5c6456'); water.addColorStop(0.32, '#374c43'); water.addColorStop(1, '#182420');
     }
@@ -523,7 +546,7 @@ function makeSceneBG(night) {
     g.globalAlpha = 0.18;
     for (let x = -10; x < w + 30; x += 34) pine(x, h * 0.5 + 22, 0.6, treeCol1);
     g.restore();
-    g.fillStyle = night ? 'rgba(205,215,232,0.1)' : 'rgba(245,205,145,0.16)';
+    g.fillStyle = night ? 'rgba(205,215,232,0.1)' : (autumn ? 'rgba(245,160,90,0.18)' : 'rgba(245,205,145,0.16)');
     g.fillRect(w * 0.58, h * 0.52, w * 0.3, 6);
     g.fillRect(w * 0.64, h * 0.6, w * 0.18, 4);
     g.fillRect(w * 0.68, h * 0.67, w * 0.1, 3);
@@ -539,8 +562,8 @@ function makeSceneBG(night) {
         g.fillRect(gx, y - gh, 2 * s, gh);
       }
     }
-    const grassCol1 = night ? '#1c261a' : '#33422e';
-    const grassCol2 = night ? '#28351f' : '#425438';
+    const grassCol1 = night ? '#1c261a' : (autumn ? '#5c4a28' : '#33422e');
+    const grassCol2 = night ? '#28351f' : (autumn ? '#725a30' : '#425438');
     grassTuft(-4, h * 0.99, 1, grassCol1);
     grassTuft(10, h, 0.8, grassCol2);
     grassTuft(w - 30, h * 0.985, 0.9, grassCol1);
@@ -567,10 +590,24 @@ function makeSceneBG(night) {
     g.fillRect(lx - 3, lpy - 30, 9, 10);
     g.fillStyle = 'rgba(255,222,155,0.95)';
     g.fillRect(lx - 1, lpy - 28, 5, 6);
+
+    // a small mug of tea/coffee sitting on the dock — a tiny warm
+    // domestic touch (steam rises dynamically above it, see STEAM_POS)
+    g.fillStyle = '#c9d2d6';
+    g.fillRect(MUG_POS.x - 3, MUG_POS.y - 5, 6, 5);
+    g.fillStyle = '#9aa8ac';
+    g.fillRect(MUG_POS.x - 3, MUG_POS.y - 1, 6, 1);
+    g.fillStyle = '#c9d2d6';
+    g.fillRect(MUG_POS.x + 3, MUG_POS.y - 4, 2, 3);   // handle
   });
 }
-const BG_DAY = makeSceneBG(false);
-const BG_NIGHT = makeSceneBG(true);
+// Fixed stage-space position of the dock mug, shared between the baked
+// sprite above and the dynamic steam-wisp particle system below.
+const MUG_POS = { x: VW * 0.27, y: VH * 0.56 };
+const BG_DAY = makeSceneBG('day');
+const BG_NIGHT = makeSceneBG('night');
+const BG_AUTUMN = makeSceneBG('autumn');
+const SCENE_BGS = { day: BG_DAY, night: BG_NIGHT, autumn: BG_AUTUMN };
 
 // -------------------------------------------------------------------
 //  DRIFTING FOG — soft translucent blobs drifting slowly across the
@@ -618,6 +655,77 @@ for (let i = 0; i < 9; i++) {
     phase: Math.random() * Math.PI * 2,
     speed: 0.4 + Math.random() * 0.5,
   });
+}
+
+// -------------------------------------------------------------------
+//  STEAM — small wisps rising from the dock mug, a tiny warm domestic
+//  detail. Same spawn/rise/fade pattern as splash particles, just
+//  slower and with no gravity.
+// -------------------------------------------------------------------
+let steamPuffs = [];
+let steamSpawnTimer = 0;
+function updateSteam(dt) {
+  steamSpawnTimer -= dt;
+  if (steamSpawnTimer <= 0) {
+    steamSpawnTimer = 0.5 + Math.random() * 0.4;
+    steamPuffs.push({
+      x: MUG_POS.x + (Math.random() - 0.5) * 2, y: MUG_POS.y - 5,
+      vx: (Math.random() - 0.5) * 4, vy: -9 - Math.random() * 4,
+      age: 0, life: 1.6 + Math.random() * 0.6, size: 1.5 + Math.random(),
+    });
+  }
+  for (const p of steamPuffs) {
+    p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx += (Math.random() - 0.5) * 4 * dt;
+  }
+  steamPuffs = steamPuffs.filter(p => p.age < p.life);
+}
+function drawSteam() {
+  for (const p of steamPuffs) {
+    const t = p.age / p.life;
+    ctx.globalAlpha = 0.35 * (1 - t);
+    ctx.fillStyle = '#e8ece6';
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1 + t), 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// -------------------------------------------------------------------
+//  FALLING LEAVES — autumn-only, small tumbling amber/rust leaves
+//  drifting down with a gentle side-to-side sway
+// -------------------------------------------------------------------
+const LEAF_COLORS = ['#c47a34', '#a86a2e', '#d99a4a', '#8a5424'];
+let leaves = [];
+for (let i = 0; i < 10; i++) {
+  leaves.push({
+    x: Math.random() * VW, y: Math.random() * VH * 0.6,
+    speed: 14 + Math.random() * 10, sway: 12 + Math.random() * 14,
+    phase: Math.random() * Math.PI * 2, swaySpeed: 0.6 + Math.random() * 0.6,
+    rot: Math.random() * Math.PI * 2, rotSpeed: (Math.random() - 0.5) * 2,
+    col: LEAF_COLORS[i % LEAF_COLORS.length],
+  });
+}
+function updateLeaves(dt) {
+  if (save.sceneMode !== 'autumn') return;
+  for (const lf of leaves) {
+    lf.y += lf.speed * dt;
+    lf.phase += lf.swaySpeed * dt;
+    lf.rot += lf.rotSpeed * dt;
+    if (lf.y > VH * 0.6) {
+      lf.y = -6; lf.x = Math.random() * VW;
+    }
+  }
+}
+function drawLeaves() {
+  if (save.sceneMode !== 'autumn') return;
+  for (const lf of leaves) {
+    const x = lf.x + Math.sin(lf.phase) * lf.sway;
+    ctx.save();
+    ctx.translate(x, lf.y);
+    ctx.rotate(lf.rot);
+    ctx.fillStyle = lf.col;
+    ctx.fillRect(-2, -1.5, 4, 3);
+    ctx.restore();
+  }
 }
 
 // -------------------------------------------------------------------
@@ -1236,6 +1344,67 @@ function easeOutQuad(t) { return 1 - (1 - t) * (1 - t); }
 function easeInQuad(t) { return t * t; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 
+// -------------------------------------------------------------------
+//  AMBIENT SOUND — crickets + an occasional owl at night, soft
+//  birdsong by day/autumn, independent of casting/minigame state
+// -------------------------------------------------------------------
+let cricketTimer = 2 + Math.random() * 2;
+let owlTimer = 12 + Math.random() * 14;
+let birdTimer = 4 + Math.random() * 4;
+function updateAmbience(dt) {
+  if (save.sceneMode === 'night') {
+    cricketTimer -= dt;
+    if (cricketTimer <= 0) { sfx.cricket(); cricketTimer = 1.8 + Math.random() * 2.4; }
+    owlTimer -= dt;
+    if (owlTimer <= 0) { sfx.owlHoot(); owlTimer = 16 + Math.random() * 20; }
+  } else {
+    birdTimer -= dt;
+    if (birdTimer <= 0) { sfx.birdChirp(); birdTimer = 5 + Math.random() * 6; }
+  }
+}
+
+// -------------------------------------------------------------------
+//  WEATHER — a clear/rain cycle that runs independent of the cast
+//  state, with soft patter and ripples where drops meet the water
+// -------------------------------------------------------------------
+let weather = 'clear';
+let weatherTimer = 25 + Math.random() * 35;
+let rainDrops = [];
+let rainSoundTimer = 0;
+function updateWeather(dt) {
+  weatherTimer -= dt;
+  if (weatherTimer <= 0) {
+    if (weather === 'clear') { weather = 'rain'; weatherTimer = 14 + Math.random() * 16; }
+    else { weather = 'clear'; weatherTimer = 30 + Math.random() * 50; }
+  }
+  if (weather === 'rain') {
+    if (Math.random() < dt * 16) {
+      rainDrops.push({ x: Math.random() * VW, y: -10, speed: 340 + Math.random() * 120, len: 8 + Math.random() * 8 });
+    }
+    rainSoundTimer -= dt;
+    if (rainSoundTimer <= 0) { sfx.rainDrop(); rainSoundTimer = 0.05 + Math.random() * 0.08; }
+  }
+  const waterLine = VH * 0.5;
+  const stillFalling = [];
+  for (const d of rainDrops) {
+    d.y += d.speed * dt;
+    if (d.y >= waterLine) spawnRipple(d.x, waterLine + Math.random() * 8, 10, 0.6);
+    else stillFalling.push(d);
+  }
+  rainDrops = stillFalling;
+}
+function drawRain() {
+  if (rainDrops.length === 0) return;
+  ctx.strokeStyle = 'rgba(210,225,230,0.35)';
+  ctx.lineWidth = 1;
+  for (const d of rainDrops) {
+    ctx.beginPath();
+    ctx.moveTo(d.x, d.y);
+    ctx.lineTo(d.x - 3, d.y - d.len);
+    ctx.stroke();
+  }
+}
+
 function startCast() {
   if (castState !== CastState.IDLE || minigame) return;
   audio();
@@ -1517,12 +1686,16 @@ function renderInventory() {
   }
 }
 
+// day -> night -> autumn -> day, cycling on the one HUD button
+const SCENE_ICONS = { day: '☀️', night: '🌙', autumn: '🍂' };
+const SCENE_ORDER = ['day', 'night', 'autumn'];
 const dayNightBtn = document.getElementById('dayNightBtn');
-dayNightBtn.textContent = save.isNight ? '🌙' : '☀️';
+dayNightBtn.textContent = SCENE_ICONS[save.sceneMode];
 dayNightBtn.addEventListener('click', () => {
-  save.isNight = !save.isNight;
+  const next = SCENE_ORDER[(SCENE_ORDER.indexOf(save.sceneMode) + 1) % SCENE_ORDER.length];
+  save.sceneMode = next;
   writeSave();
-  dayNightBtn.textContent = save.isNight ? '🌙' : '☀️';
+  dayNightBtn.textContent = SCENE_ICONS[next];
   sfx.click();
 });
 
@@ -1681,6 +1854,10 @@ function update(dt) {
   updateCast(dt);
   updateMinigame(dt);
   updateGamble(dt);
+  updateSteam(dt);
+  updateLeaves(dt);
+  updateAmbience(dt);
+  updateWeather(dt);
 }
 
 // -------------------------------------------------------------------
@@ -1728,11 +1905,11 @@ function drawRipples() {
 }
 
 function draw() {
-  ctx.drawImage(save.isNight ? BG_NIGHT : BG_DAY, 0, 0);
+  ctx.drawImage(SCENE_BGS[save.sceneMode], 0, 0);
   for (const f of fogBanks) ctx.drawImage(f.spr, f.x - f.spr.width / 2, f.y);
-  // fireflies are a dusk/night thing — still present by day but very
+  // fireflies are a dusk/night thing — still present otherwise but very
   // faint, so the scene isn't "missing" something when you flip back
-  const fireflyBoost = save.isNight ? 1 : 0.15;
+  const fireflyBoost = save.sceneMode === 'night' ? 1 : 0.15;
   for (const fl of fireflies) {
     ctx.globalAlpha = (0.35 + 0.55 * (0.5 + 0.5 * Math.sin(fl.phase * 2.2))) * fireflyBoost;
     ctx.drawImage(FIREFLY_SPRITE, fl.x - 2, fl.y - 2);
@@ -1740,6 +1917,8 @@ function draw() {
   }
 
   drawRipples();
+  drawLeaves();
+  drawSteam();
 
   // boat + angler, then the dynamically-animated rod/line on top
   ctx.drawImage(ANGLER_SPRITE, ANGLER_DRAW_X, ANGLER_DRAW_Y);
@@ -1752,6 +1931,7 @@ function draw() {
     ctx.globalAlpha = 1;
   }
 
+  drawRain();
   drawGambleReels();
 }
 
