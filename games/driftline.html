@@ -121,6 +121,44 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 }
 #catchSpriteCanvas { image-rendering: pixelated; margin: 10px 0 18px; }
 #catchValueChip { font-size: 17px; padding: 8px 20px; margin-bottom: 24px; }
+
+/* --- Phase 4: inventory --- */
+#inventoryScreen {
+  background: #05070a; backdrop-filter: none;
+  align-items: flex-start; justify-content: flex-start; padding: 54px 22px 24px;
+}
+#inventoryClose {
+  position: absolute; top: 14px; left: 16px;
+  width: 30px; height: 30px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(217,72,60,0.15); border: 1px solid rgba(217,72,60,0.6);
+  color: #d9483c; font-size: 17px; font-weight: 700; cursor: pointer;
+  transition: all 0.15s; user-select: none;
+}
+#inventoryClose:hover { background: rgba(217,72,60,0.3); box-shadow: 0 0 14px rgba(217,72,60,0.4); }
+#inventoryTitle {
+  font-size: 20px; letter-spacing: 4px; color: #eef2ea; margin-bottom: 22px;
+  width: 100%; text-align: center; text-transform: uppercase;
+}
+.inventory-grid {
+  display: grid; grid-template-columns: repeat(4, 84px); gap: 14px;
+  width: 100%; justify-content: center; align-content: start;
+}
+.inventory-slot {
+  position: relative; width: 84px; height: 84px; border-radius: 10px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+  display: flex; align-items: center; justify-content: center;
+}
+.inventory-slot canvas { image-rendering: pixelated; }
+.inventory-badge {
+  position: absolute; bottom: 4px; right: 5px;
+  background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 5px; padding: 1px 5px; font-size: 11px; font-weight: 700; color: #f0cf9a;
+}
+#inventoryEmpty {
+  color: rgba(223,230,223,0.5); font-size: 13px; letter-spacing: 1px;
+  width: 100%; text-align: center; margin-top: 40px;
+}
 </style>
 </head>
 <body>
@@ -128,7 +166,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   <canvas id="game"></canvas>
   <div id="hud">
     <div class="hud-chip">$ <b id="money">0</b></div>
-    <div id="backpackBtn" title="Inventory (coming soon)">🎒</div>
+    <div id="backpackBtn" title="Inventory">🎒</div>
   </div>
   <div id="castHint">Press <kbd>Space</kbd> to cast</div>
 
@@ -150,6 +188,14 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
       <div class="btn" id="sellBtn">Sell</div>
       <div class="btn" id="storeBtn">Store</div>
     </div>
+  </div>
+
+  <!-- Phase 4: inventory -->
+  <div class="overlay" id="inventoryScreen">
+    <div id="inventoryClose">✕</div>
+    <div id="inventoryTitle">Tackle Box</div>
+    <div class="inventory-grid" id="inventoryGrid"></div>
+    <div id="inventoryEmpty">Nothing caught yet — go cast a line!</div>
   </div>
 </div>
 
@@ -786,9 +832,53 @@ window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   if (e.code === 'Space') startCast();
 });
-document.getElementById('backpackBtn').addEventListener('click', () => {
+// -------------------------------------------------------------------
+//  PHASE 4 — inventory (stored fish, grouped with a stack-count badge)
+// -------------------------------------------------------------------
+const inventoryScreenEl = document.getElementById('inventoryScreen');
+
+function openInventory() {
+  if (castState !== CastState.IDLE || minigame || currentCatch) return;
   sfx.click();
-  // Phase 4 will open the full inventory overlay here.
+  renderInventory();
+  inventoryScreenEl.classList.add('show');
+}
+
+function renderInventory() {
+  const grid = document.getElementById('inventoryGrid');
+  grid.innerHTML = '';
+  const entries = FISH_CONFIG.filter(f => (save.inventory[f.id] || 0) > 0);
+  document.getElementById('inventoryEmpty').style.display = entries.length ? 'none' : 'block';
+
+  for (const f of entries) {
+    const count = save.inventory[f.id];
+    const slot = document.createElement('div');
+    slot.className = 'inventory-slot';
+    slot.title = `${f.name} (${f.rarity})`;
+
+    const spr = FISH_SPRITES[f.id];
+    const canvas = document.createElement('canvas');
+    const scale = Math.min(64 / spr.width, 64 / spr.height);
+    canvas.width = spr.width * scale; canvas.height = spr.height * scale;
+    const cctx = canvas.getContext('2d');
+    cctx.imageSmoothingEnabled = false;
+    cctx.drawImage(spr, 0, 0, canvas.width, canvas.height);
+    slot.appendChild(canvas);
+
+    if (count > 1) {
+      const badge = document.createElement('div');
+      badge.className = 'inventory-badge';
+      badge.textContent = '×' + count;
+      slot.appendChild(badge);
+    }
+    grid.appendChild(slot);
+  }
+}
+
+document.getElementById('backpackBtn').addEventListener('click', openInventory);
+document.getElementById('inventoryClose').addEventListener('click', () => {
+  sfx.click();
+  inventoryScreenEl.classList.remove('show');
 });
 
 document.getElementById('money').textContent = save.money;
