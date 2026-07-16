@@ -722,7 +722,7 @@ const STAT_UPGRADES = {
   luck: {
     name: 'Luck', maxLevel: Infinity,
     desc: 'Shifts the odds away from Common toward rarer fish.',
-    cost: (level) => 300 * (level + 1),
+    cost: (level) => 300 * (level + 1) + 150,
     bonusText: (level) => `+${level * 2}%`,
   },
   speed: {
