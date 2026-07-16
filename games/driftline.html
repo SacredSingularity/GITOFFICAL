@@ -460,32 +460,26 @@ const BG = makeSprite(VW, VH, (g, w, h) => {
   g.fillStyle = 'rgba(255,232,195,0.75)';
   g.beginPath(); g.arc(w * 0.72, h * 0.22, 14, 0, Math.PI * 2); g.fill();
 
-  // `groundY` is always the fixed bottom of the trunk — every tree in a
-  // layer plants at the same ground line no matter its random scale `s`,
-  // so trees never appear to float above or sink below the treeline.
-  function pine(x, groundY, s, col) {
+  // distant pine treeline silhouette — back to the original single-layer
+  // version (the extra far-off parallax layer sat as a visibly detached
+  // band above this one and read as floating trees)
+  function pine(x, y, s, col) {
     g.fillStyle = col;
-    const trunkH = 8, trunkTopY = groundY - trunkH;
-    g.fillRect(x - 2, trunkTopY, 4, trunkH);
     g.beginPath();
-    g.moveTo(x, trunkTopY - 20 * s);
-    g.lineTo(x - 16 * s, trunkTopY);
-    g.lineTo(x + 16 * s, trunkTopY);
+    g.moveTo(x, y - 30 * s);
+    g.lineTo(x - 13 * s, y);
+    g.lineTo(x + 13 * s, y);
     g.closePath(); g.fill();
     g.beginPath();
-    g.moveTo(x, trunkTopY - 30 * s);
-    g.lineTo(x - 13 * s, trunkTopY - 10 * s);
-    g.lineTo(x + 13 * s, trunkTopY - 10 * s);
+    g.moveTo(x, y - 20 * s);
+    g.lineTo(x - 16 * s, y + 8 * s);
+    g.lineTo(x + 16 * s, y + 8 * s);
     g.closePath(); g.fill();
+    g.fillRect(x - 2 * s, y + 6 * s, 4 * s, 8 * s);
   }
-  // a lighter, cooler, smaller far-off treeline behind the main one, for
-  // parallax depth
-  const farTreeY = h * 0.45;
-  for (let x = -10; x < w + 30; x += 40) pine(x, farTreeY, 0.5 + ((x * 11) % 4) * 0.06, '#43554c');
-  // main near treeline (kept, slightly warmed)
   const treeY = h * 0.5;
-  for (let x = -10; x < w + 30; x += 34) pine(x, treeY, 0.8 + ((x * 7) % 5) * 0.08, '#263429');
-  for (let x = 10; x < w + 30; x += 46) pine(x, treeY - 6, 1.05 + ((x * 3) % 4) * 0.07, '#304337');
+  for (let x = -10; x < w + 30; x += 34) pine(x, treeY, 0.8 + ((x * 7) % 5) * 0.08, '#22322a');
+  for (let x = 10; x < w + 30; x += 46) pine(x, treeY - 6, 1.05 + ((x * 3) % 4) * 0.07, '#2c3f34');
 
   // water body, warmed at the top where it catches the sky
   const water = g.createLinearGradient(0, h * 0.5, 0, h);
