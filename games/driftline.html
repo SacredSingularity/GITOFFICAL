@@ -460,19 +460,23 @@ const BG = makeSprite(VW, VH, (g, w, h) => {
   g.fillStyle = 'rgba(255,232,195,0.75)';
   g.beginPath(); g.arc(w * 0.72, h * 0.22, 14, 0, Math.PI * 2); g.fill();
 
-  function pine(x, y, s, col) {
+  // `groundY` is always the fixed bottom of the trunk — every tree in a
+  // layer plants at the same ground line no matter its random scale `s`,
+  // so trees never appear to float above or sink below the treeline.
+  function pine(x, groundY, s, col) {
     g.fillStyle = col;
+    const trunkH = 8, trunkTopY = groundY - trunkH;
+    g.fillRect(x - 2, trunkTopY, 4, trunkH);
     g.beginPath();
-    g.moveTo(x, y - 30 * s);
-    g.lineTo(x - 13 * s, y);
-    g.lineTo(x + 13 * s, y);
+    g.moveTo(x, trunkTopY - 20 * s);
+    g.lineTo(x - 16 * s, trunkTopY);
+    g.lineTo(x + 16 * s, trunkTopY);
     g.closePath(); g.fill();
     g.beginPath();
-    g.moveTo(x, y - 20 * s);
-    g.lineTo(x - 16 * s, y + 8 * s);
-    g.lineTo(x + 16 * s, y + 8 * s);
+    g.moveTo(x, trunkTopY - 30 * s);
+    g.lineTo(x - 13 * s, trunkTopY - 10 * s);
+    g.lineTo(x + 13 * s, trunkTopY - 10 * s);
     g.closePath(); g.fill();
-    g.fillRect(x - 2 * s, y + 6 * s, 4 * s, 8 * s);
   }
   // a lighter, cooler, smaller far-off treeline behind the main one, for
   // parallax depth
