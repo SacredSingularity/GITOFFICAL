@@ -433,6 +433,32 @@ function playSoundOr(key, fallbackFn, vol) {
   }
   fallbackFn();
 }
+// Stops one sound file immediately (used so a longer clip like the reel
+// sound doesn't bleed past the moment its game state ends).
+function stopSound(key) {
+  const entry = soundFiles[key];
+  if (entry && entry.available) { entry.el.pause(); entry.el.currentTime = 0; }
+}
+// A browser's first .play() on an mp3 that hasn't been decoded yet can
+// have a noticeable startup delay (e.g. the cast-landing splash sound
+// arriving late). Priming — playing each file muted and immediately
+// pausing it — forces that decode to happen up front, on the first
+// user gesture, so every real playback afterward starts instantly.
+let soundFilesPrimed = false;
+function primeSoundFiles() {
+  if (soundFilesPrimed) return;
+  soundFilesPrimed = true;
+  for (const key in soundFiles) {
+    const entry = soundFiles[key];
+    if (!entry.available) continue;
+    const el = entry.el;
+    el.volume = 0;
+    const p = el.play();
+    const reset = () => { el.pause(); el.currentTime = 0; };
+    if (p && p.then) p.then(reset).catch(() => {});
+    else reset();
+  }
+}
 
 const sfx = {
   castWhoosh: () => blip(500, 0.16, 'sawtooth', 0.05, 180),
@@ -455,7 +481,7 @@ const sfx = {
   cricket: () => playSoundOr('cricket', () => { blip(2800, 0.045, 'square', 0.018, 2600); setTimeout(() => blip(2800, 0.045, 'square', 0.018, 2600), 90); }, 0.3),
   owlHoot: () => playSoundOr('owlHoot', () => { blip(340, 0.28, 'sine', 0.05, 260); setTimeout(() => blip(300, 0.3, 'sine', 0.045, 220), 340); }, 0.55),
   birdChirp: () => playSoundOr('birdChirp', () => { blip(1600, 0.06, 'triangle', 0.035, 2200); setTimeout(() => blip(2000, 0.05, 'triangle', 0.03, 2600), 70); }, 0.4),
-  rainDrop: () => noiseBurst(0.05, 0.025, 3200, 'bandpass'),
+  rainDrop: () => noiseBurst(0.09, 0.012, 1100, 'lowpass'),
   // no synthesized equivalent — a loon call is distinctive enough that a
   // missing file just means silence rather than a fake substitute
   loonCall: () => playSoundOr('loonCall', () => {}, 0.5),
@@ -1458,6 +1484,7 @@ function drawRain() {
 function startCast() {
   if (castState !== CastState.IDLE || minigame) return;
   audio();
+  primeSoundFiles();
   castState = CastState.CASTING;
   stateT = 0;
   // pick a landing spot out on the water, with a little horizontal variety
@@ -1510,6 +1537,7 @@ function updateCast(dt) {
       rodAngle = ROD_IDLE_ANGLE;
       castState = CastState.IDLE;
       stateT = 0;
+      stopSound('reelClick');   // don't let a longer reel clip bleed into the minigame
       startMinigame();
     }
   }
