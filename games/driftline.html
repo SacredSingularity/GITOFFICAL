@@ -393,10 +393,51 @@ function noiseBurst(dur, vol, filterHz, type) {
   const f = a.createBiquadFilter(); f.type = type || 'lowpass'; f.frequency.value = filterHz || 1600;
   src.connect(f); f.connect(g); g.connect(a.destination); src.start();
 }
+// -------------------------------------------------------------------
+//  SOUND FILES — optional real recordings that override a synthesized
+//  SFX when present. Drop an mp3 with the listed filename in the same
+//  folder as this HTML file and it's picked up automatically on next
+//  load; if it's missing, renamed, or fails to load, the synthesized
+//  version below keeps working exactly as before — nothing breaks.
+// -------------------------------------------------------------------
+const SOUND_FILES = {
+  splash: 'Hitwater.mp3',
+  reelClick: 'Reel.mp3',
+  cricket: 'Cricket.mp3',
+  owlHoot: 'Owl.mp3',
+  birdChirp: 'Birds.mp3',
+  loonCall: 'Loon.mp3',
+};
+const soundFiles = {};
+for (const key in SOUND_FILES) {
+  const el = new Audio(SOUND_FILES[key]);
+  el.preload = 'auto';
+  const entry = { el, available: true };
+  el.addEventListener('error', () => { entry.available = false; });
+  soundFiles[key] = entry;
+}
+// Plays the mp3 for `key` if it loaded successfully, otherwise calls
+// `fallbackFn` (one of the synthesized generators below). `vol` is
+// 0-1; mp3s default louder than the synth blips since they're mixed
+// pre-recorded audio, not raw oscillators.
+function playSoundOr(key, fallbackFn, vol) {
+  const entry = soundFiles[key];
+  if (entry && entry.available) {
+    try {
+      entry.el.currentTime = 0;
+      entry.el.volume = vol !== undefined ? vol : 0.7;
+      const p = entry.el.play();
+      if (p && p.catch) p.catch(() => {});
+      return;
+    } catch (e) { /* fall through to the synthesized version */ }
+  }
+  fallbackFn();
+}
+
 const sfx = {
   castWhoosh: () => blip(500, 0.16, 'sawtooth', 0.05, 180),
-  splash: () => { noiseBurst(0.28, 0.18, 900, 'lowpass'); blip(160, 0.18, 'sine', 0.08, 70); },
-  reelClick: () => blip(700, 0.03, 'square', 0.04, 900),
+  splash: () => playSoundOr('splash', () => { noiseBurst(0.28, 0.18, 900, 'lowpass'); blip(160, 0.18, 'sine', 0.08, 70); }, 0.55),
+  reelClick: () => playSoundOr('reelClick', () => blip(700, 0.03, 'square', 0.04, 900), 0.4),
   click: () => blip(500, 0.04, 'square', 0.035, 700),
   select: () => blip(620, 0.05, 'triangle', 0.05, 760),
   match: () => { blip(660, 0.1, 'triangle', 0.06, 880); setTimeout(() => blip(880, 0.14, 'triangle', 0.06, 1180), 90); },
@@ -411,10 +452,13 @@ const sfx = {
   gambleWin: () => { blip(700, 0.1, 'triangle', 0.06, 940); setTimeout(() => blip(940, 0.16, 'triangle', 0.07, 1250), 100); },
   gambleLose: () => blip(220, 0.22, 'sawtooth', 0.06, 90),
   upgrade: () => { blip(440, 0.08, 'triangle', 0.05, 660); setTimeout(() => blip(660, 0.1, 'triangle', 0.05, 880), 70); },
-  cricket: () => { blip(2800, 0.045, 'square', 0.018, 2600); setTimeout(() => blip(2800, 0.045, 'square', 0.018, 2600), 90); },
-  owlHoot: () => { blip(340, 0.28, 'sine', 0.05, 260); setTimeout(() => blip(300, 0.3, 'sine', 0.045, 220), 340); },
-  birdChirp: () => { blip(1600, 0.06, 'triangle', 0.035, 2200); setTimeout(() => blip(2000, 0.05, 'triangle', 0.03, 2600), 70); },
+  cricket: () => playSoundOr('cricket', () => { blip(2800, 0.045, 'square', 0.018, 2600); setTimeout(() => blip(2800, 0.045, 'square', 0.018, 2600), 90); }, 0.3),
+  owlHoot: () => playSoundOr('owlHoot', () => { blip(340, 0.28, 'sine', 0.05, 260); setTimeout(() => blip(300, 0.3, 'sine', 0.045, 220), 340); }, 0.55),
+  birdChirp: () => playSoundOr('birdChirp', () => { blip(1600, 0.06, 'triangle', 0.035, 2200); setTimeout(() => blip(2000, 0.05, 'triangle', 0.03, 2600), 70); }, 0.4),
   rainDrop: () => noiseBurst(0.05, 0.025, 3200, 'bandpass'),
+  // no synthesized equivalent — a loon call is distinctive enough that a
+  // missing file just means silence rather than a fake substitute
+  loonCall: () => playSoundOr('loonCall', () => {}, 0.5),
 };
 
 // -------------------------------------------------------------------
@@ -603,7 +647,10 @@ function makeSceneBG(mode) {
 }
 // Fixed stage-space position of the dock mug, shared between the baked
 // sprite above and the dynamic steam-wisp particle system below.
-const MUG_POS = { x: VW * 0.27, y: VH * 0.56 };
+// x must stay within the dock deck's own span (0 to w*0.22, see the dock
+// drawing below) or the mug ends up floating over open water instead of
+// sitting on the planks.
+const MUG_POS = { x: VW * 0.1, y: VH * 0.56 };
 const BG_DAY = makeSceneBG('day');
 const BG_NIGHT = makeSceneBG('night');
 const BG_AUTUMN = makeSceneBG('autumn');
@@ -1350,6 +1397,7 @@ function lerp(a, b, t) { return a + (b - a) * t; }
 // -------------------------------------------------------------------
 let cricketTimer = 2 + Math.random() * 2;
 let owlTimer = 12 + Math.random() * 14;
+let loonTimer = 20 + Math.random() * 25;
 let birdTimer = 4 + Math.random() * 4;
 function updateAmbience(dt) {
   if (save.sceneMode === 'night') {
@@ -1357,6 +1405,8 @@ function updateAmbience(dt) {
     if (cricketTimer <= 0) { sfx.cricket(); cricketTimer = 1.8 + Math.random() * 2.4; }
     owlTimer -= dt;
     if (owlTimer <= 0) { sfx.owlHoot(); owlTimer = 16 + Math.random() * 20; }
+    loonTimer -= dt;
+    if (loonTimer <= 0) { sfx.loonCall(); loonTimer = 25 + Math.random() * 30; }
   } else {
     birdTimer -= dt;
     if (birdTimer <= 0) { sfx.birdChirp(); birdTimer = 5 + Math.random() * 6; }
