@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphCalc</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.0/math.min.js"></script>
+<style>
+  :root{
+    --panel-bg:#f7f7f8;
+    --panel-border:#e3e3e6;
+    --text:#2a2a2e;
+    --text-dim:#8a8a90;
+    --accent:#2d70b3;
+    --row-hover:#eef0f2;
+    --canvas-bg:#ffffff;
+    --grid-minor:#e8e8ea;
+    --grid-major:#d3d3d7;
+    --axis:#4a4a4e;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);}
+  body{background:#fff;}
+  .gc-root{display:flex;width:100%;height:100vh;overflow:hidden;}
+  .gc-panel{
+    width:320px;min-width:220px;max-width:520px;flex-shrink:0;
+    background:var(--panel-bg);border-right:1px solid var(--panel-border);
+    display:flex;flex-direction:column;height:100%;position:relative;
+  }
+  .gc-fn-menu{
+    position:absolute;left:0;right:0;bottom:0;z-index:30;
+    background:#fff;display:flex;flex-direction:column;
+    box-shadow:0 6px 20px rgba(0,0,0,.15);border-top:1px solid var(--panel-border);
+  }
+  .gc-fn-menu-header{
+    display:flex;align-items:center;justify-content:space-between;padding:8px 12px;
+    border-bottom:1px solid var(--panel-border);font-weight:600;font-size:13px;flex-shrink:0;
+  }
+  .gc-fn-menu-close{
+    border:none;background:transparent;cursor:pointer;font-size:13px;color:var(--text-dim);
+    width:24px;height:24px;border-radius:4px;
+  }
+  .gc-fn-menu-close:hover{background:var(--row-hover);color:var(--text);}
+  .gc-fn-menu-body{overflow-y:auto;padding:8px 12px 12px 12px;flex:1;}
+  .gc-fn-menu-section-title{
+    font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);
+    font-weight:600;margin:10px 0 4px 0;
+  }
+  .gc-fn-menu-section-title:first-child{margin-top:0;}
+  .gc-fn-menu-grid{display:flex;flex-wrap:wrap;gap:4px;}
+  .gc-fn-menu-grid button{
+    border:1px solid var(--panel-border);background:#fff;border-radius:4px;padding:4px 8px;
+    font-size:12.5px;cursor:pointer;color:var(--text);font-family:'Cambria Math',Cambria,Georgia,serif;
+  }
+  .gc-fn-menu-grid button:hover{background:var(--row-hover);}
+  .gc-fn-btn-unsupported{
+    display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--text-dim);
+    border-style:dashed;
+  }
+  .gc-fn-tag{
+    font-family:-apple-system,sans-serif;font-size:9px;text-transform:uppercase;letter-spacing:.03em;
+    color:#b3261e;background:rgba(179,38,30,.08);padding:1px 5px;border-radius:3px;
+  }
+  .gc-toolbar{
+    display:flex;flex-wrap:wrap;gap:2px;padding:6px;border-bottom:1px solid var(--panel-border);
+    background:#fff;
+  }
+  .gc-toolbar button{
+    width:30px;height:28px;border:1px solid transparent;background:transparent;border-radius:4px;
+    cursor:pointer;font-size:14px;color:var(--text);display:flex;align-items:center;justify-content:center;
+  }
+  .gc-toolbar button:hover{background:var(--row-hover);border-color:var(--panel-border);}
+  .gc-list{flex:1;overflow-y:auto;padding-bottom:8px;}
+  .gc-row{
+    display:flex;align-items:flex-start;gap:6px;padding:6px 8px;border-bottom:1px solid #edeced;
+    background:#fff;position:relative;
+  }
+  .gc-row:hover{background:var(--row-hover);}
+  .gc-row.gc-row-error .gc-input{color:#b3261e;}
+  .gc-swatch{
+    width:14px;height:14px;border-radius:50%;margin-top:8px;cursor:pointer;flex-shrink:0;border:1px solid rgba(0,0,0,.1);
+  }
+  .gc-row-main{flex:1;min-width:0;}
+  .gc-input{
+    width:100%;border:none;background:transparent;outline:none;font-size:14px;padding:6px 2px;
+    font-family:'Cambria Math',Cambria,Georgia,serif;color:var(--text);
+  }
+  .gc-row-controls{display:flex;gap:2px;margin-top:2px;flex-shrink:0;}
+  .gc-icon-btn{
+    width:24px;height:24px;border:none;background:transparent;cursor:pointer;color:var(--text-dim);
+    border-radius:4px;font-size:13px;display:flex;align-items:center;justify-content:center;
+  }
+  .gc-icon-btn:hover{background:#e2e2e5;color:var(--text);}
+  .gc-add-row{
+    display:flex;align-items:center;gap:6px;padding:8px 12px;cursor:pointer;color:var(--text-dim);font-size:14px;
+    width:100%;border:none;background:transparent;text-align:left;font-family:inherit;
+  }
+  .gc-add-row:hover{background:var(--row-hover);color:var(--text);}
+  .gc-add-menu{display:flex;gap:6px;padding:4px 8px 8px 8px;}
+  .gc-add-menu button{
+    font-size:11px;padding:4px 8px;border:1px solid var(--panel-border);background:#fff;border-radius:4px;cursor:pointer;color:var(--text-dim);
+  }
+  .gc-add-menu button:hover{background:var(--row-hover);}
+  .gc-slider-wrap{display:flex;align-items:center;gap:4px;padding:2px 2px 4px 2px;font-size:11px;color:var(--text-dim);}
+  .gc-slider-wrap input[type=range]{flex:1;}
+  .gc-slider-num{width:40px;font-size:11px;border:1px solid var(--panel-border);border-radius:3px;padding:1px 3px;background:#fff;color:var(--text);}
+  .gc-slider-val{width:44px;text-align:right;color:var(--text);}
+  .gc-color-popover{
+    position:absolute;left:24px;top:26px;z-index:20;background:#fff;border:1px solid var(--panel-border);
+    border-radius:6px;padding:6px;display:grid;grid-template-columns:repeat(4,20px);gap:4px;box-shadow:0 4px 12px rgba(0,0,0,.15);
+  }
+  .gc-color-popover div{width:20px;height:20px;border-radius:50%;cursor:pointer;border:1px solid rgba(0,0,0,.1);}
+  .gc-table{border-collapse:collapse;margin:4px 0;width:100%;}
+  .gc-table th{font-size:10px;color:var(--text-dim);font-weight:600;text-align:left;padding:2px 4px;}
+  .gc-table td{padding:1px 2px;}
+  .gc-table input{width:100%;font-size:12px;border:1px solid var(--panel-border);border-radius:3px;padding:2px 4px;}
+  .gc-table-actions{display:flex;gap:4px;margin-top:2px;}
+  .gc-table-actions button{
+    font-size:10px;padding:2px 6px;border:1px solid var(--panel-border);background:#fff;border-radius:3px;cursor:pointer;color:var(--text-dim);
+  }
+  .gc-table-actions button:hover{background:var(--row-hover);}
+  .gc-canvas-wrap{flex:1;position:relative;background:var(--canvas-bg);overflow:hidden;}
+  .gc-canvas-wrap canvas{display:block;width:100%;height:100%;}
+  .gc-zoom-controls{
+    position:absolute;bottom:16px;right:16px;display:flex;flex-direction:column;gap:4px;z-index:5;
+  }
+  .gc-zoom-controls button{
+    width:32px;height:32px;border-radius:6px;border:1px solid var(--panel-border);background:#fff;cursor:pointer;
+    font-size:16px;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.1);
+  }
+  .gc-zoom-controls button:hover{background:var(--row-hover);}
+  .gc-hidden{opacity:.35;}
+  .gc-input-row{display:flex;align-items:center;gap:6px;}
+  .gc-input-row .gc-input{flex:1;min-width:0;}
+  .gc-value-badge{
+    flex-shrink:0;background:rgba(0,0,0,.06);color:#4a4a4e;padding:3px 9px;border-radius:5px;
+    font-size:13px;font-family:'Cambria Math',Cambria,Georgia,serif;white-space:nowrap;
+  }
+</style>
+</head>
+<body>
+<div id="gc-app-1" style="height:100vh;"></div>
+
+<script>
+/* =========================================================================
+   GraphCalc — self-contained Desmos-style graphing calculator module.
+   Public API: createGraphCalc(containerEl, options) -> instance
+   ========================================================================= */
+(function(global){
+
+  // Calculator convention (Desmos et al.): bare log() is base-10, ln() is natural log.
+  // math.js's built-in log() defaults to natural log (base e) with no base argument,
+  // so it must be overridden to match standard graphing-calculator behavior.
+  math.import({
+    log: function(x, base){
+      return (base === undefined) ? Math.log(x)/Math.LN10 : Math.log(x)/Math.log(base);
+    },
+    ln: function(x){ return Math.log(x); }
+  }, {override:true});
+
+  // Calculator-friendly aliases for math.js's combinations/permutations.
+  math.import({
+    nCr: function(n, r){ return math.combinations(n, r); },
+    nPr: function(n, r){ return math.permutations(n, r); }
+  });
+
+  const PALETTE = ['#c74440','#2d70b3','#388c46','#6042a6','#fa7e19','#000000','#e07cbb','#489ba8'];
+
+  function uid(){ return 'e' + Math.random().toString(36).slice(2,10); }
+
+  // ---- number formatting for axis labels ----
+  function niceStep(rawStep){
+    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const norm = rawStep / mag;
+    let nice;
+    if(norm < 1.5) nice = 1;
+    else if(norm < 3.5) nice = 2;
+    else if(norm < 7.5) nice = 5;
+    else nice = 10;
+    return nice * mag;
+  }
+  function formatAxisNum(n){
+    if(Math.abs(n) < 1e-9) return '0';
+    if(Math.abs(n) >= 1e5 || (Math.abs(n) < 1e-4)) return n.toExponential(1);
+    const s = parseFloat(n.toPrecision(10)).toString();
+    return s;
+  }
+
+  // ---- simple event emitter ----
+  function makeEmitter(){
+    const listeners = {};
+    return {
+      on(evt, cb){ (listeners[evt] = listeners[evt]||[]).push(cb); },
+      off(evt, cb){ if(listeners[evt]) listeners[evt] = listeners[evt].filter(f=>f!==cb); },
+      emit(evt, data){ (listeners[evt]||[]).forEach(f=>{ try{ f(data); }catch(e){ console.error(e); } }); }
+    };
+  }
+
+  // ---- linear algebra helpers for regression ----
+  function solveLinear(points){
+    // y = m x + b
+    const n = points.length;
+    let sx=0,sy=0,sxy=0,sxx=0;
+    for(const p of points){ sx+=p.x; sy+=p.y; sxy+=p.x*p.y; sxx+=p.x*p.x; }
+    const denom = (n*sxx - sx*sx);
+    if(Math.abs(denom) < 1e-12) return null;
+    const m = (n*sxy - sx*sy)/denom;
+    const b = (sy - m*sx)/n;
+    return {m,b};
+  }
+  function solveQuadratic(points){
+    // y = a x^2 + b x + c  via normal equations, solved with Gaussian elimination
+    let S0=points.length,S1=0,S2=0,S3=0,S4=0,T0=0,T1=0,T2=0;
+    for(const p of points){
+      const x=p.x,y=p.y,x2=x*x;
+      S1+=x; S2+=x2; S3+=x2*x; S4+=x2*x2;
+      T0+=y; T1+=x*y; T2+=x2*y;
+    }
+    // matrix for [c,b,a] ordering using [1,x,x2]
+    const A = [
+      [S0,S1,S2,T0],
+      [S1,S2,S3,T1],
+      [S2,S3,S4,T2]
+    ];
+    for(let i=0;i<3;i++){
+      let piv = A[i][i];
+      if(Math.abs(piv) < 1e-12){
+        let swap = -1;
+        for(let k=i+1;k<3;k++) if(Math.abs(A[k][i])>1e-9){ swap=k; break; }
+        if(swap<0) return null;
+        [A[i],A[swap]] = [A[swap],A[i]];
+        piv = A[i][i];
+      }
+      for(let j=i;j<4;j++) A[i][j] /= piv;
+      for(let k=0;k<3;k++){
+        if(k===i) continue;
+        const factor = A[k][i];
+        for(let j=i;j<4;j++) A[k][j] -= factor*A[i][j];
+      }
+    }
+    return { c:A[0][3], b:A[1][3], a:A[2][3] };
+  }
+
+  // ---- expression classification & parsing ----
+  const RESERVED = new Set(['x','y','pi','e','tau','i','Infinity','true','false','abs','sin','cos','tan',
+    'asin','acos','atan','atan2','sec','csc','cot','asec','acsc','acot',
+    'sqrt','cbrt','nthRoot','log','ln','log10','log2','exp','sinh','cosh','tanh','asinh','acosh','atanh',
+    'floor','ceil','round','min','max','pow','sign','mod',
+    'factorial','gcd','lcm','combinations','permutations','nCr','nPr']);
+
+  function findFreeVars(node, exclude){
+    const found = new Set();
+    node.traverse(function(n){
+      if(n.isSymbolNode){
+        const name = n.name;
+        if(!exclude.has(name) && !RESERVED.has(name)) found.add(name);
+      }
+    });
+    return found;
+  }
+
+  function splitRelational(text){
+    // returns {lhs, rhs, op} for =, <=, >=, <, >, != (checked longest-first, ignoring inside function-call commas is not needed since these ops rarely appear nested)
+    const ops = ['<=','>=','!=','<','>','='];
+    for(const op of ops){
+      const idx = text.indexOf(op);
+      if(idx > 0){
+        // avoid splitting on '==' mistakenly or on '=' that's part of <= />=
+        if(op==='=' && (text[idx-1]==='<'||text[idx-1]==='>'||text[idx-1]==='!')) continue;
+        return { lhs: text.slice(0,idx), rhs: text.slice(idx+op.length), op };
+      }
+    }
+    return null;
+  }
+
+  function splitTopLevelComma(inner){
+    let depth=0, parts=[], cur='';
+    for(const ch of inner){
+      if(ch==='(') depth++;
+      if(ch===')') depth--;
+      if(ch===',' && depth===0){ parts.push(cur); cur=''; }
+      else cur+=ch;
+    }
+    parts.push(cur);
+    return parts;
+  }
+
+  // ---- numeric methods for calculus special forms ----
+  function safeF(f, x){
+    try{ const v = f(x); return (typeof v === 'number' && isFinite(v)) ? v : 0; }
+    catch(e){ return 0; }
+  }
+  function safeFOrNaN(f, x){
+    try{ const v = f(x); return (typeof v === 'number') ? v : NaN; }
+    catch(e){ return NaN; }
+  }
+  function simpsonIntegrate(f, a, b, n){
+    n = n || 200;
+    if(n % 2 === 1) n++;
+    if(a === b) return 0;
+    const sign = a > b ? -1 : 1;
+    if(a > b){ const t=a; a=b; b=t; }
+    const h = (b-a)/n;
+    let sum = safeF(f,a) + safeF(f,b);
+    for(let i=1;i<n;i++){
+      const xi = a + i*h;
+      sum += (i%2===0 ? 2 : 4) * safeF(f,xi);
+    }
+    return sign * sum * h/3;
+  }
+  function computeLimit(f, a){
+    const epsList = [1e-2,1e-3,1e-4,1e-5,1e-6];
+    let left = NaN, right = NaN;
+    for(const eps of epsList){
+      left = safeFOrNaN(f, a-eps);
+      right = safeFOrNaN(f, a+eps);
+    }
+    if(isFinite(left) && isFinite(right) && Math.abs(left-right) < 1e-3){
+      return (left+right)/2;
+    }
+    return NaN;
+  }
+
+  // ---- calculus / number-theory notation not expressible as plain math.js syntax ----
+  function trySpecialForm(text){
+    let m;
+
+    // second derivative: d²/dx²(expr)  (also accepts ASCII d^2/dx^2(expr))
+    m = text.match(/^d²\/dx²\((.*)\)$/) || text.match(/^d\^2\/dx\^2\((.*)\)$/);
+    if(m){
+      try{
+        const d1 = math.derivative(math.parse(m[1]), 'x');
+        const d2 = math.derivative(d1, 'x');
+        return { type:'function', compiled: d2.compile(), freeVars: findFreeVars(d2, new Set(['x','y'])) };
+      }catch(e){
+        return { type:'error', error: 'Could not differentiate: ' + e.message };
+      }
+    }
+
+    // first derivative: d/dx(expr)
+    m = text.match(/^d\/dx\((.*)\)$/);
+    if(m){
+      try{
+        const d1 = math.derivative(math.parse(m[1]), 'x');
+        return { type:'function', compiled: d1.compile(), freeVars: findFreeVars(d1, new Set(['x','y'])) };
+      }catch(e){
+        return { type:'error', error: 'Could not differentiate: ' + e.message };
+      }
+    }
+
+    // integral: ∫(expr, x, a, b) definite; ∫(expr) indefinite (unsupported)
+    m = text.match(/^∫\((.*)\)$/);
+    if(m){
+      const parts = splitTopLevelComma(m[1]);
+      if(parts.length === 1){
+        return { type:'error', error: 'Indefinite integrals are not supported — math.js has no built-in symbolic integration (a full CAS would be required). Use the definite form ∫(expr, x, a, b) instead.' };
+      }
+      if(parts.length !== 4){
+        return { type:'error', error: 'Definite integral needs the form ∫(expr, x, a, b)' };
+      }
+      try{
+        const exprNode = math.parse(parts[0]);
+        const varName = parts[1].trim();
+        const aNode = math.parse(parts[2]);
+        const bNode = math.parse(parts[3]);
+        const exprC = exprNode.compile(), aC = aNode.compile(), bC = bNode.compile();
+        const freeVars = new Set([
+          ...findFreeVars(exprNode, new Set([varName,'y'])),
+          ...findFreeVars(aNode, new Set(['y'])),
+          ...findFreeVars(bNode, new Set(['y'])),
+        ]);
+        const evalObj = { evaluate(scope){
+          const a = aC.evaluate(scope), b = bC.evaluate(scope);
+          return simpsonIntegrate(v=>exprC.evaluate(Object.assign({}, scope, {[varName]:v})), a, b);
+        }};
+        return { type:'value', compiled: evalObj, freeVars };
+      }catch(e){
+        return { type:'error', error: e.message };
+      }
+    }
+
+    // limit: lim(expr, x, a)
+    m = text.match(/^lim\((.*)\)$/);
+    if(m){
+      const parts = splitTopLevelComma(m[1]);
+      if(parts.length !== 3){
+        return { type:'error', error: 'Limit needs the form lim(expr, x, a)' };
+      }
+      try{
+        const exprNode = math.parse(parts[0]);
+        const varName = parts[1].trim();
+        const aNode = math.parse(parts[2]);
+        const exprC = exprNode.compile(), aC = aNode.compile();
+        const freeVars = new Set([
+          ...findFreeVars(exprNode, new Set([varName,'y'])),
+          ...findFreeVars(aNode, new Set(['y'])),
+        ]);
+        const evalObj = { evaluate(scope){
+          const a = aC.evaluate(scope);
+          return computeLimit(v=>exprC.evaluate(Object.assign({}, scope, {[varName]:v})), a);
+        }};
+        return { type:'value', compiled: evalObj, freeVars };
+      }catch(e){
+        return { type:'error', error: e.message };
+      }
+    }
+
+    // summation: Σ(expr, x, start, end)
+    m = text.match(/^Σ\((.*)\)$/);
+    if(m){
+      const parts = splitTopLevelComma(m[1]);
+      if(parts.length !== 4){
+        return { type:'error', error: 'Sum needs the form Σ(expr, x, start, end)' };
+      }
+      try{
+        const exprNode = math.parse(parts[0]);
+        const varName = parts[1].trim();
+        const startNode = math.parse(parts[2]);
+        const endNode = math.parse(parts[3]);
+        const exprC = exprNode.compile(), startC = startNode.compile(), endC = endNode.compile();
+        const freeVars = new Set([
+          ...findFreeVars(exprNode, new Set([varName,'y'])),
+          ...findFreeVars(startNode, new Set(['y'])),
+          ...findFreeVars(endNode, new Set(['y'])),
+        ]);
+        const evalObj = { evaluate(scope){
+          const start = Math.round(startC.evaluate(scope));
+          const end = Math.round(endC.evaluate(scope));
+          let s = 0;
+          for(let i=start;i<=end;i++) s += exprC.evaluate(Object.assign({}, scope, {[varName]:i}));
+          return s;
+        }};
+        return { type:'value', compiled: evalObj, freeVars };
+      }catch(e){
+        return { type:'error', error: e.message };
+      }
+    }
+
+    // product: Π(expr, x, start, end)
+    m = text.match(/^Π\((.*)\)$/);
+    if(m){
+      const parts = splitTopLevelComma(m[1]);
+      if(parts.length !== 4){
+        return { type:'error', error: 'Product needs the form Π(expr, x, start, end)' };
+      }
+      try{
+        const exprNode = math.parse(parts[0]);
+        const varName = parts[1].trim();
+        const startNode = math.parse(parts[2]);
+        const endNode = math.parse(parts[3]);
+        const exprC = exprNode.compile(), startC = startNode.compile(), endC = endNode.compile();
+        const freeVars = new Set([
+          ...findFreeVars(exprNode, new Set([varName,'y'])),
+          ...findFreeVars(startNode, new Set(['y'])),
+          ...findFreeVars(endNode, new Set(['y'])),
+        ]);
+        const evalObj = { evaluate(scope){
+          const start = Math.round(startC.evaluate(scope));
+          const end = Math.round(endC.evaluate(scope));
+          let p = 1;
+          for(let i=start;i<=end;i++) p *= exprC.evaluate(Object.assign({}, scope, {[varName]:i}));
+          return p;
+        }};
+        return { type:'value', compiled: evalObj, freeVars };
+      }catch(e){
+        return { type:'error', error: e.message };
+      }
+    }
+
+    return null;
+  }
+
+  function classifyExpression(rawText, knownVars){
+    const text = rawText.trim();
+    const result = { type:'error', error:null };
+    if(text === ''){ result.type='empty'; return result; }
+
+    try{
+      const special = trySpecialForm(text);
+      if(special) return Object.assign(result, special);
+
+      // point literal: (a, b)
+      const pointMatch = text.match(/^\((.+)\)$/);
+      if(pointMatch){
+        const parts = splitTopLevelComma(pointMatch[1]);
+        if(parts.length === 2){
+          const nx = math.parse(parts[0]);
+          const ny = math.parse(parts[1]);
+          const vars = new Set([...findFreeVars(nx, new Set(['x','y'])), ...findFreeVars(ny, new Set(['x','y']))]);
+          result.type = 'point';
+          result.compiledX = nx.compile();
+          result.compiledY = ny.compile();
+          result.freeVars = vars;
+          return result;
+        }
+      }
+
+      const rel = splitRelational(text);
+
+      if(rel){
+        const lhsNode = math.parse(rel.lhs);
+        const rhsNode = math.parse(rel.rhs);
+        // y = f(x) explicit form (rhs has no y, lhs is exactly 'y')
+        if(rel.op === '=' && rel.lhs.trim() === 'y'){
+          const vars = findFreeVars(rhsNode, new Set(['x','y']));
+          const rhsHasY = findFreeVars(rhsNode, new Set(['x'])).has('y');
+          if(!rhsHasY){
+            result.type = 'function';
+            result.compiled = rhsNode.compile();
+            result.freeVars = vars;
+            return result;
+          }
+        }
+        // x = f(y) explicit vertical-ish form -> treat as implicit for generality
+        const diffNode = math.parse('(' + rel.lhs + ') - (' + rel.rhs + ')');
+        const vars = findFreeVars(diffNode, new Set(['x','y']));
+        result.type = (rel.op === '=') ? 'implicit' : 'inequality';
+        result.op = rel.op;
+        result.compiled = diffNode.compile();
+        result.freeVars = vars;
+        return result;
+      }
+
+      // bare expression -> y = expr, but only if it doesn't contain 'y'
+      const node = math.parse(text);
+      const varsAll = findFreeVars(node, new Set(['x']));
+      if(!varsAll.has('y')){
+        // no 'x' in the expression -> it's a constant/value, not a curve (e.g. "4+5")
+        if(!findFreeVars(node, new Set()).has('x')){
+          result.type = 'value';
+          result.compiled = node.compile();
+          result.freeVars = findFreeVars(node, new Set());
+          return result;
+        }
+        result.type = 'function';
+        result.compiled = node.compile();
+        result.freeVars = findFreeVars(node, new Set(['x','y']));
+        return result;
+      }
+      // contains y and x with no relation -> can't plot meaningfully; error
+      result.type = 'error';
+      result.error = 'Unsupported expression';
+      return result;
+    }catch(err){
+      result.type = 'error';
+      result.error = err.message;
+      return result;
+    }
+  }
+
+  // ---- marching squares for implicit curves / inequality shading ----
+  function computeGrid(fn, scope, viewport, w, h, step){
+    const cols = Math.ceil(w/step)+1;
+    const rows = Math.ceil(h/step)+1;
+    const values = new Float64Array(cols*rows);
+    for(let j=0;j<rows;j++){
+      const py = j*step;
+      const wy = viewport.pxToWorldY(py);
+      for(let i=0;i<cols;i++){
+        const px = i*step;
+        const wx = viewport.pxToWorldX(px);
+        let v;
+        try{ v = fn.evaluate(Object.assign({x:wx,y:wy}, scope)); }
+        catch(e){ v = NaN; }
+        values[j*cols+i] = (typeof v === 'number') ? v : NaN;
+      }
+    }
+    return {values, cols, rows, step};
+  }
+
+  function interpX(v1,v2,x1,x2){
+    if(v1===v2) return (x1+x2)/2;
+    const t = (0-v1)/(v2-v1);
+    return x1 + t*(x2-x1);
+  }
+
+  function traceImplicitGrid(ctx, grid, color){
+    const {values, cols, rows, step} = grid;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.25;
+    ctx.beginPath();
+    for(let j=0;j<rows-1;j++){
+      for(let i=0;i<cols-1;i++){
+        const tl = values[j*cols+i];
+        const tr = values[j*cols+i+1];
+        const bl = values[(j+1)*cols+i];
+        const br = values[(j+1)*cols+i+1];
+        if(!isFinite(tl)||!isFinite(tr)||!isFinite(bl)||!isFinite(br)) continue;
+        let idx = 0;
+        if(tl>0) idx|=8;
+        if(tr>0) idx|=4;
+        if(br>0) idx|=2;
+        if(bl>0) idx|=1;
+        if(idx===0||idx===15) continue;
+        const x0=i*step, x1=(i+1)*step, y0=j*step, y1=(j+1)*step;
+        const T = [interpX(tl,tr,x0,x1), y0];
+        const R = [x1, interpX(tr,br,y0,y1)];
+        const B = [interpX(bl,br,x0,x1), y1];
+        const L = [x0, interpX(tl,bl,y0,y1)];
+        const seg = (p1,p2)=>{ ctx.moveTo(p1[0],p1[1]); ctx.lineTo(p2[0],p2[1]); };
+        switch(idx){
+          case 1: seg(L,B); break;
+          case 2: seg(B,R); break;
+          case 3: seg(L,R); break;
+          case 4: seg(T,R); break;
+          case 5: seg(T,L); seg(B,R); break;
+          case 6: seg(T,B); break;
+          case 7: seg(T,L); break;
+          case 8: seg(T,L); break;
+          case 9: seg(T,B); break;
+          case 10: seg(T,R); seg(B,L); break;
+          case 11: seg(T,R); break;
+          case 12: seg(L,R); break;
+          case 13: seg(B,R); break;
+          case 14: seg(L,B); break;
+        }
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function shadeInequality(ctx, grid, op, color){
+    const {values, cols, rows, step} = grid;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.28;
+    for(let j=0;j<rows-1;j++){
+      for(let i=0;i<cols-1;i++){
+        const v = values[j*cols+i];
+        if(!isFinite(v)) continue;
+        let truth;
+        if(op==='<') truth = v < 0;
+        else if(op==='<=') truth = v <= 0;
+        else if(op==='>') truth = v > 0;
+        else if(op==='>=') truth = v >= 0;
+        else if(op==='!=') truth = v !== 0;
+        if(truth) ctx.fillRect(i*step, j*step, step+1, step+1);
+      }
+    }
+    ctx.restore();
+  }
+
+  // ---- Viewport ----
+  class Viewport{
+    constructor(w,h){
+      this.w=w; this.h=h;
+      this.centerX = 0; this.centerY = 0;
+      this.scale = 60; // px per unit
+    }
+    resize(w,h){ this.w=w; this.h=h; }
+    get xMin(){ return this.centerX - (this.w/2)/this.scale; }
+    get xMax(){ return this.centerX + (this.w/2)/this.scale; }
+    get yMin(){ return this.centerY - (this.h/2)/this.scale; }
+    get yMax(){ return this.centerY + (this.h/2)/this.scale; }
+    worldToPxX(x){ return this.w/2 + (x - this.centerX)*this.scale; }
+    worldToPxY(y){ return this.h/2 - (y - this.centerY)*this.scale; }
+    pxToWorldX(px){ return this.centerX + (px - this.w/2)/this.scale; }
+    pxToWorldY(py){ return this.centerY - (py - this.h/2)/this.scale; }
+    pan(dxPx,dyPx){ this.centerX -= dxPx/this.scale; this.centerY += dyPx/this.scale; }
+    zoomAt(px,py,factor){
+      const wx = this.pxToWorldX(px), wy = this.pxToWorldY(py);
+      this.scale *= factor;
+      this.scale = Math.max(2, Math.min(this.scale, 2e6));
+      const nx = this.pxToWorldX(px), ny = this.pxToWorldY(py);
+      this.centerX += (wx-nx);
+      this.centerY += (wy-ny);
+    }
+  }
+
+  // ---- Main factory ----
+  function createGraphCalc(container, options){
+    options = options || {};
+    const emitter = makeEmitter();
+    const instanceId = uid();
+
+    // ---- DOM scaffold ----
+    container.innerHTML = '';
+    const root = document.createElement('div');
+    root.className = 'gc-root';
+    container.appendChild(root);
+
+    const panel = document.createElement('div');
+    panel.className = 'gc-panel';
+    root.appendChild(panel);
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'gc-toolbar';
+    panel.appendChild(toolbar);
+
+    const list = document.createElement('div');
+    list.className = 'gc-list';
+    panel.appendChild(list);
+
+    const canvasWrap = document.createElement('div');
+    canvasWrap.className = 'gc-canvas-wrap';
+    root.appendChild(canvasWrap);
+
+    const canvas = document.createElement('canvas');
+    canvasWrap.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+
+    const zoomControls = document.createElement('div');
+    zoomControls.className = 'gc-zoom-controls';
+    zoomControls.innerHTML = '<button data-zoom="in">+</button><button data-zoom="out">−</button>';
+    canvasWrap.appendChild(zoomControls);
+
+    // ---- state ----
+    let expressions = []; // ordered list of row objects
+    let scope = {};        // shared slider variable values
+    let sliderOwner = {};  // varName -> exprId that owns the slider UI
+    let readOnly = !!options.readOnly;
+    let lastFocusedInput = null;
+    let colorCycle = 0;
+    let badgeEls = {}; // rowId -> badge <span> element, rebuilt each renderList()
+
+    function formatBadgeValue(v){
+      if(typeof v !== 'number' || !isFinite(v)) return null;
+      if(Math.abs(v - Math.round(v)) < 1e-9) return String(Math.round(v));
+      const abs = Math.abs(v);
+      if(abs < 1e-4 || abs >= 1e15){
+        // very small/large magnitude: significant-figure form reads better than fixed decimals
+        return String(parseFloat(v.toPrecision(6)));
+      }
+      // fixed decimal places (not significant figures) so a large integer part
+      // never eats into the fractional part, e.g. 110000.3 must not round to 110000
+      return v.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
+    }
+
+    function computeValueBadgeText(row){
+      if(!row.compiled) return '';
+      try{
+        const v = row.compiled.evaluate(Object.assign({}, scope));
+        const formatted = formatBadgeValue(v);
+        return formatted === null ? '' : ('= ' + formatted);
+      }catch(e){ return ''; }
+    }
+
+    function refreshValueBadges(){
+      expressions.forEach(row=>{
+        if(row.type==='value' && badgeEls[row.id]){
+          badgeEls[row.id].textContent = computeValueBadgeText(row);
+        }
+      });
+    }
+
+    const viewport = new Viewport(canvasWrap.clientWidth||800, canvasWrap.clientHeight||600);
+
+    function nextColor(){
+      const c = PALETTE[colorCycle % PALETTE.length];
+      colorCycle++;
+      return c;
+    }
+
+    function newRow(partial){
+      const row = Object.assign({
+        id: uid(),
+        text: '',
+        color: nextColor(),
+        visible: true,
+        type: 'empty',
+        isTable: false,
+        tableData: [{x:'',y:''},{x:'',y:''},{x:'',y:''}],
+        regressionOf: null,
+        regressionType: null,
+        sliderMin: -10,
+        sliderMax: 10,
+        sliderStep: 0.1,
+        sliderValue: 1,
+        dismissedSlider: false
+      }, partial||{});
+      return row;
+    }
+
+    // ---- evaluation / classification pass ----
+    function reclassify(row){
+      if(row.isTable){
+        row.type = 'table';
+        return;
+      }
+      if(row.regressionOf){
+        // recomputed separately
+        return;
+      }
+      const cls = classifyExpression(row.text, new Set());
+      row.type = cls.type;
+      row.error = cls.error||null;
+      row.compiled = cls.compiled||null;
+      row.compiledX = cls.compiledX||null;
+      row.compiledY = cls.compiledY||null;
+      row.op = cls.op||null;
+      row.freeVars = cls.freeVars || new Set();
+
+      if(row.freeVars && row.freeVars.size){
+        row.freeVars.forEach(v=>{
+          if(!(v in scope)){
+            scope[v] = row.sliderValue;
+          }
+          if(!sliderOwner[v]){
+            sliderOwner[v] = row.id;
+          }
+        });
+      }
+    }
+
+    function recomputeRegression(row){
+      const table = expressions.find(e=>e.id===row.regressionOf);
+      if(!table){ row.type='error'; row.error='table missing'; return; }
+      const pts = table.tableData
+        .map(r=>({x:parseFloat(r.x), y:parseFloat(r.y)}))
+        .filter(p=>isFinite(p.x)&&isFinite(p.y));
+      const signed = (v)=> (v<0 ? '- ' + (-v).toFixed(4) : '+ ' + v.toFixed(4));
+      if(row.regressionType === 'linear'){
+        if(pts.length < 2){ row.type='error'; row.error='need >=2 points'; return; }
+        const fit = solveLinear(pts);
+        if(!fit){ row.type='error'; row.error='degenerate fit'; return; }
+        row.text = `y = ${fit.m.toFixed(4)}x ${signed(fit.b)}`;
+        row.compiled = math.parse(`${fit.m}*x + ${fit.b}`).compile();
+        row.type = 'function';
+        row.freeVars = new Set();
+      } else if(row.regressionType === 'quadratic'){
+        if(pts.length < 3){ row.type='error'; row.error='need >=3 points'; return; }
+        const fit = solveQuadratic(pts);
+        if(!fit){ row.type='error'; row.error='degenerate fit'; return; }
+        row.text = `y = ${fit.a.toFixed(4)}x² ${signed(fit.b)}x ${signed(fit.c)}`;
+        row.compiled = math.parse(`${fit.a}*x^2 + ${fit.b}*x + ${fit.c}`).compile();
+        row.type = 'function';
+        row.freeVars = new Set();
+      }
+    }
+
+    function reclassifyAll(){
+      // reset slider ownership map, rebuild from scratch preserving existing scope values
+      sliderOwner = {};
+      for(const row of expressions){
+        if(row.regressionOf){ recomputeRegression(row); }
+        else reclassify(row);
+      }
+    }
+
+    // ---- rendering ----
+    function resizeCanvas(){
+      const dpr = window.devicePixelRatio||1;
+      const w = canvasWrap.clientWidth, h = canvasWrap.clientHeight;
+      canvas.width = w*dpr; canvas.height = h*dpr;
+      canvas.style.width = w+'px'; canvas.style.height = h+'px';
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      viewport.resize(w,h);
+      render();
+    }
+
+    function drawGrid(){
+      const w = viewport.w, h = viewport.h;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0,0,w,h);
+
+      const targetPx = 70;
+      const rawStep = targetPx/viewport.scale;
+      const step = niceStep(rawStep);
+      const minorStep = step/5;
+
+      // minor gridlines
+      ctx.strokeStyle = 'var(--grid-minor)'.startsWith('var') ? '#eef0f2' : '#eef0f2';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      let startXi = Math.floor(viewport.xMin/minorStep);
+      let endXi = Math.ceil(viewport.xMax/minorStep);
+      for(let i=startXi;i<=endXi;i++){
+        const wx = i*minorStep;
+        const px = Math.round(viewport.worldToPxX(wx))+0.5;
+        ctx.moveTo(px,0); ctx.lineTo(px,h);
+      }
+      let startYi = Math.floor(viewport.yMin/minorStep);
+      let endYi = Math.ceil(viewport.yMax/minorStep);
+      for(let i=startYi;i<=endYi;i++){
+        const wy = i*minorStep;
+        const py = Math.round(viewport.worldToPxY(wy))+0.5;
+        ctx.moveTo(0,py); ctx.lineTo(w,py);
+      }
+      ctx.stroke();
+
+      // major gridlines
+      ctx.strokeStyle = '#d3d3d7';
+      ctx.beginPath();
+      let sxi = Math.floor(viewport.xMin/step);
+      let exi = Math.ceil(viewport.xMax/step);
+      for(let i=sxi;i<=exi;i++){
+        const wx = i*step;
+        const px = Math.round(viewport.worldToPxX(wx))+0.5;
+        ctx.moveTo(px,0); ctx.lineTo(px,h);
+      }
+      let syi = Math.floor(viewport.yMin/step);
+      let eyi = Math.ceil(viewport.yMax/step);
+      for(let i=syi;i<=eyi;i++){
+        const wy = i*step;
+        const py = Math.round(viewport.worldToPxY(wy))+0.5;
+        ctx.moveTo(0,py); ctx.lineTo(w,py);
+      }
+      ctx.stroke();
+
+      // axes
+      ctx.strokeStyle = '#4a4a4e';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const axisX = viewport.worldToPxX(0);
+      const axisY = viewport.worldToPxY(0);
+      if(axisX>=0 && axisX<=w){ ctx.moveTo(axisX,0); ctx.lineTo(axisX,h); }
+      if(axisY>=0 && axisY<=h){ ctx.moveTo(0,axisY); ctx.lineTo(w,axisY); }
+      ctx.stroke();
+
+      // labels
+      ctx.fillStyle = '#6a6a70';
+      ctx.font = '11px -apple-system,sans-serif';
+      ctx.textBaseline = 'top';
+      const labelY = (axisY>=0 && axisY<=h-14) ? axisY+3 : 2;
+      for(let i=sxi;i<=exi;i++){
+        if(i===0) continue;
+        const wx = i*step;
+        const px = viewport.worldToPxX(wx);
+        if(px<-20||px>w+20) continue;
+        ctx.fillText(formatAxisNum(wx), px+3, labelY);
+      }
+      const labelX = (axisX>=0 && axisX<=w-30) ? axisX+3 : 2;
+      ctx.textBaseline = 'middle';
+      for(let i=syi;i<=eyi;i++){
+        if(i===0) continue;
+        const wy = i*step;
+        const py = viewport.worldToPxY(wy);
+        if(py<-10||py>h+10) continue;
+        ctx.fillText(formatAxisNum(wy), labelX, py);
+      }
+    }
+
+    function plotFunction(row){
+      const w = viewport.w;
+      ctx.save();
+      ctx.strokeStyle = row.color;
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      let started = false;
+      let prevY = null;
+      const samples = Math.max(w, 400);
+      for(let i=0;i<=samples;i++){
+        const px = (i/samples)*w;
+        const wx = viewport.pxToWorldX(px);
+        let wy;
+        try{ wy = row.compiled.evaluate(Object.assign({x:wx}, scope)); }
+        catch(e){ wy = NaN; }
+        if(typeof wy !== 'number' || !isFinite(wy)){
+          started = false;
+          continue;
+        }
+        const py = viewport.worldToPxY(wy);
+        if(!started){
+          ctx.moveTo(px,py);
+          started = true;
+        } else {
+          // break on huge jumps (asymptotes)
+          if(prevY!==null && Math.abs(py-prevY) > viewport.h*1.5){
+            ctx.moveTo(px,py);
+          } else {
+            ctx.lineTo(px,py);
+          }
+        }
+        prevY = py;
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function plotPoint(row){
+      let x,y;
+      try{
+        x = row.compiledX.evaluate(scope);
+        y = row.compiledY.evaluate(scope);
+      }catch(e){ return; }
+      if(typeof x!=='number'||typeof y!=='number'||!isFinite(x)||!isFinite(y)) return;
+      const px = viewport.worldToPxX(x), py = viewport.worldToPxY(y);
+      ctx.save();
+      ctx.fillStyle = row.color;
+      ctx.beginPath();
+      ctx.arc(px,py,5,0,Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function plotTable(row){
+      ctx.save();
+      ctx.fillStyle = row.color;
+      for(const r of row.tableData){
+        const x = parseFloat(r.x), y = parseFloat(r.y);
+        if(!isFinite(x)||!isFinite(y)) continue;
+        const px = viewport.worldToPxX(x), py = viewport.worldToPxY(y);
+        ctx.beginPath();
+        ctx.arc(px,py,4.5,0,Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function plotImplicitOrInequality(row){
+      const step = (row.type==='inequality') ? 5 : 4;
+      const grid = computeGrid(row.compiled, scope, viewport, viewport.w, viewport.h, step);
+      if(row.type==='inequality'){
+        shadeInequality(ctx, grid, row.op, row.color);
+      } else {
+        traceImplicitGrid(ctx, grid, row.color);
+      }
+    }
+
+    function render(){
+      drawGrid();
+      for(const row of expressions){
+        if(!row.visible) continue;
+        try{
+          if(row.type==='function' && row.compiled) plotFunction(row);
+          else if(row.type==='point' && row.compiledX) plotPoint(row);
+          else if(row.type==='table') plotTable(row);
+          else if((row.type==='implicit'||row.type==='inequality') && row.compiled) plotImplicitOrInequality(row);
+        }catch(e){ /* skip broken plot silently, don't crash the render loop */ }
+      }
+      emitter.emit('render', getState());
+    }
+
+    // ---- pan / zoom interaction ----
+    let dragging = false, lastX=0, lastY=0;
+    canvas.addEventListener('mousedown', (e)=>{
+      dragging = true; lastX = e.offsetX; lastY = e.offsetY;
+      canvas.style.cursor='grabbing';
+    });
+    window.addEventListener('mouseup', ()=>{ dragging=false; canvas.style.cursor='grab'; });
+    window.addEventListener('mousemove', (e)=>{
+      if(!dragging) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX-rect.left, y = e.clientY-rect.top;
+      viewport.pan(x-lastX, y-lastY);
+      lastX=x; lastY=y;
+      render();
+    });
+    canvas.style.cursor='grab';
+    canvas.addEventListener('wheel', (e)=>{
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const px = e.clientX-rect.left, py = e.clientY-rect.top;
+      const factor = Math.pow(1.0015, -e.deltaY);
+      viewport.zoomAt(px,py,factor);
+      render();
+    }, {passive:false});
+    zoomControls.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button'); if(!btn) return;
+      const dir = btn.dataset.zoom;
+      viewport.zoomAt(viewport.w/2, viewport.h/2, dir==='in'?1.4:1/1.4);
+      render();
+    });
+
+    const ro = new ResizeObserver(()=>resizeCanvas());
+    ro.observe(canvasWrap);
+
+    // ---- expression list rendering ----
+    function colorPopover(anchorEl, row){
+      document.querySelectorAll('.gc-color-popover').forEach(p=>p.remove());
+      const pop = document.createElement('div');
+      pop.className = 'gc-color-popover';
+      PALETTE.forEach(c=>{
+        const sw = document.createElement('div');
+        sw.style.background = c;
+        sw.addEventListener('click', ()=>{
+          row.color = c;
+          pop.remove();
+          renderList();
+          render();
+        });
+        pop.appendChild(sw);
+      });
+      anchorEl.parentElement.appendChild(pop);
+      const closeHandler = (ev)=>{
+        if(!pop.contains(ev.target) && ev.target!==anchorEl){
+          pop.remove();
+          document.removeEventListener('mousedown', closeHandler);
+        }
+      };
+      setTimeout(()=>document.addEventListener('mousedown', closeHandler), 0);
+    }
+
+    function buildTableDOM(row){
+      const wrap = document.createElement('div');
+      const table = document.createElement('table');
+      table.className = 'gc-table';
+      table.innerHTML = '<thead><tr><th>x</th><th>y</th><th></th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      row.tableData.forEach((r, idx)=>{
+        const tr = document.createElement('tr');
+        const tdX = document.createElement('td');
+        const inX = document.createElement('input');
+        inX.value = r.x;
+        inX.addEventListener('input', ()=>{ r.x = inX.value; onTableChanged(row); });
+        tdX.appendChild(inX);
+        const tdY = document.createElement('td');
+        const inY = document.createElement('input');
+        inY.value = r.y;
+        inY.addEventListener('input', ()=>{ r.y = inY.value; onTableChanged(row); });
+        tdY.appendChild(inY);
+        const tdDel = document.createElement('td');
+        const delBtn = document.createElement('button');
+        delBtn.className='gc-icon-btn'; delBtn.textContent='×'; delBtn.title='Remove row';
+        delBtn.addEventListener('click', ()=>{
+          row.tableData.splice(idx,1);
+          onTableChanged(row);
+          renderList();
+        });
+        tdDel.appendChild(delBtn);
+        tr.appendChild(tdX); tr.appendChild(tdY); tr.appendChild(tdDel);
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+
+      const actions = document.createElement('div');
+      actions.className = 'gc-table-actions';
+      const addBtn = document.createElement('button');
+      addBtn.textContent = '+ row';
+      addBtn.addEventListener('click', ()=>{ row.tableData.push({x:'',y:''}); renderList(); });
+      const linBtn = document.createElement('button');
+      linBtn.textContent = 'Linear fit';
+      linBtn.addEventListener('click', ()=>addRegression(row,'linear'));
+      const quadBtn = document.createElement('button');
+      quadBtn.textContent = 'Quadratic fit';
+      quadBtn.addEventListener('click', ()=>addRegression(row,'quadratic'));
+      actions.appendChild(addBtn); actions.appendChild(linBtn); actions.appendChild(quadBtn);
+      wrap.appendChild(actions);
+      return wrap;
+    }
+
+    function addRegression(tableRow, kind){
+      const existing = expressions.find(e=>e.regressionOf===tableRow.id && e.regressionType===kind);
+      if(existing) return;
+      const row = newRow({ regressionOf: tableRow.id, regressionType: kind, color: nextColor() });
+      const idx = expressions.indexOf(tableRow);
+      expressions.splice(idx+1, 0, row);
+      onTableChanged(tableRow);
+      renderList();
+    }
+
+    function onTableChanged(tableRow){
+      expressions.filter(e=>e.regressionOf===tableRow.id).forEach(recomputeRegression);
+      render();
+      emitChange();
+    }
+
+    function buildSliderDOM(row, varName){
+      const wrap = document.createElement('div');
+      wrap.className = 'gc-slider-wrap';
+      const minIn = document.createElement('input');
+      minIn.className='gc-slider-num'; minIn.value = row.sliderMin;
+      const range = document.createElement('input');
+      range.type='range';
+      range.min = row.sliderMin; range.max = row.sliderMax; range.step = row.sliderStep;
+      range.value = scope[varName] !== undefined ? scope[varName] : row.sliderValue;
+      const maxIn = document.createElement('input');
+      maxIn.className='gc-slider-num'; maxIn.value = row.sliderMax;
+      const valSpan = document.createElement('span');
+      valSpan.className='gc-slider-val';
+      valSpan.textContent = varName+' = '+parseFloat(range.value).toFixed(2);
+
+      range.addEventListener('input', ()=>{
+        scope[varName] = parseFloat(range.value);
+        row.sliderValue = scope[varName];
+        valSpan.textContent = varName+' = '+scope[varName].toFixed(2);
+        recomputeAllTablesAndRegressions();
+        refreshValueBadges();
+        render();
+        emitChange();
+      });
+      minIn.addEventListener('change', ()=>{ row.sliderMin = parseFloat(minIn.value)||0; range.min=row.sliderMin; });
+      maxIn.addEventListener('change', ()=>{ row.sliderMax = parseFloat(maxIn.value)||10; range.max=row.sliderMax; });
+
+      wrap.appendChild(minIn); wrap.appendChild(range); wrap.appendChild(maxIn); wrap.appendChild(valSpan);
+      return wrap;
+    }
+
+    function recomputeAllTablesAndRegressions(){
+      expressions.filter(e=>e.regressionOf).forEach(recomputeRegression);
+    }
+
+    function renderRow(row){
+      const el = document.createElement('div');
+      el.className = 'gc-row' + (row.type==='error' && row.text.trim()!=='' ? ' gc-row-error':'') + (!row.visible?' gc-hidden':'');
+      el.dataset.rowId = row.id;
+
+      const swatch = document.createElement('div');
+      swatch.className = 'gc-swatch';
+      swatch.style.background = row.color;
+      swatch.addEventListener('click', (e)=>colorPopover(swatch,row));
+      el.appendChild(swatch);
+
+      const main = document.createElement('div');
+      main.className = 'gc-row-main';
+
+      if(row.isTable){
+        main.appendChild(buildTableDOM(row));
+      } else {
+        const input = document.createElement('input');
+        input.className = 'gc-input';
+        input.placeholder = 'y = f(x)';
+        input.value = row.text;
+        input.readOnly = readOnly || !!row.regressionOf;
+        if(row.type === 'error' && row.error) input.title = row.error;
+        input.addEventListener('focus', ()=>{ lastFocusedInput = input; });
+        input.addEventListener('input', ()=>{
+          row.text = input.value;
+          row.dismissedSlider = false;
+          const caret = { rowId: row.id, start: input.selectionStart, end: input.selectionEnd };
+          reclassifyAll();
+          render();
+          renderListPreservingFocus(caret);
+          emitChange();
+        });
+        const inputRow = document.createElement('div');
+        inputRow.className = 'gc-input-row';
+        inputRow.appendChild(input);
+        if(row.type === 'value'){
+          const badge = document.createElement('span');
+          badge.className = 'gc-value-badge';
+          badge.textContent = computeValueBadgeText(row);
+          badgeEls[row.id] = badge;
+          inputRow.appendChild(badge);
+        }
+        main.appendChild(inputRow);
+
+        // slider offer for free vars owned by this row and not dismissed
+        if(row.freeVars && row.freeVars.size && !row.dismissedSlider){
+          row.freeVars.forEach(v=>{
+            if(sliderOwner[v] === row.id){
+              main.appendChild(buildSliderDOM(row, v));
+            }
+          });
+        }
+      }
+      el.appendChild(main);
+
+      const controls = document.createElement('div');
+      controls.className = 'gc-row-controls';
+      const toggleBtn = document.createElement('button');
+      toggleBtn.className='gc-icon-btn'; toggleBtn.title='Show/hide';
+      toggleBtn.textContent = row.visible ? '◉' : '○';
+      toggleBtn.addEventListener('click', ()=>{ row.visible=!row.visible; renderList(); render(); emitChange(); });
+      const delBtn = document.createElement('button');
+      delBtn.className='gc-icon-btn'; delBtn.title='Delete'; delBtn.textContent='✕';
+      delBtn.addEventListener('click', ()=>{
+        expressions = expressions.filter(e=>e.id!==row.id && e.regressionOf!==row.id);
+        reclassifyAll();
+        renderList(); render(); emitChange();
+      });
+      controls.appendChild(toggleBtn); controls.appendChild(delBtn);
+      el.appendChild(controls);
+
+      return el;
+    }
+
+    function renderList(){
+      list.innerHTML = '';
+      badgeEls = {};
+      expressions.forEach(row=>list.appendChild(renderRow(row)));
+
+      const addRowEl = document.createElement('button');
+      addRowEl.type = 'button';
+      addRowEl.className = 'gc-add-row';
+      addRowEl.innerHTML = '<span style="font-size:16px;">+</span> Add expression';
+      addRowEl.addEventListener('click', ()=>{
+        const row = newRow({});
+        expressions.push(row);
+        renderList();
+        const inputs = list.querySelectorAll('.gc-input');
+        if(inputs.length) inputs[inputs.length-1].focus();
+      });
+      list.appendChild(addRowEl);
+
+      const menu = document.createElement('div');
+      menu.className = 'gc-add-menu';
+      const tableBtn = document.createElement('button');
+      tableBtn.textContent = '+ Table';
+      tableBtn.addEventListener('click', ()=>{
+        const row = newRow({ isTable:true, type:'table' });
+        expressions.push(row);
+        renderList(); render();
+      });
+      menu.appendChild(tableBtn);
+      list.appendChild(menu);
+    }
+
+    function renderListPreservingFocus(caret){
+      renderList();
+      if(!caret) return;
+      const rowEl = list.querySelector(`[data-row-id="${caret.rowId}"] .gc-input`);
+      if(rowEl){
+        rowEl.focus();
+        try{ rowEl.setSelectionRange(caret.start, caret.end); }catch(e){}
+        lastFocusedInput = rowEl;
+      }
+    }
+
+    // ---- toolbar (Phase 7) ----
+    function insertSnippet(before, after){
+      const input = lastFocusedInput;
+      if(!input || !document.body.contains(input)) return;
+      const start = input.selectionStart, end = input.selectionEnd;
+      const val = input.value;
+      input.value = val.slice(0,start) + before + after + val.slice(end);
+      const cursor = start + before.length;
+      input.focus();
+      input.setSelectionRange(cursor, cursor);
+      input.dispatchEvent(new Event('input'));
+    }
+
+    // ---- function reference menu ----
+    const FUNCTION_MENU_SECTIONS = [
+      { title:'Logarithms', items:[
+        {label:'log(x)', before:'log(', after:')'},
+        {label:'ln(x)', before:'ln(', after:')'},
+      ]},
+      { title:'Trigonometry', items:[
+        {label:'sin(x)', before:'sin(', after:')'},
+        {label:'cos(x)', before:'cos(', after:')'},
+        {label:'tan(x)', before:'tan(', after:')'},
+        {label:'sin⁻¹(x)', before:'asin(', after:')'},
+        {label:'cos⁻¹(x)', before:'acos(', after:')'},
+        {label:'tan⁻¹(x)', before:'atan(', after:')'},
+        {label:'sec(x)', before:'sec(', after:')'},
+        {label:'csc(x)', before:'csc(', after:')'},
+        {label:'cot(x)', before:'cot(', after:')'},
+      ]},
+      { title:'Roots & Powers', items:[
+        {label:'√x', before:'sqrt(', after:')'},
+        {label:'∛x', before:'cbrt(', after:')'},
+        {label:'ⁿ√x', before:'nthRoot(', after:',n)'},
+        {label:'x²', before:'^(', after:')'},
+        {label:'xʸ', before:'^(', after:')'},
+        {label:'a/b', before:'(', after:')/()'},
+      ]},
+      { title:'Symbols', items:[
+        {label:'(', before:'(', after:''},
+        {label:')', before:')', after:''},
+        {label:'≤', before:'<=', after:''},
+        {label:'≥', before:'>=', after:''},
+        {label:'<', before:'<', after:''},
+        {label:'>', before:'>', after:''},
+      ]},
+      { title:'Calculus', items:[
+        {label:'d/dx(...)', before:'d/dx(', after:')'},
+        {label:'d²/dx²(...)', before:'d²/dx²(', after:')'},
+        {label:'∫(expr,x,a,b)', before:'∫(', after:',x,0,1)'},
+        {label:'∫(expr) dx', before:'∫(', after:')', tag:'not yet supported'},
+        {label:'lim(expr,x,a)', before:'lim(', after:',x,0)'},
+        {label:'Σ(expr,x,a,b)', before:'Σ(', after:',x,1,10)'},
+        {label:'Π(expr,x,a,b)', before:'Π(', after:',x,1,5)'},
+      ]},
+      { title:'Hyperbolic', items:[
+        {label:'sinh(x)', before:'sinh(', after:')'},
+        {label:'cosh(x)', before:'cosh(', after:')'},
+        {label:'tanh(x)', before:'tanh(', after:')'},
+        {label:'sinh⁻¹(x)', before:'asinh(', after:')'},
+        {label:'cosh⁻¹(x)', before:'acosh(', after:')'},
+        {label:'tanh⁻¹(x)', before:'atanh(', after:')'},
+      ]},
+      { title:'Number Theory', items:[
+        {label:'n!', before:'factorial(', after:')'},
+        {label:'gcd(a,b)', before:'gcd(', after:',)'},
+        {label:'lcm(a,b)', before:'lcm(', after:',)'},
+        {label:'mod(a,b)', before:'mod(', after:',)'},
+        {label:'floor(x)', before:'floor(', after:')'},
+        {label:'ceil(x)', before:'ceil(', after:')'},
+        {label:'round(x)', before:'round(', after:')'},
+        {label:'nCr(n,r)', before:'nCr(', after:',)'},
+        {label:'nPr(n,r)', before:'nPr(', after:',)'},
+      ]},
+      { title:'Other', items:[
+        {label:'|x|', before:'abs(', after:')'},
+        {label:'π', before:'pi', after:''},
+        {label:'e', before:'e', after:''},
+        {label:'min(a,b)', before:'min(', after:',)'},
+        {label:'max(a,b)', before:'max(', after:',)'},
+      ]},
+    ];
+
+    const fnMenuBtn = document.createElement('button');
+    fnMenuBtn.textContent = 'ƒ(x)';
+    fnMenuBtn.title = 'Function reference';
+    fnMenuBtn.style.fontWeight = '600';
+    toolbar.appendChild(fnMenuBtn);
+
+    let fnMenuEl = null;
+    fnMenuBtn.addEventListener('click', ()=>{
+      if(fnMenuEl){ return; } // already open
+      fnMenuEl = document.createElement('div');
+      fnMenuEl.className = 'gc-fn-menu';
+      fnMenuEl.style.top = toolbar.offsetHeight + 'px';
+      const header = document.createElement('div');
+      header.className = 'gc-fn-menu-header';
+      header.innerHTML = '<span>Functions</span>';
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'gc-fn-menu-close';
+      closeBtn.textContent = '✕';
+      closeBtn.title = 'Close';
+      closeBtn.addEventListener('click', ()=>{ fnMenuEl.remove(); fnMenuEl = null; });
+      header.appendChild(closeBtn);
+      fnMenuEl.appendChild(header);
+
+      const body = document.createElement('div');
+      body.className = 'gc-fn-menu-body';
+      FUNCTION_MENU_SECTIONS.forEach(section=>{
+        const secTitle = document.createElement('div');
+        secTitle.className = 'gc-fn-menu-section-title';
+        secTitle.textContent = section.title;
+        body.appendChild(secTitle);
+        const grid = document.createElement('div');
+        grid.className = 'gc-fn-menu-grid';
+        section.items.forEach(item=>{
+          const b = document.createElement('button');
+          b.textContent = item.label;
+          if(item.tag){
+            b.classList.add('gc-fn-btn-unsupported');
+            b.title = item.tag;
+            const tagEl = document.createElement('span');
+            tagEl.className = 'gc-fn-tag';
+            tagEl.textContent = item.tag;
+            b.appendChild(tagEl);
+          }
+          b.addEventListener('mousedown', (e)=>{
+            e.preventDefault();
+            insertSnippet(item.before, item.after);
+            if(fnMenuEl){ fnMenuEl.remove(); fnMenuEl = null; }
+          });
+          grid.appendChild(b);
+        });
+        body.appendChild(grid);
+      });
+      fnMenuEl.appendChild(body);
+      panel.appendChild(fnMenuEl);
+    });
+
+    // ---- change emission ----
+    function emitChange(){
+      emitter.emit('change', getState());
+    }
+
+    function serializeExpr(row){
+      return {
+        id: row.id, text: row.text, color: row.color, visible: row.visible,
+        isTable: row.isTable, tableData: row.isTable ? row.tableData.map(r=>({...r})) : undefined,
+        regressionOf: row.regressionOf, regressionType: row.regressionType,
+        sliderMin: row.sliderMin, sliderMax: row.sliderMax, sliderStep: row.sliderStep, sliderValue: row.sliderValue
+      };
+    }
+
+    function getState(){
+      return {
+        expressions: expressions.map(serializeExpr),
+        scope: Object.assign({}, scope),
+        viewport: { centerX: viewport.centerX, centerY: viewport.centerY, scale: viewport.scale }
+      };
+    }
+
+    function setExpressions(list){
+      expressions = (list||[]).map(e=>{
+        const row = newRow(e);
+        return row;
+      });
+      reclassifyAll();
+      renderList();
+      render();
+      emitChange();
+    }
+
+    // ---- init ----
+    if(options.expressions && options.expressions.length){
+      setExpressions(options.expressions.map(e=>({ text: e.latex || e.text || '', color: e.color })));
+    } else {
+      expressions = [newRow({})];
+      renderList();
+    }
+    requestAnimationFrame(resizeCanvas);
+
+    return {
+      setExpressions,
+      getState,
+      on: emitter.on,
+      off: emitter.off,
+      destroy(){ ro.disconnect(); container.innerHTML=''; },
+      _viewport: viewport
+    };
+  }
+
+  global.createGraphCalc = createGraphCalc;
+
+})(window);
+
+// bootstrap the standalone demo instance
+createGraphCalc(document.getElementById('gc-app-1'), {
+  expressions: [
+    { latex: 'y = a*x^2', color: '#c74440' },
+    { latex: 'x^2 + y^2 = 25', color: '#2d70b3' }
+  ]
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,2419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LessonCanvas</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.0/math.min.js"></script>
+<style>
+  :root{
+    --bg:#f7f8fb; --panel:#ffffff; --border:#e6e8f0; --text:#22252f; --text-dim:#767b8c;
+    --accent:#5b6cf0; --accent-dim:#eef0fe; --accent-text:#3542c9;
+    --good:#1e9e6b; --good-bg:#e7f8f0; --bad:#d64550; --bad-bg:#fdeceb; --warn:#b8790a; --warn-bg:#fff5e0;
+    --radius:14px;
+    --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-heading:var(--font-body);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;font-family:var(--font-body);color:var(--text);background:var(--bg);}
+  .lc-app{display:flex;flex-direction:column;height:100vh;overflow:hidden;position:relative;z-index:1;}
+  input[type=range], input[type=checkbox]{accent-color:var(--accent);}
+  .lc-block-heading, .lc-title, .lc-mc-question, .lc-end-title, .lc-overview-title, .lc-source-label{
+    font-family:var(--font-heading);
+  }
+
+  #lc-ambient-layer{
+    position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  }
+  .lc-ambient-canvas{position:absolute;inset:0;width:100%;height:100%;}
+  .lc-ambient-frame{position:absolute;inset:0;width:100%;height:100%;border:none;}
+
+  .lc-devmode-badge{
+    font-size:10px;font-weight:800;letter-spacing:.04em;color:#fff;background:var(--bad);
+    padding:4px 8px;border-radius:6px;flex-shrink:0;
+  }
+  .lc-help-devlink{
+    font-size:11px;background:transparent;border:1px dashed var(--border);color:var(--text-dim);
+    border-radius:6px;padding:3px 8px;cursor:pointer;margin-right:6px;
+  }
+  .lc-help-devlink:hover{background:var(--accent-dim);}
+  .lc-inspect-ai-body{flex:1;overflow-y:auto;padding:16px 20px;}
+  .lc-inspect-ai-section-title{
+    font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);
+    font-weight:700;margin:16px 0 8px 0;
+  }
+  .lc-inspect-ai-section-title:first-child{margin-top:0;}
+  .lc-inspect-ai-note{
+    font-size:12.5px;color:var(--text-dim);background:var(--warn-bg);border:1px solid #f2dca0;
+    border-radius:8px;padding:8px 12px;margin-bottom:6px;
+  }
+  .lc-inspect-ai-code{
+    background:#f4f5fb;border-radius:8px;padding:10px 12px;font-family:ui-monospace,Consolas,monospace;
+    font-size:11.5px;color:#33374a;white-space:pre-wrap;word-break:break-word;margin:0 0 10px 0;overflow-x:auto;
+  }
+  .lc-inspect-ai-kv{font-size:12.5px;margin-bottom:4px;}
+  .lc-inspect-ai-kv b{color:var(--text);}
+  .lc-code-textarea{
+    flex:1;margin:16px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;border:1px solid var(--border);
+    border-radius:8px;padding:12px;resize:none;background:var(--bg);color:var(--text);
+  }
+  .lc-code-textarea[readonly]{background:#f4f5fb;color:#555;}
+  .lc-code-toolbar{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--border);flex-shrink:0;}
+  .lc-code-status{font-size:12px;color:var(--text-dim);padding:0 16px 10px 16px;min-height:16px;flex-shrink:0;}
+
+  .lc-header{
+    display:flex;align-items:center;gap:16px;padding:14px 22px;background:var(--panel);
+    border-bottom:1px solid var(--border);flex-shrink:0;
+  }
+  .lc-title{font-size:16px;font-weight:700;flex-shrink:0;}
+  .lc-progress{display:flex;align-items:center;gap:6px;flex:1;justify-content:center;flex-wrap:wrap;}
+  .lc-dot{
+    width:9px;height:9px;border-radius:50%;background:var(--border);cursor:pointer;flex-shrink:0;transition:background .15s,transform .15s;
+  }
+  .lc-dot.active{background:var(--accent);transform:scale(1.3);}
+  .lc-dot.done{background:#c7cbf5;}
+  .lc-header-right{display:flex;gap:8px;flex-shrink:0;}
+
+  .lc-btn{
+    border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:10px;padding:8px 14px;
+    font-size:13px;cursor:pointer;font-weight:600;
+  }
+  .lc-btn:hover{background:var(--accent-dim);}
+  .lc-btn:disabled{opacity:.35;cursor:default;background:var(--panel);}
+  .lc-btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .lc-btn-primary:hover{background:#4a5adf;}
+  .lc-btn-primary:disabled{opacity:.35;background:var(--accent);}
+  .lc-btn-small{padding:5px 10px;font-size:12px;border-radius:8px;}
+
+  .lc-toolbar{
+    display:flex;gap:8px;padding:8px 22px;background:var(--panel);border-bottom:1px solid var(--border);
+    flex-shrink:0;align-items:center;font-size:12px;color:var(--text-dim);
+  }
+
+  .lc-viewport{flex:1;overflow:hidden;position:relative;display:flex;justify-content:center;}
+  .lc-slide{
+    width:100%;max-width:820px;overflow-y:auto;padding:36px 40px 60px 40px;
+  }
+  .lc-slide::-webkit-scrollbar{width:8px;}
+  .lc-slide::-webkit-scrollbar-thumb{background:#d6d9e6;border-radius:8px;}
+
+  .lc-block{margin-bottom:22px;}
+  .lc-block h1,.lc-block h2{margin:0 0 6px 0;font-weight:800;letter-spacing:-.01em;}
+  .lc-block-heading{font-size:26px;font-weight:800;margin-bottom:14px;letter-spacing:-.01em;}
+  .lc-block-text{font-size:15.5px;line-height:1.65;color:#33374a;}
+  .lc-block-text ul{margin:6px 0;padding-left:22px;}
+  .lc-block-math{font-size:17px;padding:10px 2px;}
+  .lc-block-image{max-width:100%;}
+  .lc-block-image img{max-width:100%;border-radius:10px;display:block;}
+  .lc-block-image .lc-caption{font-size:12.5px;color:var(--text-dim);margin-top:6px;}
+  .lc-block-pdf canvas{max-width:100%;border-radius:10px;border:1px solid var(--border);display:block;}
+  .lc-block-video video, .lc-block-video iframe{width:100%;aspect-ratio:16/9;border-radius:10px;border:none;display:block;}
+
+  .lc-end-screen{
+    position:relative;min-height:360px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+    overflow:hidden;padding:30px;text-align:center;
+  }
+  .lc-end-confetti{background:linear-gradient(180deg,#eef2ff,#fbfaff);}
+  .lc-confetti-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+  .lc-end-plain{background:var(--panel);border:1px solid var(--border);}
+  .lc-end-content{position:relative;z-index:1;}
+  .lc-end-emoji{font-size:52px;margin-bottom:10px;}
+  .lc-end-title{font-size:24px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px;}
+  .lc-end-message{font-size:14.5px;color:#33374a;line-height:1.6;max-width:480px;margin:0 auto;}
+
+  .lc-overview-title, .lc-performance-card .lc-overview-title{font-size:16px;font-weight:800;margin-bottom:10px;}
+  .lc-overview-list{margin:0;padding-left:20px;font-size:14.5px;line-height:1.7;color:#33374a;}
+  .lc-performance-score{font-size:20px;font-weight:800;color:var(--accent-text);margin-bottom:14px;}
+  .lc-performance-list{display:flex;flex-direction:column;gap:6px;}
+  .lc-performance-row{display:flex;align-items:flex-start;gap:8px;font-size:14px;padding:6px 0;border-top:1px solid var(--border);}
+  .lc-performance-row:first-child{border-top:none;}
+  .lc-performance-icon{flex-shrink:0;}
+  .lc-performance-label{color:#33374a;}
+
+  .lc-card{
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;
+  }
+
+  .lc-widget-button{
+    background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 18px;
+    font-size:14px;font-weight:700;cursor:pointer;
+  }
+  .lc-widget-button:hover{background:#4a5adf;}
+
+  .lc-hidden-reveal{display:none;}
+  .lc-hidden-reveal.shown{display:block;margin-top:12px;}
+
+  .lc-slider-row{display:flex;align-items:center;gap:12px;}
+  .lc-slider-row input[type=range]{flex:1;}
+  .lc-slider-val{font-weight:700;min-width:48px;text-align:right;color:var(--accent-text);}
+  .lc-slider-label{font-size:13.5px;color:var(--text-dim);margin-bottom:8px;}
+
+  .lc-mc-option{
+    display:block;width:100%;text-align:left;background:var(--panel);border:1.5px solid var(--border);border-radius:10px;
+    padding:11px 14px;margin-bottom:8px;cursor:pointer;font-size:14.5px;transition:border-color .1s,background .1s;
+  }
+  .lc-mc-option:hover{border-color:var(--accent);}
+  .lc-mc-option.correct{border-color:var(--good);background:var(--good-bg);color:var(--good);font-weight:700;}
+  .lc-mc-option.incorrect{border-color:var(--bad);background:var(--bad-bg);color:var(--bad);font-weight:700;}
+  .lc-mc-option.disabled{cursor:default;}
+  .lc-mc-question{font-weight:700;margin-bottom:12px;font-size:15px;}
+  .lc-feedback{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:13.5px;font-weight:600;}
+  .lc-feedback.good{background:var(--good-bg);color:var(--good);}
+  .lc-feedback.bad{background:var(--bad-bg);color:var(--bad);}
+
+  .lc-reveal-toggle{
+    background:transparent;border:1.5px dashed var(--border);color:var(--accent-text);border-radius:10px;
+    padding:9px 16px;font-size:13.5px;font-weight:700;cursor:pointer;
+  }
+  .lc-reveal-toggle:hover{background:var(--accent-dim);}
+
+  .lc-num-row{display:flex;gap:8px;align-items:center;}
+  .lc-num-row input[type=text]{
+    border:1.5px solid var(--border);border-radius:9px;padding:9px 12px;font-size:14.5px;width:140px;
+  }
+
+  .lc-steps-list{margin-top:10px;padding:10px 14px;background:#f4f5fb;border-radius:9px;font-size:13.5px;}
+  .lc-steps-list ol{margin:0;padding-left:18px;}
+  .lc-steps-list li{margin-bottom:4px;}
+
+  .lc-warn-banner{
+    display:flex;gap:8px;align-items:flex-start;background:var(--warn-bg);color:var(--warn);
+    border:1px solid #f2dca0;border-radius:9px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;font-weight:600;
+  }
+
+  .lc-custom-frame{width:100%;border:1px solid var(--border);border-radius:10px;min-height:120px;display:block;}
+
+  .lc-footer{
+    display:flex;justify-content:space-between;align-items:center;padding:14px 22px;background:var(--panel);
+    border-top:1px solid var(--border);flex-shrink:0;
+  }
+
+  .lc-dev-panel{
+    position:fixed;top:0;right:0;bottom:0;width:420px;max-width:90vw;background:var(--panel);border-left:1px solid var(--border);
+    box-shadow:-8px 0 30px rgba(0,0,0,.12);z-index:100;display:flex;flex-direction:column;padding:16px;
+  }
+  .lc-dev-panel textarea{
+    flex:1;font-family:ui-monospace,Consolas,monospace;font-size:12px;border:1px solid var(--border);border-radius:8px;
+    padding:10px;resize:none;margin:10px 0;
+  }
+  .lc-dev-panel-header{display:flex;justify-content:space-between;align-items:center;}
+  .lc-dev-status{font-size:12px;color:var(--text-dim);margin-top:6px;min-height:16px;}
+
+  .lc-empty-state{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-dim);
+    text-align:center;gap:10px;padding:40px;
+  }
+
+  .lc-modal-backdrop{
+    position:fixed;inset:0;background:rgba(20,22,30,.45);z-index:200;
+    display:flex;align-items:center;justify-content:center;padding:24px;
+  }
+  .lc-modal-panel{
+    background:var(--panel);border-radius:16px;width:min(1100px,96vw);height:min(760px,90vh);
+    display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25);
+  }
+  .lc-modal-header{
+    display:flex;align-items:center;justify-content:space-between;padding:12px 16px;
+    border-bottom:1px solid var(--border);flex-shrink:0;
+  }
+  .lc-modal-header strong{font-size:14px;}
+  .lc-modal-body{flex:1;min-height:0;}
+  .lc-modal-body iframe{width:100%;height:100%;border:none;display:block;}
+  .lc-modal-body-scroll{flex:1;min-height:0;overflow-y:auto;padding:16px 20px;}
+
+  .lc-ai-panel{width:420px;max-width:94vw;height:min(600px,86vh);}
+  .lc-ai-messages{flex:1;min-height:0;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:10px;}
+  .lc-ai-msg{max-width:85%;padding:9px 12px;border-radius:12px;font-size:13.5px;line-height:1.5;white-space:pre-wrap;}
+  .lc-ai-msg-user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px;}
+  .lc-ai-msg-bot{align-self:flex-start;background:var(--accent-dim);color:var(--text);border-bottom-left-radius:4px;}
+  .lc-ai-msg-error{align-self:flex-start;background:var(--bad-bg);color:var(--bad);}
+  .lc-ai-inputrow{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0;}
+  .lc-ai-inputrow textarea{
+    flex:1;resize:none;border:1px solid var(--border);border-radius:10px;padding:8px 10px;
+    font-size:13.5px;font-family:inherit;min-height:38px;max-height:100px;
+  }
+
+  .lc-badge{
+    display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;
+    padding:0 4px;margin-left:5px;border-radius:8px;background:var(--accent);color:#fff;
+    font-size:10px;font-weight:800;vertical-align:middle;
+  }
+  .lc-sources-toolbar{display:flex;justify-content:flex-end;padding:0 20px 8px 20px;flex-shrink:0;}
+  .lc-source-card{
+    display:flex;align-items:flex-start;gap:10px;border:1px solid var(--border);border-radius:10px;
+    padding:12px 14px;margin-bottom:10px;
+  }
+  .lc-source-icon{font-size:20px;flex-shrink:0;line-height:1;}
+  .lc-source-main{flex:1;min-width:0;}
+  .lc-source-label-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:4px;}
+  .lc-source-label{font-weight:700;font-size:14px;word-break:break-word;margin-bottom:0;}
+  .lc-source-manual-tag{
+    font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-dim);
+    background:#eef0f2;padding:2px 6px;border-radius:5px;flex-shrink:0;
+  }
+  .lc-icon-btn-delete{
+    flex-shrink:0;border:none;background:transparent;cursor:pointer;font-size:14px;color:var(--text-dim);
+    width:26px;height:26px;border-radius:6px;
+  }
+  .lc-icon-btn-delete:hover{background:var(--bad-bg);color:var(--bad);}
+  .lc-source-sub{font-size:12px;color:var(--text-dim);word-break:break-all;}
+  .lc-source-actions{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;}
+  .lc-source-thumb{max-width:100%;max-height:160px;border-radius:8px;display:block;margin-top:8px;}
+  .lc-source-pdf-preview canvas{max-width:100%;border-radius:8px;border:1px solid var(--border);margin-top:8px;}
+  .lc-sources-empty{color:var(--text-dim);font-size:13px;text-align:center;padding:30px 10px;}
+
+  .lc-inspect-section-title{
+    font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);
+    font-weight:700;margin:16px 0 8px 0;
+  }
+  .lc-inspect-section-title:first-child{margin-top:0;}
+  .lc-inspect-card{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;}
+  .lc-inspect-name{font-family:ui-monospace,Consolas,monospace;font-weight:700;font-size:13px;color:var(--accent-text);margin-bottom:4px;}
+  .lc-inspect-desc{font-size:13px;color:#33374a;line-height:1.5;margin-bottom:8px;}
+  .lc-inspect-example{
+    background:#f4f5fb;border-radius:7px;padding:8px 10px;font-family:ui-monospace,Consolas,monospace;
+    font-size:11.5px;color:#33374a;white-space:pre-wrap;word-break:break-word;margin:0;user-select:text;
+  }
+</style>
+</head>
+<body>
+<div id="lc-ambient-layer"></div>
+<div id="lc-root" class="lc-app"></div>
+
+<script>
+/* =========================================================================
+   LessonCanvas — JSON-driven interactive teaching shell.
+   Public entry point: window.loadLesson(lessonObject)
+   ========================================================================= */
+(function(){
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+  const root = document.getElementById('lc-root');
+
+  // ---- state ----
+  let lesson = { title:'Untitled Lesson', slides:[] };
+  let currentSlide = 0;
+  let assets = {}; // id -> {kind:'image', dataUrl} | {kind:'pdf', doc: pdfjs document, pageCount}
+  let assetSeq = 0;
+  // blockId -> { type, correct, selected|value, question } — recorded whenever a
+  // graded block (multiple_choice/number_input) is answered, for two purposes:
+  // (1) letting an answer survive navigating away and back (opt out per-block via
+  //     the AI-authored `lockAnswer:false`, never a student-facing control), and
+  // (2) powering the performance_summary end-screen block, which reads this
+  //     regardless of lockAnswer so scoring always works even if the UI doesn't lock.
+  let answerState = {};
+
+  // ---- theming ----
+  // A lesson can set a top-level `theme` field to restyle the whole shell: colors,
+  // fonts, corner radius, and an optional decorative ambient layer behind the
+  // slide content (a built-in like "stars", or AI-authored custom HTML/JS for
+  // anything else). Applying a theme just sets CSS custom properties, so every
+  // existing color reads from var(...) and repaints automatically.
+  const THEME_DEFAULTS = {
+    bg:'#f7f8fb', panel:'#ffffff', border:'#e6e8f0', text:'#22252f', textDim:'#767b8c',
+    accent:'#5b6cf0', accentDim:'#eef0fe', accentText:'#3542c9',
+    good:'#1e9e6b', goodBg:'#e7f8f0', bad:'#d64550', badBg:'#fdeceb', warn:'#b8790a', warnBg:'#fff5e0',
+    radius:'14px',
+    fontBody:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+    fontHeading:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'
+  };
+  const THEME_COLOR_VARS = {
+    bg:'--bg', panel:'--panel', border:'--border', text:'--text', textDim:'--text-dim',
+    accent:'--accent', accentDim:'--accent-dim', accentText:'--accent-text',
+    good:'--good', goodBg:'--good-bg', bad:'--bad', badBg:'--bad-bg', warn:'--warn', warnBg:'--warn-bg'
+  };
+
+  // Custom ambient theme elements an AI authors for one lesson (e.g. swimming fish
+  // for a theme the built-in library has no preset for) — cleared on every
+  // loadLesson() like everything else lesson-scoped, and surfaced in Inspect
+  // Elements under a lesson-only section.
+  let lessonLocalCatalog = [];
+
+  function applyTheme(theme){
+    const root = document.documentElement;
+    const colors = (theme && theme.colors) || {};
+    Object.keys(THEME_COLOR_VARS).forEach(key=>{
+      root.style.setProperty(THEME_COLOR_VARS[key], colors[key] || THEME_DEFAULTS[key]);
+    });
+    root.style.setProperty('--radius', (theme && theme.radius) || THEME_DEFAULTS.radius);
+    const fonts = (theme && theme.fonts) || {};
+    root.style.setProperty('--font-body', fonts.body || THEME_DEFAULTS.fontBody);
+    root.style.setProperty('--font-heading', fonts.heading || fonts.body || THEME_DEFAULTS.fontHeading);
+
+    renderAmbient(theme);
+  }
+
+  function renderAmbient(theme){
+    const layer = document.getElementById('lc-ambient-layer');
+    if(!layer) return;
+    layer.innerHTML = '';
+
+    if(theme && theme.ambient && theme.ambient.type === 'stars'){
+      renderStarsAmbient(layer, theme.ambient.density);
+    }
+    if(theme && theme.customAmbient && theme.customAmbient.html){
+      renderCustomAmbient(layer, theme.customAmbient);
+    }
+  }
+
+  // Built-in ambient effect: a soft, slowly-drifting starfield (the space-theme
+  // example from the spec). Anything not covered by a built-in goes through
+  // renderCustomAmbient() below instead.
+  function renderStarsAmbient(container, density){
+    const canvas = document.createElement('canvas');
+    canvas.className = 'lc-ambient-canvas';
+    container.appendChild(canvas);
+    function resize(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    resize();
+    const ctx = canvas.getContext('2d');
+    const count = Math.max(20, Math.min(300, density || 90));
+    const stars = [];
+    for(let i=0;i<count;i++){
+      stars.push({
+        x: Math.random()*canvas.width, y: Math.random()*canvas.height,
+        r: Math.random()*1.5+0.3, phase: Math.random()*Math.PI*2,
+        twinkleSpeed: 0.6+Math.random()*1.2, drift: (Math.random()-0.5)*0.15, fall: 0.05+Math.random()*0.12
+      });
+    }
+    function onResize(){ resize(); }
+    window.addEventListener('resize', onResize);
+    let t = 0;
+    function frame(){
+      if(!canvas.isConnected){ window.removeEventListener('resize', onResize); return; }
+      t += 0.02;
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      stars.forEach(s=>{
+        s.y += s.fall; s.x += s.drift;
+        if(s.y > canvas.height) s.y = 0;
+        if(s.x < 0) s.x = canvas.width; if(s.x > canvas.width) s.x = 0;
+        const twinkle = 0.5 + 0.5*Math.sin(t*s.twinkleSpeed + s.phase);
+        ctx.globalAlpha = 0.2 + twinkle*0.55;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // AI-authored ambient decoration, sandboxed exactly like `custom` blocks
+  // (allow-scripts only). "Quality verification" here means: it must actually
+  // load and run without failing within a few seconds, proven by a heartbeat
+  // signal back to the parent -- not just trusted blindly. If it never signals,
+  // it's removed and a console warning is logged.
+  function renderCustomAmbient(container, customAmbient){
+    const ifr = document.createElement('iframe');
+    ifr.className = 'lc-ambient-frame';
+    ifr.setAttribute('sandbox', 'allow-scripts');
+    const errorListener = `
+<script>
+window.__lcAmbientFailed = false;
+window.addEventListener('error', function(){ window.__lcAmbientFailed = true; });
+<\/script>
+`;
+    const readinessCheck = `
+<script>
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    try{
+      var hasContent = document.body && document.body.children.length > 0;
+      parent.postMessage({ __lessonCanvasAmbientReady: !window.__lcAmbientFailed && hasContent }, '*');
+    }catch(e){
+      parent.postMessage({ __lessonCanvasAmbientReady:false }, '*');
+    }
+  }, 50);
+});
+<\/script>
+`;
+    ifr.srcdoc = errorListener + (customAmbient.html || '') + readinessCheck;
+    container.appendChild(ifr);
+
+    let settled = false;
+    function onMsg(e){
+      if(settled || e.source !== ifr.contentWindow || !e.data || typeof e.data.__lessonCanvasAmbientReady === 'undefined') return;
+      settled = true;
+      window.removeEventListener('message', onMsg);
+      if(e.data.__lessonCanvasAmbientReady === true){
+        lessonLocalCatalog.push({
+          type: 'theme.customAmbient',
+          desc: (customAmbient.description || 'AI-authored decorative theme element for this lesson.') + ' (passed load verification)',
+          example: JSON.stringify({ theme:{ customAmbient:{ description: customAmbient.description||'...', html:'<canvas>...</canvas>' } } })
+        });
+      } else {
+        console.warn('[LessonCanvas] Custom theme ambient failed verification (script error or produced no content) — removed. Description: ' + (customAmbient.description || '(none given)'));
+        if(ifr.isConnected) ifr.remove();
+      }
+    }
+    window.addEventListener('message', onMsg);
+    setTimeout(()=>{
+      if(!settled){
+        settled = true;
+        console.warn('[LessonCanvas] Custom theme ambient failed verification (no response within 3s — likely hung or crashed before signaling) — removed. Description: ' + (customAmbient.description || '(none given)'));
+        window.removeEventListener('message', onMsg);
+        if(ifr.isConnected) ifr.remove();
+      }
+    }, 3000);
+  }
+
+  function recordAnswer(blockId, data){
+    if(!blockId) return;
+    answerState[blockId] = data;
+  }
+
+  function computeLessonScore(){
+    const items = [];
+    (lesson.slides||[]).forEach(slide=>{
+      (slide.blocks||[]).forEach(block=>{
+        if((block.type==='multiple_choice' || block.type==='number_input') && block.id){
+          const ans = answerState[block.id];
+          items.push({
+            id: block.id,
+            question: block.question || '(untitled question)',
+            answered: !!ans,
+            correct: !!(ans && ans.correct)
+          });
+        }
+      });
+    });
+    return {
+      items,
+      total: items.length,
+      answeredCount: items.filter(i=>i.answered).length,
+      correctCount: items.filter(i=>i.correct).length
+    };
+  }
+
+  function uid(prefix){ return (prefix||'id') + '-' + Math.random().toString(36).slice(2,9); }
+
+  // ---- lightweight markdown for `text` blocks ----
+  function renderMiniMarkdown(text){
+    const lines = String(text||'').split('\n');
+    let html = '';
+    let inList = false;
+    lines.forEach(line=>{
+      const trimmed = line.trim();
+      if(/^[-*]\s+/.test(trimmed)){
+        if(!inList){ html += '<ul>'; inList = true; }
+        html += '<li>' + inlineFormat(trimmed.replace(/^[-*]\s+/,'')) + '</li>';
+      } else {
+        if(inList){ html += '</ul>'; inList = false; }
+        if(trimmed === ''){ html += '<br>'; }
+        else html += '<p>' + inlineFormat(trimmed) + '</p>';
+      }
+    });
+    if(inList) html += '</ul>';
+    return html;
+  }
+  function inlineFormat(s){
+    return s
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>');
+  }
+  function renderMathIn(el){
+    if(window.renderMathInElement){
+      try{
+        renderMathInElement(el, {
+          delimiters: [
+            {left:'$$', right:'$$', display:true},
+            {left:'$', right:'$', display:false}
+          ],
+          throwOnError:false
+        });
+      }catch(e){}
+    }
+  }
+
+  // ---- asset registry (Phase 5) ----
+  function registerImageAsset(dataUrl){
+    const id = uid('img');
+    assets[id] = { kind:'image', dataUrl };
+    return id;
+  }
+  async function registerPdfAsset(arrayBuffer){
+    const id = uid('pdf');
+    const doc = await pdfjsLib.getDocument({data:arrayBuffer}).promise;
+    assets[id] = { kind:'pdf', doc, pageCount: doc.numPages };
+    return id;
+  }
+
+  // ---- video URL detection ----
+  function videoEmbedUrl(src){
+    const yt = src.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)/);
+    if(yt) return { kind:'iframe', url: 'https://www.youtube.com/embed/' + yt[1] };
+    const vimeo = src.match(/vimeo\.com\/(\d+)/);
+    if(vimeo) return { kind:'iframe', url: 'https://player.vimeo.com/video/' + vimeo[1] };
+    return { kind:'file', url: src };
+  }
+
+  // ---- Phase 6: math verification ----
+  function verifyBlock(block){
+    const v = block.verification;
+    if(!v || !v.check_expression) return; // nothing to auto-check
+    try{
+      const scope = {}; scope[v.check_variable] = v.check_value;
+      const result = math.evaluate(v.check_expression, scope);
+      const expected = v.expected_result;
+      const ok = typeof result === 'number' && typeof expected === 'number' && Math.abs(result-expected) < 1e-6;
+      block._verified = ok;
+      block._verifyComputed = result;
+      if(!ok){
+        console.warn('[LessonCanvas] Verification MISMATCH for block "'+(block.id||'(no id)')+'": '+
+          'stated correct_answer='+JSON.stringify(block.correct_answer)+', check_expression="'+v.check_expression+'" '+
+          'evaluated to '+result+' but expected_result='+expected);
+      }
+    }catch(e){
+      block._verified = false;
+      block._verifyComputed = null;
+      console.warn('[LessonCanvas] Verification could not be evaluated for block "'+(block.id||'(no id)')+'": '+e.message);
+    }
+  }
+  function runVerificationPass(lessonObj){
+    (lessonObj.slides||[]).forEach(slide=>{
+      (slide.blocks||[]).forEach(block=>{
+        if((block.type==='multiple_choice' || block.type==='number_input') && block.verification){
+          verifyBlock(block);
+        }
+      });
+    });
+  }
+
+  // ---- block renderers ----
+  function findBlockById(blockId){
+    return document.querySelector('[data-block-id="'+CSS.escape(blockId)+'"]');
+  }
+
+  function makeWarnBanner(block){
+    const el = document.createElement('div');
+    el.className = 'lc-warn-banner';
+    el.innerHTML = '⚠️ <span>This question could not be automatically verified — the answer key may be incorrect. '+
+      '(stated vs. computed check mismatch — see console for details)</span>';
+    return el;
+  }
+
+  let currentTargetedIds = new Set();
+  function computeTargetedIds(blocks){
+    const ids = new Set();
+    (blocks||[]).forEach(b=>{
+      if(b.type === 'button' && b.action && (b.action.type === 'reveal_block' || b.action.type === 'reveal_hint') && b.action.target){
+        ids.add(b.action.target);
+      }
+      if(b.type === 'slider' && b.on_threshold && b.on_threshold.reveal_block){
+        ids.add(b.on_threshold.reveal_block);
+      }
+    });
+    return ids;
+  }
+
+  function renderBlocks(blocks, container){
+    (blocks||[]).forEach(block=>{
+      const el = renderBlock(block);
+      if(el) container.appendChild(el);
+    });
+  }
+
+  // renderBlock dispatches purely by looking up BLOCK_REGISTRY[block.type] — there
+  // is no separate switch statement to fall out of sync with. BLOCK_REGISTRY (defined
+  // further down, once all the individual renderXBlock/renderXWidget functions exist)
+  // is also exactly what the Inspect Elements panel reads to document every block
+  // type, so adding a new block type to the registry is the ONE place that both
+  // makes it renderable and makes it show up in Inspect Elements — you cannot add
+  // one without the other.
+  function renderBlock(block){
+    const wrap = document.createElement('div');
+    wrap.className = 'lc-block';
+    if(block.id) wrap.dataset.blockId = block.id;
+    // a block targeted by a button's reveal_block/reveal_hint action or a slider's
+    // on_threshold starts hidden — otherwise there's nothing for the trigger to reveal
+    if(block.id && block.type !== 'reveal' && currentTargetedIds.has(block.id)){
+      wrap.classList.add('lc-hidden-reveal');
+    }
+
+    const entry = BLOCK_REGISTRY[block.type];
+    if(entry){
+      entry.render(block, wrap);
+    } else {
+      const unk = document.createElement('div');
+      unk.style.cssText = 'color:#b3261e;font-size:12px;';
+      unk.textContent = 'Unsupported block type: ' + block.type;
+      wrap.appendChild(unk);
+    }
+    return wrap;
+  }
+
+  function renderHeadingBlock(block, wrap){
+    const h = document.createElement('div');
+    h.className = 'lc-block-heading';
+    h.textContent = block.text || '';
+    wrap.appendChild(h);
+    renderMathIn(h);
+  }
+  function renderTextBlock(block, wrap){
+    const t = document.createElement('div');
+    t.className = 'lc-block-text';
+    t.innerHTML = renderMiniMarkdown(block.text || '');
+    wrap.appendChild(t);
+    renderMathIn(t);
+  }
+  function renderMathBlock(block, wrap){
+    const m = document.createElement('div');
+    m.className = 'lc-block-math';
+    try{
+      katex.render(block.latex || '', m, { throwOnError:false, displayMode: block.display !== false });
+    }catch(e){ m.textContent = block.latex || ''; }
+    wrap.appendChild(m);
+  }
+  function renderImageBlock(block, wrap){
+    const box = document.createElement('div');
+    box.className = 'lc-block-image';
+    const img = document.createElement('img');
+    const asset = assets[block.src];
+    img.src = asset ? asset.dataUrl : block.src;
+    img.alt = block.caption || '';
+    box.appendChild(img);
+    if(block.caption){
+      const cap = document.createElement('div');
+      cap.className = 'lc-caption';
+      cap.textContent = block.caption;
+      box.appendChild(cap);
+    }
+    wrap.appendChild(box);
+  }
+  function renderPdfPageBlock(block, wrap){
+    const box = document.createElement('div');
+    box.className = 'lc-block-pdf';
+    const canvas = document.createElement('canvas');
+    box.appendChild(canvas);
+    wrap.appendChild(box);
+    renderPdfPage(block.src, block.page || 1, canvas);
+  }
+  function renderVideoBlock(block, wrap){
+    const box = document.createElement('div');
+    box.className = 'lc-block-video';
+    const info = videoEmbedUrl(block.src || '');
+    if(info.kind === 'iframe'){
+      const ifr = document.createElement('iframe');
+      ifr.src = info.url;
+      ifr.setAttribute('allowfullscreen','');
+      ifr.setAttribute('frameborder','0');
+      box.appendChild(ifr);
+    } else {
+      const v = document.createElement('video');
+      v.src = info.url;
+      v.controls = true;
+      box.appendChild(v);
+    }
+    wrap.appendChild(box);
+  }
+
+  async function renderPdfPage(assetId, pageNum, canvas){
+    const asset = assets[assetId];
+    if(!asset || asset.kind !== 'pdf'){
+      const ctx = canvas.getContext('2d');
+      canvas.width = 400; canvas.height = 80;
+      ctx.fillStyle = '#fdeceb'; ctx.fillRect(0,0,400,80);
+      ctx.fillStyle = '#d64550'; ctx.font = '13px sans-serif';
+      ctx.fillText('PDF asset "'+assetId+'" not found in registry', 10, 44);
+      return;
+    }
+    try{
+      const page = await asset.doc.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1.5 });
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    }catch(e){
+      const ctx = canvas.getContext('2d');
+      canvas.width = 400; canvas.height = 60;
+      ctx.fillStyle = '#d64550'; ctx.font = '12px sans-serif';
+      ctx.fillText('Could not render page '+pageNum+': '+e.message, 10, 32);
+    }
+  }
+
+  // ---- Phase 3: base widget library ----
+  function runAction(action){
+    if(!action) return;
+    if(action.type === 'reveal_block' || action.type === 'reveal_hint'){
+      const target = findBlockById(action.target);
+      if(target){
+        const revealEl = target.classList.contains('lc-hidden-reveal') ? target : (target.querySelector('.lc-hidden-reveal') || target);
+        revealEl.classList.add('shown');
+        revealEl.style.display = 'block';
+      }
+    } else if(action.type === 'go_to_slide'){
+      const idx = lesson.slides.findIndex(s=>s.id === action.target);
+      if(idx >= 0) goToSlide(idx);
+    }
+  }
+
+  function renderButtonWidget(block, wrap){
+    const btn = document.createElement('button');
+    btn.className = 'lc-widget-button';
+    btn.textContent = block.label || 'Go';
+    btn.addEventListener('click', ()=> runAction(block.action));
+    wrap.appendChild(btn);
+  }
+
+  function renderSliderWidget(block, wrap){
+    const card = document.createElement('div');
+    card.className = 'lc-card';
+    if(block.label){
+      const lbl = document.createElement('div');
+      lbl.className = 'lc-slider-label';
+      lbl.textContent = block.label;
+      card.appendChild(lbl);
+    }
+    const row = document.createElement('div');
+    row.className = 'lc-slider-row';
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = block.min ?? 0;
+    input.max = block.max ?? 10;
+    input.step = block.step ?? 1;
+    input.value = block.min ?? 0;
+    const val = document.createElement('span');
+    val.className = 'lc-slider-val';
+    val.textContent = input.value;
+    row.appendChild(input); row.appendChild(val);
+    card.appendChild(row);
+    wrap.appendChild(card);
+
+    input.addEventListener('input', ()=>{
+      val.textContent = input.value;
+      if(block.on_threshold && block.on_threshold.reveal_block){
+        const target = findBlockById(block.on_threshold.reveal_block);
+        if(target){
+          const revealEl = target.classList.contains('lc-hidden-reveal') ? target : (target.querySelector('.lc-hidden-reveal') || target);
+          const crossed = parseFloat(input.value) >= parseFloat(block.on_threshold.value);
+          revealEl.classList.toggle('shown', crossed);
+          revealEl.style.display = crossed ? 'block' : 'none';
+        }
+      }
+    });
+  }
+
+  function buildStepsUI(block, container){
+    if(!block.verification || !block.verification.steps || !block.verification.steps.length) return;
+    const steps = block.verification.steps;
+    let shown = 0;
+    const btn = document.createElement('button');
+    btn.className = 'lc-btn lc-btn-small';
+    btn.style.marginTop = '8px';
+    btn.textContent = 'Show next step (1/'+steps.length+')';
+    const list = document.createElement('div');
+    list.className = 'lc-steps-list';
+    list.style.display = 'none';
+    const ol = document.createElement('ol');
+    list.appendChild(ol);
+    btn.addEventListener('click', ()=>{
+      if(shown < steps.length){
+        const li = document.createElement('li');
+        li.textContent = steps[shown];
+        ol.appendChild(li);
+        renderMathIn(li);
+        shown++;
+        list.style.display = 'block';
+      }
+      if(shown >= steps.length){
+        btn.textContent = 'All steps shown';
+        btn.disabled = true;
+      } else {
+        btn.textContent = 'Show next step ('+(shown+1)+'/'+steps.length+')';
+      }
+    });
+    container.appendChild(btn);
+    container.appendChild(list);
+  }
+
+  function renderMultipleChoiceWidget(block, wrap){
+    const card = document.createElement('div');
+    card.className = 'lc-card';
+    if(block._verified === false){
+      card.appendChild(makeWarnBanner(block));
+    }
+    const q = document.createElement('div');
+    q.className = 'lc-mc-question';
+    q.textContent = block.question || '';
+    card.appendChild(q);
+    renderMathIn(q);
+
+    let answered = false;
+    const feedback = document.createElement('div');
+    feedback.className = 'lc-feedback';
+    feedback.style.display = 'none';
+
+    const explanationEl = document.createElement('div');
+    explanationEl.className = 'lc-hidden-reveal';
+    if(block.explanation){
+      explanationEl.innerHTML = renderMiniMarkdown(block.explanation);
+    }
+
+    function applyAnswer(idx){
+      const isCorrect = idx === block.correct_answer;
+      card.querySelectorAll('.lc-mc-option').forEach((b,i)=>{
+        b.classList.add('disabled');
+        if(i === block.correct_answer) b.classList.add('correct');
+        else if(i === idx) b.classList.add('incorrect');
+      });
+      feedback.style.display = 'block';
+      feedback.className = 'lc-feedback ' + (isCorrect ? 'good':'bad');
+      feedback.textContent = isCorrect ? 'Correct!' : 'Not quite — the correct answer is highlighted above.';
+      if(block.explanation){
+        explanationEl.classList.add('shown');
+        explanationEl.style.display = 'block';
+      }
+    }
+
+    (block.options||[]).forEach((opt, idx)=>{
+      const optBtn = document.createElement('button');
+      optBtn.className = 'lc-mc-option';
+      optBtn.textContent = opt;
+      optBtn.addEventListener('click', ()=>{
+        if(answered) return;
+        answered = true;
+        applyAnswer(idx);
+        recordAnswer(block.id, { type:'multiple_choice', selected: idx, correct: idx === block.correct_answer, question: block.question });
+      });
+      card.appendChild(optBtn);
+    });
+    card.appendChild(feedback);
+    if(block.explanation) card.appendChild(explanationEl);
+    buildStepsUI(block, card);
+    wrap.appendChild(card);
+
+    // AI-authored flag (never student-facing): whether a previously locked-in
+    // answer should be restored, read-only, when the student navigates back here.
+    const lockEnabled = block.lockAnswer !== false;
+    const existing = block.id && answerState[block.id];
+    if(existing && lockEnabled){
+      answered = true;
+      applyAnswer(existing.selected);
+    }
+  }
+
+  function renderRevealWidget(block, wrap){
+    const card = document.createElement('div');
+    const btn = document.createElement('button');
+    btn.className = 'lc-reveal-toggle';
+    const showLabel = block.label_show || 'Show hint';
+    const hideLabel = block.label_hide || 'Hide';
+    btn.textContent = showLabel;
+    const content = document.createElement('div');
+    content.className = 'lc-hidden-reveal';
+    if(Array.isArray(block.content)){
+      renderBlocks(block.content, content);
+    } else if(typeof block.content === 'string'){
+      content.innerHTML = renderMiniMarkdown(block.content);
+    }
+    btn.addEventListener('click', ()=>{
+      const shown = content.classList.toggle('shown');
+      content.style.display = shown ? 'block' : 'none';
+      btn.textContent = shown ? hideLabel : showLabel;
+    });
+    card.appendChild(btn);
+    card.appendChild(content);
+    wrap.appendChild(card);
+    renderMathIn(content);
+  }
+
+  function renderNumberInputWidget(block, wrap){
+    const card = document.createElement('div');
+    card.className = 'lc-card';
+    if(block._verified === false){
+      card.appendChild(makeWarnBanner(block));
+    }
+    const q = document.createElement('div');
+    q.className = 'lc-mc-question';
+    q.textContent = block.question || '';
+    card.appendChild(q);
+    renderMathIn(q);
+
+    const row = document.createElement('div');
+    row.className = 'lc-num-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Your answer';
+    const checkBtn = document.createElement('button');
+    checkBtn.className = 'lc-btn lc-btn-small lc-btn-primary';
+    checkBtn.textContent = 'Check';
+    row.appendChild(input); row.appendChild(checkBtn);
+    card.appendChild(row);
+
+    const feedback = document.createElement('div');
+    feedback.className = 'lc-feedback';
+    feedback.style.display = 'none';
+    card.appendChild(feedback);
+
+    function applyAnswer(val, ok){
+      input.value = val;
+      input.disabled = true;
+      checkBtn.disabled = true;
+      feedback.style.display = 'block';
+      feedback.className = 'lc-feedback ' + (ok ? 'good' : 'bad');
+      feedback.textContent = ok ? 'Correct!' : 'Not quite — try again.';
+    }
+
+    checkBtn.addEventListener('click', ()=>{
+      const val = parseFloat(input.value);
+      const tol = block.tolerance ?? 0;
+      const ok = isFinite(val) && Math.abs(val - block.correct_answer) <= tol;
+      applyAnswer(val, ok);
+      recordAnswer(block.id, { type:'number_input', value: val, correct: ok, question: block.question });
+    });
+    input.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') checkBtn.click(); });
+
+    buildStepsUI(block, card);
+    wrap.appendChild(card);
+
+    // AI-authored flag (never student-facing): whether a previously locked-in
+    // answer should be restored, read-only, when the student navigates back here.
+    const lockEnabled = block.lockAnswer !== false;
+    const existing = block.id && answerState[block.id];
+    if(existing && lockEnabled){
+      applyAnswer(existing.value, existing.correct);
+    }
+  }
+
+  // Custom widgets are arbitrary-height content in a sandboxed iframe. A fixed/short
+  // iframe height forces internal scrolling, which can hide the top of the widget
+  // (e.g. a diagram) while the user scrolls down to reach a button below it — a real
+  // trap for any AI-authored widget whose content height isn't known in advance.
+  // Fix: every custom iframe self-reports its content height via postMessage (the one
+  // channel available even without allow-same-origin), and the shell resizes the
+  // iframe to fit exactly, so nothing ever scrolls inside it.
+  const RESIZE_REPORTER_SNIPPET = `
+<script>
+(function(){
+  function reportSize(){
+    var h = Math.max(
+      document.documentElement.scrollHeight,
+      document.body ? document.body.scrollHeight : 0,
+      document.documentElement.getBoundingClientRect().height,
+      document.body ? document.body.getBoundingClientRect().height : 0
+    );
+    parent.postMessage({ __lessonCanvasResize: true, height: h }, '*');
+  }
+  window.addEventListener('load', reportSize);
+  if(window.ResizeObserver){
+    new ResizeObserver(reportSize).observe(document.documentElement);
+    if(document.body) new ResizeObserver(reportSize).observe(document.body);
+  }
+  // layout can keep settling after load (fonts, canvas scaling, etc.) — keep
+  // re-measuring for a bit rather than trusting a single early snapshot
+  [50, 150, 300, 600, 1000, 1800].forEach(function(delay){ setTimeout(reportSize, delay); });
+  // the parent can also explicitly ask for a fresh measurement (e.g. once it
+  // knows the iframe box itself has actually been laid out and painted) —
+  // don't rely solely on this iframe's own timers being trustworthy
+  window.addEventListener('message', function(e){
+    if(e.data && e.data.__lessonCanvasRequestResize) reportSize();
+  });
+})();
+<\/script>
+`;
+
+  window.addEventListener('message', function(e){
+    if(!e.data || !e.data.__lessonCanvasResize) return;
+    document.querySelectorAll('.lc-custom-frame').forEach(f=>{
+      if(f.contentWindow === e.source){
+        // only ever grow to fit — a later, more-settled measurement should win,
+        // but a stray early undershoot must never shrink it back down
+        const prevMax = parseFloat(f.dataset.maxReportedHeight || '0');
+        const nextMax = Math.max(prevMax, e.data.height);
+        if(nextMax > prevMax){
+          f.dataset.maxReportedHeight = String(nextMax);
+          f.style.height = Math.max(120, nextMax + 28) + 'px';
+        }
+      }
+    });
+  });
+
+  function renderCustomWidget(block, wrap){
+    const ifr = document.createElement('iframe');
+    ifr.className = 'lc-custom-frame';
+    ifr.setAttribute('sandbox', 'allow-scripts');
+    ifr.srcdoc = (block.html || '') + RESIZE_REPORTER_SNIPPET;
+    wrap.appendChild(ifr);
+
+    // Belt-and-braces: actively re-ping the iframe to re-measure for a few
+    // seconds after it's actually in the live DOM, since a widget's own
+    // internal timers can fire before the surrounding page has finished
+    // laying out and painting the iframe box itself.
+    let pings = 0;
+    const maxPings = 20;
+    function ping(){
+      pings++;
+      const goodEnough = parseFloat(ifr.dataset.maxReportedHeight || '0') > 40;
+      if(pings > maxPings || goodEnough || !ifr.isConnected) return;
+      try{ ifr.contentWindow.postMessage({ __lessonCanvasRequestResize: true }, '*'); }catch(e){}
+      setTimeout(ping, 150);
+    }
+    setTimeout(ping, 150);
+  }
+
+  // ---- end-of-lesson elements ----
+  // These are ordinary block types an authoring AI can drop into a lesson's final
+  // slide — there's no separate "end slide" concept, just more blocks. All four
+  // are here so the AI has a real choice to make per lesson (celebratory vs. plain,
+  // a recap vs. a scored breakdown) rather than a single hardcoded completion screen.
+  function startConfetti(canvas, container){
+    // renderEndConfetti calls this before `container` has actually been inserted
+    // into the live DOM (renderBlocks appends the returned element afterwards),
+    // so clientWidth/Height would read 0 if measured synchronously here — defer
+    // sizing (and therefore particle placement) to the next animation frame,
+    // by which point the browser has laid the slide out for real.
+    const ctx = canvas.getContext('2d');
+    const colors = ['#5b6cf0','#d64550','#1e9e6b','#e8a33d','#8a5cf0'];
+    let particles = [];
+    let ready = false;
+
+    function resize(){
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+    }
+    function initParticles(){
+      resize();
+      if(canvas.width < 2 || canvas.height < 2) return false; // still not laid out — try again next frame
+      particles = [];
+      for(let i=0;i<130;i++){
+        particles.push({
+          x: Math.random()*canvas.width,
+          y: -20 - Math.random()*canvas.height,
+          w: 6+Math.random()*6,
+          h: 8+Math.random()*8,
+          color: colors[Math.floor(Math.random()*colors.length)],
+          speed: 1.5+Math.random()*2.5,
+          drift: (Math.random()-0.5)*1.5,
+          rotation: Math.random()*360,
+          rotSpeed: (Math.random()-0.5)*8
+        });
+      }
+      return true;
+    }
+    function onResize(){ if(ready) resize(); }
+    window.addEventListener('resize', onResize);
+
+    function frame(){
+      if(!canvas.isConnected){ window.removeEventListener('resize', onResize); return; } // slide navigated away
+      if(!ready){
+        ready = initParticles();
+        requestAnimationFrame(frame);
+        return;
+      }
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      particles.forEach(p=>{
+        p.y += p.speed;
+        p.x += p.drift;
+        p.rotation += p.rotSpeed;
+        if(p.y > canvas.height + 20){ p.y = -20; p.x = Math.random()*canvas.width; }
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation*Math.PI/180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+        ctx.restore();
+      });
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function renderEndConfetti(block, wrap){
+    const card = document.createElement('div');
+    card.className = 'lc-end-screen lc-end-confetti';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'lc-confetti-canvas';
+    card.appendChild(canvas);
+
+    const content = document.createElement('div');
+    content.className = 'lc-end-content';
+    const emoji = document.createElement('div'); emoji.className = 'lc-end-emoji'; emoji.textContent = '🎉';
+    const title = document.createElement('div'); title.className = 'lc-end-title'; title.textContent = block.title || 'Lesson complete!';
+    content.appendChild(emoji); content.appendChild(title);
+    if(block.message){
+      const msg = document.createElement('div'); msg.className = 'lc-end-message';
+      msg.innerHTML = renderMiniMarkdown(block.message);
+      content.appendChild(msg);
+    }
+    card.appendChild(content);
+    wrap.appendChild(card);
+    renderMathIn(content);
+    startConfetti(canvas, card);
+  }
+
+  function renderEndPlain(block, wrap){
+    const card = document.createElement('div');
+    card.className = 'lc-end-screen lc-end-plain';
+    const emoji = document.createElement('div'); emoji.className = 'lc-end-emoji'; emoji.textContent = block.icon || '✅';
+    const title = document.createElement('div'); title.className = 'lc-end-title'; title.textContent = block.title || 'Lesson complete';
+    card.appendChild(emoji); card.appendChild(title);
+    if(block.message){
+      const msg = document.createElement('div'); msg.className = 'lc-end-message';
+      msg.innerHTML = renderMiniMarkdown(block.message);
+      card.appendChild(msg);
+    }
+    wrap.appendChild(card);
+    renderMathIn(card);
+  }
+
+  function renderLessonOverview(block, wrap){
+    const card = document.createElement('div');
+    card.className = 'lc-card lc-overview-card';
+    const title = document.createElement('div');
+    title.className = 'lc-overview-title';
+    title.textContent = block.title || 'What we covered';
+    card.appendChild(title);
+    const list = document.createElement('ul');
+    list.className = 'lc-overview-list';
+    (block.points || []).forEach(pt=>{
+      const li = document.createElement('li');
+      li.innerHTML = inlineFormat(pt);
+      list.appendChild(li);
+    });
+    card.appendChild(list);
+    wrap.appendChild(card);
+    renderMathIn(card);
+  }
+
+  function renderPerformanceSummary(block, wrap){
+    const card = document.createElement('div');
+    card.className = 'lc-card lc-performance-card';
+    const title = document.createElement('div');
+    title.className = 'lc-overview-title';
+    title.textContent = block.title || 'How you did';
+    card.appendChild(title);
+
+    const score = computeLessonScore();
+    const scoreLine = document.createElement('div');
+    scoreLine.className = 'lc-performance-score';
+    scoreLine.textContent = score.total
+      ? (score.correctCount + ' / ' + score.total + ' correct' + (score.answeredCount < score.total ? '  (' + (score.total - score.answeredCount) + ' unanswered)' : ''))
+      : 'No graded questions in this lesson.';
+    card.appendChild(scoreLine);
+
+    if(score.total){
+      const list = document.createElement('div');
+      list.className = 'lc-performance-list';
+      score.items.forEach(item=>{
+        const row = document.createElement('div');
+        row.className = 'lc-performance-row';
+        const icon = document.createElement('span');
+        icon.className = 'lc-performance-icon';
+        icon.textContent = !item.answered ? '⬜' : (item.correct ? '✅' : '❌');
+        const label = document.createElement('span');
+        label.className = 'lc-performance-label';
+        label.textContent = item.question;
+        row.appendChild(icon); row.appendChild(label);
+        list.appendChild(row);
+      });
+      card.appendChild(list);
+    }
+    wrap.appendChild(card);
+    renderMathIn(card);
+  }
+
+  // ---- slide navigation ----
+  function renderSlide(index){
+    const viewport = document.getElementById('lc-viewport');
+    viewport.innerHTML = '';
+    if(!lesson.slides.length){
+      const empty = document.createElement('div');
+      empty.className = 'lc-empty-state';
+      empty.innerHTML = '<div style="font-size:38px;">📄</div><div style="font-size:15px;font-weight:600;">No lesson loaded</div>'+
+        '<div style="font-size:13px;">Upload a PDF/PNG, or use the dev panel to paste lesson JSON.</div>';
+      viewport.appendChild(empty);
+      return;
+    }
+    const slide = lesson.slides[index];
+    const slideEl = document.createElement('div');
+    slideEl.className = 'lc-slide';
+    slideEl.dataset.slideId = slide.id || ('slide-'+index);
+    currentTargetedIds = computeTargetedIds(slide.blocks);
+    renderBlocks(slide.blocks, slideEl);
+    viewport.appendChild(slideEl);
+    renderMathIn(slideEl);
+    updateChrome();
+  }
+
+  function updateChrome(){
+    document.getElementById('lc-back').disabled = currentSlide <= 0;
+    document.getElementById('lc-next').disabled = currentSlide >= lesson.slides.length-1 || lesson.slides.length===0;
+    document.getElementById('lc-title').textContent = lesson.title || 'Untitled Lesson';
+    const dotsWrap = document.getElementById('lc-progress');
+    dotsWrap.innerHTML = '';
+    lesson.slides.forEach((s,i)=>{
+      const dot = document.createElement('div');
+      dot.className = 'lc-dot' + (i===currentSlide?' active':(i<currentSlide?' done':''));
+      dot.title = 'Slide ' + (i+1);
+      dot.addEventListener('click', ()=>goToSlide(i));
+      dotsWrap.appendChild(dot);
+    });
+    updateSourcesButton();
+  }
+
+  function goToSlide(index){
+    if(index < 0 || index >= lesson.slides.length) return;
+    currentSlide = index;
+    renderSlide(currentSlide);
+  }
+
+  // ---- Phase 2 / public API ----
+  // A pasted/uploaded object might be valid JSON but not an actual lesson — e.g.
+  // a single block copied out of Inspect Elements ({ "type":"heading", ... })
+  // rather than a full { title, slides:[...] } document. Catch that up front
+  // rather than silently accepting it and wiping out whatever was loaded before.
+  function validateLessonObject(obj){
+    const errors = [];
+    if(!obj || typeof obj !== 'object' || Array.isArray(obj)){
+      errors.push('This isn\'t a JSON object at all.');
+      return errors;
+    }
+    if(!Array.isArray(obj.slides)){
+      errors.push('Missing a top-level "slides" array — this looks like a single element (e.g. copied from Inspect Elements), not a full lesson. A lesson needs the shape { "title":"...", "slides":[ { "id":"...", "blocks":[ <your element here> ] } ] }.');
+    } else if(obj.slides.length === 0){
+      errors.push('The "slides" array is empty — a lesson needs at least one slide.');
+    } else {
+      const badIdx = obj.slides.findIndex(s => !s || typeof s !== 'object' || !Array.isArray(s.blocks));
+      if(badIdx !== -1) errors.push('Slide at index ' + badIdx + ' is missing its own "blocks" array.');
+    }
+    return errors;
+  }
+
+  // Single-level undo: the state right before the most recent successful load,
+  // so a mistaken (but technically valid) lesson load can be reversed back to
+  // whatever was actually on screen before it — not just rejected outright.
+  let lastGoodSnapshot = null;
+
+  // ---- Dev Mode ----
+  // Typing this exact phrase into the "Load JSON" box (instead of actual JSON)
+  // unlocks elevated, dev-only capabilities for the rest of the session: a "Code"
+  // button that shows the current lesson's JSON (read-only by default — an
+  // explicit "Edit" click is required before anything can be typed), and
+  // permission to delete AI-given sources from the Sources panel (normally only
+  // the user's own manual uploads are deletable there).
+  const DEV_MODE_TRIGGER = 'ClaudeDEVLessonCanvas101//:';
+  let devModeActive = false;
+
+  function activateDevMode(){
+    if(devModeActive) return;
+    devModeActive = true;
+    const badge = document.getElementById('lc-devmode-badge');
+    const codeBtn = document.getElementById('lc-code-toggle');
+    if(badge) badge.style.display = 'inline-flex';
+    if(codeBtn) codeBtn.style.display = '';
+    if(sourcesModalEl) renderSourcesModalBody();
+  }
+
+  function loadLesson(lessonObject){
+    const errors = validateLessonObject(lessonObject);
+    if(errors.length){
+      console.error('[LessonCanvas] Refusing to load — this JSON does not represent a valid lesson:\n' + errors.join('\n'));
+      return { ok:false, errors };
+    }
+
+    // snapshot what's about to be replaced, before touching anything, so it can
+    // be restored exactly via window.undoLastLoad()
+    lastGoodSnapshot = { lesson: JSON.parse(JSON.stringify(lesson)), answerState: JSON.parse(JSON.stringify(answerState)) };
+
+    // lesson is fully replaced (not merged) each call, so switching the shell to a
+    // different lesson/purpose automatically drops any prior sources/slides — no
+    // stale content survives a new load. Use window.clearSources() to wipe just the
+    // sources list without touching slides, if that's all that needs resetting.
+    lesson = Object.assign({ title:'Untitled Lesson', slides:[], sources:[] }, lessonObject||{});
+    lesson.slides = lesson.slides || [];
+    lesson.sources = lesson.sources || [];
+    answerState = {}; // a new lesson means a clean slate for locked-in answers too
+    lessonLocalCatalog = []; // this lesson's AI-authored theme elements start fresh too
+    aiHelperMessages = []; // AI Helper chat history is per-lesson, not carried into a different one
+    applyTheme(lesson.theme); // resets to the default look when a lesson has no theme
+    runVerificationPass(lesson);
+    currentSlide = 0;
+    renderSlide(0);
+    if(sourcesModalEl) renderSourcesModalBody();
+    updateUndoButtonState();
+    return { ok:true };
+  }
+  window.loadLesson = loadLesson;
+
+  function undoLastLoad(){
+    if(!lastGoodSnapshot) return false;
+    lesson = lastGoodSnapshot.lesson;
+    answerState = lastGoodSnapshot.answerState;
+    lastGoodSnapshot = null; // single-level undo, not a full history stack
+    lessonLocalCatalog = [];
+    aiHelperMessages = [];
+    applyTheme(lesson.theme);
+    currentSlide = 0;
+    runVerificationPass(lesson);
+    renderSlide(0);
+    if(sourcesModalEl) renderSourcesModalBody();
+    updateUndoButtonState();
+    return true;
+  }
+  window.undoLastLoad = undoLastLoad;
+
+  function updateUndoButtonState(){
+    const btn = document.getElementById('lc-dev-undo');
+    if(btn) btn.disabled = !lastGoodSnapshot;
+  }
+  window.__lessonCanvasAssets = assets; // exposed for debugging/manual asset wiring
+
+  // ---- Phase 1: manual upload toolbar (dev/testing convenience) ----
+  function addBlockToCurrentSlide(block){
+    if(!lesson.slides.length){
+      lesson.slides.push({ id: uid('slide'), blocks: [] });
+    }
+    lesson.slides[currentSlide].blocks.push(block);
+    renderSlide(currentSlide);
+  }
+
+  function handlePngUpload(file){
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const id = registerImageAsset(reader.result);
+      const blockId = uid('blk');
+      addBlockToCurrentSlide({ id: blockId, type:'image', src:id, caption: file.name });
+      // manual:true + createdBlockId is what lets the Sources panel delete this again —
+      // an AI-authored source (no createdBlockId, not manual) never gets a delete button
+      addSource({ type:'image', src:id, label: file.name, manual:true, createdBlockId: blockId });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function handlePdfUpload(file){
+    const buf = await file.arrayBuffer();
+    const id = await registerPdfAsset(buf);
+    const asset = assets[id];
+    const insertAt = currentSlide;
+    const newSlides = [];
+    for(let p=1; p<=asset.pageCount; p++){
+      newSlides.push({ id: uid('slide'), blocks: [
+        { type:'heading', text: file.name + ' — page ' + p + ' of ' + asset.pageCount },
+        { type:'pdf_page', src:id, page:p }
+      ]});
+    }
+    lesson.slides.splice(insertAt+1, 0, ...newSlides);
+    addSource({ type:'pdf', src:id, label: file.name, page:1, manual:true, createdSlideIds: newSlides.map(s=>s.id) });
+    goToSlide(insertAt+1);
+  }
+
+  // ---- shell chrome construction ----
+  function buildShell(){
+    root.innerHTML = '';
+
+    const header = document.createElement('header');
+    header.className = 'lc-header';
+    header.innerHTML = `
+      <div class="lc-title" id="lc-title">Untitled Lesson</div>
+      <div class="lc-progress" id="lc-progress"></div>
+      <div class="lc-header-right">
+        <span class="lc-devmode-badge" id="lc-devmode-badge" style="display:none;">DEV MODE</span>
+        <button class="lc-btn lc-btn-small" id="lc-code-toggle" style="display:none;">💻 Code</button>
+        <button class="lc-btn lc-btn-small" id="lc-sources-toggle">📚 Sources<span class="lc-badge" id="lc-sources-badge" style="display:none;"></span></button>
+        <button class="lc-btn lc-btn-small" id="lc-calc-toggle">🧮 Calculator</button>
+        <button class="lc-btn lc-btn-small" id="lc-ai-toggle">🤖 AI Helper</button>
+        <button class="lc-btn lc-btn-small" id="lc-dev-toggle">{ } Dev</button>
+      </div>
+    `;
+    root.appendChild(header);
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'lc-toolbar';
+    toolbar.innerHTML = `
+      <span>Manual tools:</span>
+      <label class="lc-btn lc-btn-small" style="cursor:pointer;">Upload PNG<input type="file" accept="image/png,image/jpeg" id="lc-upload-png" style="display:none;"></label>
+      <label class="lc-btn lc-btn-small" style="cursor:pointer;">Upload PDF<input type="file" accept="application/pdf" id="lc-upload-pdf" style="display:none;"></label>
+    `;
+    root.appendChild(toolbar);
+
+    const main = document.createElement('main');
+    main.className = 'lc-viewport';
+    main.id = 'lc-viewport';
+    root.appendChild(main);
+
+    const footer = document.createElement('footer');
+    footer.className = 'lc-footer';
+    footer.innerHTML = `
+      <button class="lc-btn" id="lc-back">← Back</button>
+      <button class="lc-btn lc-btn-primary" id="lc-next">Next →</button>
+    `;
+    root.appendChild(footer);
+
+    document.getElementById('lc-back').addEventListener('click', ()=>goToSlide(currentSlide-1));
+    document.getElementById('lc-next').addEventListener('click', ()=>goToSlide(currentSlide+1));
+    document.getElementById('lc-upload-png').addEventListener('change', (e)=>{
+      if(e.target.files[0]) handlePngUpload(e.target.files[0]);
+      e.target.value = '';
+    });
+    document.getElementById('lc-upload-pdf').addEventListener('change', (e)=>{
+      if(e.target.files[0]) handlePdfUpload(e.target.files[0]);
+      e.target.value = '';
+    });
+    document.getElementById('lc-dev-toggle').addEventListener('click', toggleDevPanel);
+    document.getElementById('lc-calc-toggle').addEventListener('click', toggleCalculatorModal);
+    document.getElementById('lc-sources-toggle').addEventListener('click', toggleSourcesModal);
+    document.getElementById('lc-ai-toggle').addEventListener('click', toggleAiHelperModal);
+    document.getElementById('lc-code-toggle').addEventListener('click', toggleCodeModal);
+
+    updateChrome();
+    renderSlide(0);
+  }
+
+  // ---- embedded calculator (GraphCalc, opened alongside a lesson) ----
+  function decodeGraphCalcHtml(){
+    const binary = atob(GRAPHCALC_HTML_B64);
+    const bytes = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+  let calcModalEl = null;
+  function toggleCalculatorModal(){
+    if(calcModalEl){ closeCalculatorModal(); return; }
+    calcModalEl = document.createElement('div');
+    calcModalEl.className = 'lc-modal-backdrop';
+    calcModalEl.innerHTML = `
+      <div class="lc-modal-panel">
+        <div class="lc-modal-header">
+          <strong>Calculator</strong>
+          <button class="lc-btn lc-btn-small" id="lc-calc-close">✕ Close</button>
+        </div>
+        <div class="lc-modal-body">
+          <iframe title="Graphing calculator"></iframe>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(calcModalEl);
+    // GraphCalc is embedded inline (base64-decoded) rather than loaded via a
+    // relative src="graphcalc.html" -- that broke whenever this lesson file was
+    // copied, renamed, or opened from somewhere graphcalc.html wasn't sitting
+    // right next to it. Embedding it means the calculator travels with this
+    // single file no matter where it goes.
+    calcModalEl.querySelector('iframe').srcdoc = decodeGraphCalcHtml();
+    document.getElementById('lc-calc-close').addEventListener('click', closeCalculatorModal);
+    calcModalEl.addEventListener('mousedown', (e)=>{
+      if(e.target === calcModalEl) closeCalculatorModal();
+    });
+    document.addEventListener('keydown', calcModalEscHandler);
+  }
+  function calcModalEscHandler(e){
+    if(e.key === 'Escape') closeCalculatorModal();
+  }
+  function closeCalculatorModal(){
+    if(!calcModalEl) return;
+    calcModalEl.remove();
+    calcModalEl = null;
+    document.removeEventListener('keydown', calcModalEscHandler);
+  }
+
+  // ---- Sources section ----
+  // A lesson-wide place for the authoring AI to list everything it drew on
+  // (links, PDFs, images, plain citations) — separate from slide content, so
+  // it's somewhere to both recall from while authoring and for the student to
+  // check. Lives on lessonObject.sources, an array of:
+  //   { type:'link', url, label }
+  //   { type:'image', src, label }   -- src resolves against the asset registry, like image blocks
+  //   { type:'pdf', src, label, page }
+  //   { type:'text', label }         -- a plain citation with no attachment
+  function resolveAssetSrc(src){
+    const asset = assets[src];
+    return (asset && asset.kind === 'image') ? asset.dataUrl : src;
+  }
+
+  function renderSourceCard(source, index){
+    const card = document.createElement('div');
+    card.className = 'lc-source-card';
+    const icon = document.createElement('div');
+    icon.className = 'lc-source-icon';
+    icon.textContent = { link:'🔗', image:'🖼️', pdf:'📄', text:'📝' }[source.type] || '📎';
+    card.appendChild(icon);
+
+    const main = document.createElement('div');
+    main.className = 'lc-source-main';
+    const labelRow = document.createElement('div');
+    labelRow.className = 'lc-source-label-row';
+    const label = document.createElement('div');
+    label.className = 'lc-source-label';
+    label.textContent = source.label || '(untitled source)';
+    labelRow.appendChild(label);
+    if(source.manual){
+      const tag = document.createElement('span');
+      tag.className = 'lc-source-manual-tag';
+      tag.textContent = 'uploaded by you';
+      labelRow.appendChild(tag);
+    }
+    main.appendChild(labelRow);
+
+    if(source.type === 'link' && source.url){
+      const sub = document.createElement('div');
+      sub.className = 'lc-source-sub';
+      sub.textContent = source.url;
+      main.appendChild(sub);
+      const actions = document.createElement('div');
+      actions.className = 'lc-source-actions';
+      const a = document.createElement('a');
+      a.href = source.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.className = 'lc-btn lc-btn-small';
+      a.textContent = 'Open link ↗';
+      actions.appendChild(a);
+      main.appendChild(actions);
+    } else if(source.type === 'image' && source.src){
+      const img = document.createElement('img');
+      img.className = 'lc-source-thumb';
+      img.src = resolveAssetSrc(source.src);
+      img.alt = source.label || '';
+      main.appendChild(img);
+    } else if(source.type === 'pdf' && source.src){
+      const actions = document.createElement('div');
+      actions.className = 'lc-source-actions';
+      const viewBtn = document.createElement('button');
+      viewBtn.className = 'lc-btn lc-btn-small';
+      viewBtn.textContent = 'View page ' + (source.page || 1);
+      const previewWrap = document.createElement('div');
+      previewWrap.className = 'lc-source-pdf-preview';
+      previewWrap.style.display = 'none';
+      let rendered = false;
+      viewBtn.addEventListener('click', ()=>{
+        const shown = previewWrap.style.display === 'none';
+        previewWrap.style.display = shown ? 'block' : 'none';
+        if(shown && !rendered){
+          rendered = true;
+          const canvas = document.createElement('canvas');
+          previewWrap.appendChild(canvas);
+          renderPdfPage(source.src, source.page || 1, canvas);
+        }
+      });
+      actions.appendChild(viewBtn);
+      main.appendChild(actions);
+      main.appendChild(previewWrap);
+    }
+    card.appendChild(main);
+
+    // Only sources the user manually uploaded (PNG/PDF toolbar) can be deleted —
+    // anything the authoring AI put in lesson.sources has no createdBlockId/
+    // createdSlideIds and no manual flag, so it never gets a delete button here.
+    // Manual uploads are always deletable by the user. AI-given sources are only
+    // deletable in Dev Mode (elevated, dev-only capability) — never by a regular user.
+    if(source.manual || devModeActive){
+      const delBtn = document.createElement('button');
+      delBtn.className = 'lc-icon-btn-delete';
+      delBtn.title = source.manual ? 'Remove this upload from the lesson' : 'Remove this AI-given source (Dev Mode)';
+      delBtn.textContent = '🗑';
+      delBtn.addEventListener('click', ()=>{
+        const warning = source.manual
+          ? 'Remove "' + (source.label||'this upload') + '"? This also removes it from the slide(s) it was added to.'
+          : '[Dev Mode] Remove AI-given source "' + (source.label||'this source') + '"? A regular user cannot do this.';
+        if(confirm(warning)){
+          deleteSource(index);
+        }
+      });
+      card.appendChild(delBtn);
+    }
+    return card;
+  }
+
+  function deleteSource(index){
+    const source = (lesson.sources||[])[index];
+    if(!source || !(source.manual || devModeActive)) return; // AI-given sources are only removable in Dev Mode
+    if(source.createdBlockId){
+      lesson.slides.forEach(slide=>{
+        slide.blocks = (slide.blocks||[]).filter(b=>b.id !== source.createdBlockId);
+      });
+    }
+    if(source.createdSlideIds && source.createdSlideIds.length){
+      lesson.slides = lesson.slides.filter(s=>!source.createdSlideIds.includes(s.id));
+    }
+    lesson.sources.splice(index,1);
+    if(currentSlide >= lesson.slides.length) currentSlide = Math.max(0, lesson.slides.length-1);
+    updateSourcesButton();
+    if(sourcesModalEl) renderSourcesModalBody();
+    renderSlide(currentSlide);
+  }
+
+  function updateSourcesButton(){
+    const badge = document.getElementById('lc-sources-badge');
+    if(!badge) return;
+    const count = (lesson.sources || []).length;
+    badge.textContent = String(count);
+    badge.style.display = count > 0 ? 'inline-flex' : 'none';
+  }
+
+  function clearSources(){
+    lesson.sources = [];
+    updateSourcesButton();
+    if(sourcesModalEl) renderSourcesModalBody();
+  }
+  window.clearSources = clearSources; // lets the shell be wiped clean when repurposed for a new lesson
+
+  function addSource(source){
+    if(!lesson.sources) lesson.sources = [];
+    lesson.sources.push(source);
+    updateSourcesButton();
+    if(sourcesModalEl) renderSourcesModalBody();
+  }
+
+  let sourcesModalEl = null;
+  function renderSourcesModalBody(){
+    const body = sourcesModalEl.querySelector('.lc-modal-body-scroll');
+    body.innerHTML = '';
+    const sources = lesson.sources || [];
+    if(!sources.length){
+      const empty = document.createElement('div');
+      empty.className = 'lc-sources-empty';
+      empty.textContent = 'No sources added for this lesson yet.';
+      body.appendChild(empty);
+      return;
+    }
+    sources.forEach((s,i)=>body.appendChild(renderSourceCard(s,i)));
+  }
+  function toggleSourcesModal(){
+    if(sourcesModalEl){ closeSourcesModal(); return; }
+    sourcesModalEl = document.createElement('div');
+    sourcesModalEl.className = 'lc-modal-backdrop';
+    sourcesModalEl.innerHTML = `
+      <div class="lc-modal-panel">
+        <div class="lc-modal-header">
+          <strong>Sources</strong>
+          <button class="lc-btn lc-btn-small" id="lc-sources-close">✕ Close</button>
+        </div>
+        <div class="lc-sources-toolbar">
+          <button class="lc-btn lc-btn-small" id="lc-sources-clear">Erase all sources</button>
+        </div>
+        <div class="lc-modal-body-scroll"></div>
+      </div>
+    `;
+    document.body.appendChild(sourcesModalEl);
+    renderSourcesModalBody();
+    document.getElementById('lc-sources-close').addEventListener('click', closeSourcesModal);
+    document.getElementById('lc-sources-clear').addEventListener('click', ()=>{
+      if(confirm('Erase all sources for this lesson? This only clears the Sources list, not the slides.')){
+        clearSources();
+      }
+    });
+    sourcesModalEl.addEventListener('mousedown', (e)=>{
+      if(e.target === sourcesModalEl) closeSourcesModal();
+    });
+    document.addEventListener('keydown', sourcesModalEscHandler);
+  }
+  function sourcesModalEscHandler(e){
+    if(e.key === 'Escape') closeSourcesModal();
+  }
+  function closeSourcesModal(){
+    if(!sourcesModalEl) return;
+    sourcesModalEl.remove();
+    sourcesModalEl = null;
+    document.removeEventListener('keydown', sourcesModalEscHandler);
+  }
+
+  // ---- AI helper (chat panel backed by a Worker /api/ask endpoint) ----
+  let aiHelperModalEl = null;
+  let aiHelperMessages = [];
+
+  function getCurrentSlideContext(){
+    const slide = lesson.slides[currentSlide];
+    if(!slide) return '';
+    const parts = [];
+    (slide.blocks||[]).forEach(b=>{
+      if(b.type==='heading') parts.push(b.text||'');
+      else if(b.type==='text') parts.push(String(b.text||'').replace(/<[^>]+>/g,' '));
+      else if(b.type==='math') parts.push('Math: ' + (b.tex||b.latex||''));
+      else if(b.type==='image' && b.caption) parts.push('Image caption: ' + b.caption);
+    });
+    return parts.join('\n').trim();
+  }
+
+  function renderAiHelperMessages(){
+    const body = aiHelperModalEl.querySelector('.lc-ai-messages');
+    body.innerHTML = '';
+    if(!aiHelperMessages.length){
+      const hint = document.createElement('div');
+      hint.className = 'lc-ai-msg lc-ai-msg-bot';
+      hint.textContent = "Hi! Ask me about this slide, or anything else you're stuck on.";
+      body.appendChild(hint);
+    }
+    aiHelperMessages.forEach(m=>{
+      const el = document.createElement('div');
+      el.className = 'lc-ai-msg ' + (m.role==='user' ? 'lc-ai-msg-user' : m.role==='error' ? 'lc-ai-msg-error' : 'lc-ai-msg-bot');
+      el.textContent = m.text;
+      body.appendChild(el);
+    });
+    body.scrollTop = body.scrollHeight;
+  }
+
+  async function sendAiHelperQuestion(){
+    const input = document.getElementById('lc-ai-input');
+    const question = input.value.trim();
+    if(!question) return;
+    input.value = '';
+    aiHelperMessages.push({role:'user', text:question});
+    const sendBtn = document.getElementById('lc-ai-send');
+    sendBtn.disabled = true;
+    aiHelperMessages.push({role:'bot', text:'Thinking…'});
+    renderAiHelperMessages();
+    try{
+      const res = await fetch('https://lessoncanvas.jtraini.workers.dev/api/ask', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ question, context: getCurrentSlideContext() })
+      });
+      if(!res.ok) throw new Error('request failed (' + res.status + ')');
+      const data = await res.json();
+      aiHelperMessages.pop();
+      aiHelperMessages.push({role:'bot', text: data.answer || '(no answer returned)'});
+    }catch(err){
+      aiHelperMessages.pop();
+      aiHelperMessages.push({role:'error', text:'AI helper is unavailable right now (' + err.message + ').'});
+    }
+    sendBtn.disabled = false;
+    renderAiHelperMessages();
+  }
+
+  function toggleAiHelperModal(){
+    if(aiHelperModalEl){ closeAiHelperModal(); return; }
+    aiHelperModalEl = document.createElement('div');
+    aiHelperModalEl.className = 'lc-modal-backdrop';
+    aiHelperModalEl.innerHTML = `
+      <div class="lc-modal-panel lc-ai-panel">
+        <div class="lc-modal-header">
+          <strong>🤖 AI Helper</strong>
+          <div style="display:flex;align-items:center;">
+            ${devModeActive ? '<button class="lc-help-devlink" id="lc-ai-inspect-toggle">🔍 Inspect (Dev Mode)</button>' : ''}
+            <button class="lc-btn lc-btn-small" id="lc-ai-close">✕ Close</button>
+          </div>
+        </div>
+        <div class="lc-ai-messages"></div>
+        <div class="lc-ai-inputrow">
+          <textarea id="lc-ai-input" placeholder="Ask about this slide..." rows="1"></textarea>
+          <button class="lc-btn lc-btn-primary lc-btn-small" id="lc-ai-send">Send</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(aiHelperModalEl);
+    renderAiHelperMessages();
+    document.getElementById('lc-ai-close').addEventListener('click', closeAiHelperModal);
+    document.getElementById('lc-ai-send').addEventListener('click', sendAiHelperQuestion);
+    document.getElementById('lc-ai-input').addEventListener('keydown', (e)=>{
+      if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendAiHelperQuestion(); }
+    });
+    const inspectBtn = document.getElementById('lc-ai-inspect-toggle');
+    if(inspectBtn) inspectBtn.addEventListener('click', toggleAiHelperInspectView);
+    aiHelperModalEl.addEventListener('mousedown', (e)=>{
+      if(e.target === aiHelperModalEl) closeAiHelperModal();
+    });
+    document.addEventListener('keydown', aiHelperModalEscHandler);
+    document.getElementById('lc-ai-input').focus();
+  }
+  function aiHelperModalEscHandler(e){
+    if(e.key === 'Escape') closeAiHelperModal();
+  }
+  function closeAiHelperModal(){
+    if(!aiHelperModalEl) return;
+    aiHelperModalEl.remove();
+    aiHelperModalEl = null;
+    document.removeEventListener('keydown', aiHelperModalEscHandler);
+  }
+
+  // ---- AI Helper "behind the scenes" inspector (Dev Mode only) ----
+  // Shows exactly what's actually here — nothing invented. The client-side
+  // functions are read live via .toString(), so this can never drift out of
+  // sync with the real implementation the way a hand-copied snippet could.
+  // What this can NOT show: the Worker's own server-side code, model config, or
+  // system prompt — lessoncanvas.jtraini.workers.dev is a separate deployment
+  // outside this repo, built in a different session. That's disclosed here
+  // rather than faked.
+  let aiInspectViewEl = null;
+  function toggleAiHelperInspectView(){
+    if(!devModeActive) return;
+    if(aiInspectViewEl){ aiInspectViewEl.remove(); aiInspectViewEl = null; return; }
+    aiInspectViewEl = document.createElement('div');
+    aiInspectViewEl.className = 'lc-modal-backdrop';
+    const panel = document.createElement('div');
+    panel.className = 'lc-modal-panel';
+    panel.innerHTML = `
+      <div class="lc-modal-header">
+        <strong>AI Helper — behind the scenes (Dev Mode, read only)</strong>
+        <button class="lc-btn lc-btn-small" id="lc-ai-inspect-close">✕ Close</button>
+      </div>
+      <div class="lc-inspect-ai-body" id="lc-ai-inspect-body"></div>
+    `;
+    aiInspectViewEl.appendChild(panel);
+    document.body.appendChild(aiInspectViewEl);
+
+    const body = panel.querySelector('#lc-ai-inspect-body');
+
+    function section(title){
+      const el = document.createElement('div');
+      el.className = 'lc-inspect-ai-section-title';
+      el.textContent = title;
+      body.appendChild(el);
+    }
+    function code(text){
+      const el = document.createElement('pre');
+      el.className = 'lc-inspect-ai-code';
+      el.textContent = text;
+      body.appendChild(el);
+    }
+    function note(text){
+      const el = document.createElement('div');
+      el.className = 'lc-inspect-ai-note';
+      el.textContent = text;
+      body.appendChild(el);
+    }
+    function kv(label, value){
+      const el = document.createElement('div');
+      el.className = 'lc-inspect-ai-kv';
+      el.innerHTML = '<b>' + label + ':</b> ' + value;
+      body.appendChild(el);
+    }
+
+    section('Connector');
+    kv('Endpoint', 'POST https://lessoncanvas.jtraini.workers.dev/api/ask');
+    kv('Request body', '{ question: string, context: string }');
+    kv('Response body', '{ answer: string }');
+    kv('Backend model', 'Llama 3.1 8B, served by a Cloudflare Worker built in a separate session — not part of this repo');
+
+    section('DOM elements used');
+    code([
+      'button#lc-ai-toggle          — header button that opens this panel',
+      'div.lc-modal-backdrop        — the panel itself',
+      'div.lc-ai-messages           — message thread',
+      'textarea#lc-ai-input         — question input',
+      'button#lc-ai-send            — send button',
+      'button#lc-ai-close           — close button',
+      'button#lc-ai-inspect-toggle  — this inspector, Dev Mode only'
+    ].join('\n'));
+
+    section('Client-side code (live — this is the actual running source)');
+    code('function getCurrentSlideContext(){\n' + getCurrentSlideContext.toString().replace(/^function[^{]*\{/, '').replace(/\}$/, '').trim() + '\n}');
+    code('async function sendAiHelperQuestion(){\n' + sendAiHelperQuestion.toString().replace(/^async function[^{]*\{/, '').replace(/\}$/, '').trim() + '\n}');
+
+    section('.md / guardrails file');
+    note('There is no client-side guardrails.md for the AI Helper — a static HTML file has nowhere to hide one from a determined user anyway (view-source always works), so nothing is pretending to be hidden here. Any system prompt or behavior rules for the Llama model live server-side inside the Worker\'s own code, which was built separately and isn\'t visible from this file or this session.');
+
+    panel.querySelector('#lc-ai-inspect-close').addEventListener('click', toggleAiHelperInspectView);
+    aiInspectViewEl.addEventListener('mousedown', (e)=>{ if(e.target === aiInspectViewEl) toggleAiHelperInspectView(); });
+  }
+
+  // ---- dev JSON paste panel ----
+  let devPanelEl = null;
+  function toggleDevPanel(){
+    if(devPanelEl){ devPanelEl.remove(); devPanelEl = null; return; }
+    devPanelEl = document.createElement('div');
+    devPanelEl.className = 'lc-dev-panel';
+    devPanelEl.innerHTML = `
+      <div class="lc-dev-panel-header">
+        <strong style="font-size:13px;">Paste lesson JSON</strong>
+        <button class="lc-btn lc-btn-small" id="lc-dev-close">✕</button>
+      </div>
+      <textarea id="lc-dev-textarea" placeholder='{"title":"...","slides":[...]}'></textarea>
+      <button class="lc-btn lc-btn-primary" id="lc-dev-load">Load JSON</button>
+      <button class="lc-btn lc-btn-small" id="lc-dev-undo" style="margin-top:8px;">↺ Undo last load</button>
+      <button class="lc-btn lc-btn-small" id="lc-dev-inspect" style="margin-top:8px;">🔍 Inspect Elements</button>
+      <div class="lc-dev-status" id="lc-dev-status"></div>
+    `;
+    document.body.appendChild(devPanelEl);
+    document.getElementById('lc-dev-close').addEventListener('click', toggleDevPanel);
+    document.getElementById('lc-dev-load').addEventListener('click', ()=>{
+      const status = document.getElementById('lc-dev-status');
+      const raw = document.getElementById('lc-dev-textarea').value;
+      if(raw.trim() === DEV_MODE_TRIGGER){
+        activateDevMode();
+        document.getElementById('lc-dev-textarea').value = '';
+        status.style.color = 'var(--good)';
+        status.textContent = 'Dev Mode activated — a "Code" button now appears in the header.';
+        return;
+      }
+      try{
+        const obj = JSON.parse(raw);
+        const result = loadLesson(obj);
+        if(result.ok){
+          status.style.color = 'var(--good)';
+          status.textContent = 'Lesson loaded (' + (obj.slides||[]).length + ' slides).';
+        } else {
+          status.style.color = 'var(--bad)';
+          status.textContent = 'Not loaded — nothing changed. ' + result.errors.join(' ');
+        }
+      }catch(e){
+        status.style.color = 'var(--bad)';
+        status.textContent = 'Error: ' + e.message;
+      }
+    });
+    document.getElementById('lc-dev-undo').addEventListener('click', ()=>{
+      const status = document.getElementById('lc-dev-status');
+      const restored = undoLastLoad();
+      status.style.color = restored ? 'var(--good)' : 'var(--bad)';
+      status.textContent = restored ? 'Reverted to the previous lesson.' : 'Nothing to undo.';
+    });
+    document.getElementById('lc-dev-inspect').addEventListener('click', toggleInspectElementsModal);
+    updateUndoButtonState();
+  }
+
+  // ---- Code view/editor (dev mode only) ----
+  // Read-only by default on purpose: a dev user browsing this shouldn't be able to
+  // wreck the lesson with a stray keystroke. Editing requires an explicit "Edit"
+  // click, and applying goes back through loadLesson() itself — so edits get the
+  // same JSON validation and undo snapshot as any other load.
+  let codeModalEl = null;
+  function toggleCodeModal(){
+    if(codeModalEl){ closeCodeModal(); return; }
+    codeModalEl = document.createElement('div');
+    codeModalEl.className = 'lc-modal-backdrop';
+    const panel = document.createElement('div');
+    panel.className = 'lc-modal-panel';
+    panel.innerHTML = `
+      <div class="lc-modal-header">
+        <strong>Code — current lesson JSON</strong>
+        <button class="lc-btn lc-btn-small" id="lc-code-close">✕ Close</button>
+      </div>
+      <textarea class="lc-code-textarea" id="lc-code-textarea" readonly></textarea>
+      <div class="lc-code-status" id="lc-code-status">Read-only. Click "Edit" to make changes.</div>
+      <div class="lc-code-toolbar">
+        <button class="lc-btn lc-btn-small" id="lc-code-edit">✏️ Edit</button>
+        <button class="lc-btn lc-btn-primary lc-btn-small" id="lc-code-apply" style="display:none;">Apply changes</button>
+        <button class="lc-btn lc-btn-small" id="lc-code-discard" style="display:none;">Discard edits</button>
+      </div>
+    `;
+    codeModalEl.appendChild(panel);
+    document.body.appendChild(codeModalEl);
+
+    const textarea = panel.querySelector('#lc-code-textarea');
+    const status = panel.querySelector('#lc-code-status');
+    const editBtn = panel.querySelector('#lc-code-edit');
+    const applyBtn = panel.querySelector('#lc-code-apply');
+    const discardBtn = panel.querySelector('#lc-code-discard');
+    textarea.value = JSON.stringify(lesson, null, 2);
+
+    function backToReadOnly(){
+      textarea.readOnly = true;
+      editBtn.style.display = '';
+      applyBtn.style.display = 'none';
+      discardBtn.style.display = 'none';
+    }
+
+    panel.querySelector('#lc-code-close').addEventListener('click', closeCodeModal);
+    editBtn.addEventListener('click', ()=>{
+      textarea.readOnly = false;
+      textarea.focus();
+      editBtn.style.display = 'none';
+      applyBtn.style.display = '';
+      discardBtn.style.display = '';
+      status.style.color = 'var(--text-dim)';
+      status.textContent = 'Editing — nothing is applied until you click "Apply changes".';
+    });
+    discardBtn.addEventListener('click', ()=>{
+      textarea.value = JSON.stringify(lesson, null, 2);
+      backToReadOnly();
+      status.style.color = 'var(--text-dim)';
+      status.textContent = 'Read-only. Click "Edit" to make changes.';
+    });
+    applyBtn.addEventListener('click', ()=>{
+      try{
+        const obj = JSON.parse(textarea.value);
+        const result = loadLesson(obj);
+        if(result.ok){
+          status.style.color = 'var(--good)';
+          status.textContent = 'Applied — lesson updated. (Undo last load will revert this.)';
+          backToReadOnly();
+          textarea.value = JSON.stringify(lesson, null, 2);
+        } else {
+          status.style.color = 'var(--bad)';
+          status.textContent = 'Not applied — ' + result.errors.join(' ');
+        }
+      }catch(e){
+        status.style.color = 'var(--bad)';
+        status.textContent = 'JSON error: ' + e.message;
+      }
+    });
+
+    codeModalEl.addEventListener('mousedown', (e)=>{ if(e.target === codeModalEl) closeCodeModal(); });
+    document.addEventListener('keydown', codeModalEscHandler);
+  }
+  function codeModalEscHandler(e){ if(e.key === 'Escape') closeCodeModal(); }
+  function closeCodeModal(){
+    if(!codeModalEl) return;
+    codeModalEl.remove();
+    codeModalEl = null;
+    document.removeEventListener('keydown', codeModalEscHandler);
+  }
+
+  // ---- Block registry: the single source of truth for both rendering and docs ----
+  // Every entry here is simultaneously (a) what renderBlock() dispatches to, and
+  // (b) what the Inspect Elements panel documents. There is no second list to
+  // remember to update — adding a block type to this registry is what makes it
+  // both renderable AND documented in the same step. See the startup check below
+  // that warns if an entry is ever added without a desc/example (or vice versa).
+  const BLOCK_REGISTRY = {
+    heading: { section:'Content blocks', desc:'A slide title.', example:'{ "type":"heading", "text":"What is a logarithm?" }', render: renderHeadingBlock },
+    text: { section:'Content blocks', desc:'Paragraph text. Supports **bold**, *italic*, "- " lists, and inline $latex$.', example:'{ "type":"text", "text":"A **logarithm** answers..." }', render: renderTextBlock },
+    math: { section:'Content blocks', desc:'A KaTeX-rendered equation.', example:'{ "type":"math", "latex":"\\\\log_a(x) = y" }', render: renderMathBlock },
+    image: { section:'Content blocks', desc:'An image, resolved by id against the asset registry (or a direct URL).', example:'{ "type":"image", "src":"img-abc123", "caption":"..." }', render: renderImageBlock },
+    pdf_page: { section:'Content blocks', desc:'One page of an uploaded PDF, resolved by asset id.', example:'{ "type":"pdf_page", "src":"pdf-abc123", "page":3 }', render: renderPdfPageBlock },
+    video: { section:'Content blocks', desc:'Embeds a YouTube/Vimeo URL as an iframe, or any other URL as a plain <video>.', example:'{ "type":"video", "src":"https://youtube.com/watch?v=..." }', render: renderVideoBlock },
+
+    button: { section:'Interactive widgets', desc:'Triggers an action: reveal_block, reveal_hint, or go_to_slide.', example:'{ "type":"button", "label":"Show hint", "action":{ "type":"reveal_block", "target":"hint-1" } }', render: renderButtonWidget },
+    slider: { section:'Interactive widgets', desc:'A draggable numeric control; can reveal another block once a threshold value is crossed.', example:'{ "type":"slider", "label":"x", "min":0, "max":10, "on_threshold":{ "value":5, "reveal_block":"note-1" } }', render: renderSliderWidget },
+    multiple_choice: { section:'Interactive widgets', desc:'Graded question with instant right/wrong feedback. Give it an "id" so lockAnswer and the performance_summary can reference it.', example:'{ "type":"multiple_choice", "id":"mc1", "question":"...", "options":["a","b"], "correct_answer":1 }', render: renderMultipleChoiceWidget },
+    reveal: { section:'Interactive widgets', desc:'A show/hide toggle for hint or optional content.', example:'{ "type":"reveal", "label_show":"Show hint", "content":"..." }', render: renderRevealWidget },
+    number_input: { section:'Interactive widgets', desc:'Graded free-response numeric question with a tolerance.', example:'{ "type":"number_input", "id":"num1", "question":"...", "correct_answer":24, "tolerance":0.01 }', render: renderNumberInputWidget },
+
+    custom: { section:'Escape hatch', desc:'Arbitrary HTML/JS in a sandboxed iframe (allow-scripts only, no access to the parent page). Auto-sized to its content — no manual height needed.', example:`{ "type":"custom", "html":"<canvas id='c'></canvas><script>...<\/script>" }`, render: renderCustomWidget },
+
+    end_confetti: { section:'End-of-lesson elements (pick per lesson — no single default)', desc:'Celebratory finish with an animated confetti canvas.', example:'{ "type":"end_confetti", "title":"Great job!", "message":"You finished the lesson." }', render: renderEndConfetti },
+    end_plain: { section:'End-of-lesson elements (pick per lesson — no single default)', desc:'A calm, non-animated completion screen.', example:'{ "type":"end_plain", "title":"Lesson complete", "message":"..." }', render: renderEndPlain },
+    lesson_overview: { section:'End-of-lesson elements (pick per lesson — no single default)', desc:'A short bullet-point recap of what was covered.', example:'{ "type":"lesson_overview", "title":"What we covered", "points":["Point one", "Point two"] }', render: renderLessonOverview },
+    performance_summary: { section:'End-of-lesson elements (pick per lesson — no single default)', desc:'Auto-computed scorecard across every graded question in the lesson — no manual tallying needed.', example:'{ "type":"performance_summary", "title":"How you did" }', render: renderPerformanceSummary },
+  };
+
+  // Concepts documented in Inspect Elements that are NOT block types (so they can
+  // never be derived from BLOCK_REGISTRY) — fields on existing blocks, or top-level
+  // lessonObject fields. Kept separate and deliberately small: anything that's an
+  // actual renderable block belongs in BLOCK_REGISTRY above instead.
+  const EXTRA_DOCS = [
+    { section:'Answer verification (multiple_choice / number_input only)', items:[
+      { type:'verification', desc:'Worked steps for the hint flow, plus an optional independently-evaluable check (check_expression/check_variable/check_value/expected_result) the app verifies at load time — mismatches show an amber warning instead of silently trusting a wrong answer key.', example:'"verification": { "steps":["..."], "check_expression":"4*t", "check_variable":"t", "check_value":6, "expected_result":24 }' },
+      { type:'lockAnswer', desc:'AI-only flag on a graded block (default true). When true, a submitted answer stays locked in — right/wrong shown — if the student navigates away and back. Set false to let the student retry on return.', example:'{ "type":"multiple_choice", ..., "lockAnswer": false }' },
+    ]},
+    { section:'Lesson-level (not a block — a top-level lessonObject field)', items:[
+      { type:'sources', desc:'An array the AI uses to list everything it drew on: links, images, PDFs, or plain citations. Shown in the header Sources panel with a live count badge.', example:'"sources": [ { "type":"link", "url":"https://...", "label":"..." }, { "type":"text", "label":"Smith, J. (2020)." } ]' },
+      { type:'theme', desc:'Restyles the whole shell for this lesson: theme.colors (bg/panel/border/text/textDim/accent/accentDim/accentText/good/goodBg/bad/badBg/warn/warnBg), theme.fonts (body/heading), theme.radius, and theme.ambient (built-in decorative layer — currently {"type":"stars","density":90}). Resets to the default look on any lesson that omits it.', example:'"theme": { "colors":{ "bg":"#0a0e27", "panel":"#12173a", "text":"#ffffff", "accent":"#7c8cff" }, "fonts":{ "heading":"Orbitron, sans-serif" }, "ambient":{ "type":"stars", "density":90 } }' },
+      { type:'theme.customAmbient', desc:`Escape hatch for a theme with no built-in ambient effect (e.g. a fish theme with swimming fish/coral/bubbles) — sandboxed HTML/JS like a custom block, rendered full-screen behind the slide content. Must self-report loading successfully within 3s or it is removed and a console warning is logged; a verified one is added to this lesson's own Inspect Elements section below.`, example:`{ "theme": { "customAmbient": { "description":"Fish swimming across a coral reef with rising bubbles", "html":"<canvas id='c'></canvas><script>...<\/script>" } } } }` },
+    ]},
+  ];
+
+  // Cheap startup guardrail: catches a registry entry added with a render function
+  // but no docs (or vice versa) — the exact drift this registry design is meant to
+  // make impossible, so a mistake here should be loud, not silently shipped.
+  (function checkBlockRegistryIntegrity(){
+    Object.keys(BLOCK_REGISTRY).forEach(type=>{
+      const e = BLOCK_REGISTRY[type];
+      if(typeof e.render !== 'function') console.warn('[LessonCanvas] BLOCK_REGISTRY["'+type+'"] has no render function.');
+      if(!e.desc) console.warn('[LessonCanvas] BLOCK_REGISTRY["'+type+'"] is missing a desc for Inspect Elements.');
+      if(!e.example) console.warn('[LessonCanvas] BLOCK_REGISTRY["'+type+'"] is missing an example for Inspect Elements.');
+      if(!e.section) console.warn('[LessonCanvas] BLOCK_REGISTRY["'+type+'"] is missing a section for Inspect Elements.');
+    });
+  })();
+
+  window.__lessonCanvasBlockRegistry = BLOCK_REGISTRY; // debug hook — the exact same object renderBlock() and Inspect Elements both read
+
+  // ---- Inspect Elements ----
+  // A read-only reference of every block type the authoring AI can use, so a
+  // human reviewing the lesson can point at a specific one in chat ("use a
+  // slider here", "add a performance_summary at the end") without guessing at
+  // names. Purely informational: no click-to-insert, no editing, no state —
+  // just documentation to look at. Sourced from BLOCK_REGISTRY (+ EXTRA_DOCS for
+  // the handful of non-block concepts), so it can never miss a real block type.
+  let inspectModalEl = null;
+  function toggleInspectElementsModal(){
+    if(inspectModalEl){ closeInspectElementsModal(); return; }
+    inspectModalEl = document.createElement('div');
+    inspectModalEl.className = 'lc-modal-backdrop';
+    const panel = document.createElement('div');
+    panel.className = 'lc-modal-panel';
+    panel.innerHTML = `
+      <div class="lc-modal-header">
+        <strong>Inspect Elements — read only</strong>
+        <button class="lc-btn lc-btn-small" id="lc-inspect-close">✕ Close</button>
+      </div>
+      <div class="lc-modal-body-scroll" id="lc-inspect-body"></div>
+    `;
+    inspectModalEl.appendChild(panel);
+    document.body.appendChild(inspectModalEl);
+
+    const body = panel.querySelector('#lc-inspect-body');
+    function renderInspectCard(item){
+      const card = document.createElement('div');
+      card.className = 'lc-inspect-card';
+      const name = document.createElement('div');
+      name.className = 'lc-inspect-name';
+      name.textContent = item.type;
+      const desc = document.createElement('div');
+      desc.className = 'lc-inspect-desc';
+      desc.textContent = item.desc;
+      const example = document.createElement('pre');
+      example.className = 'lc-inspect-example';
+      example.textContent = item.example;
+      card.appendChild(name); card.appendChild(desc); card.appendChild(example);
+      return card;
+    }
+    function renderInspectSection(title, items){
+      const secTitle = document.createElement('div');
+      secTitle.className = 'lc-inspect-section-title';
+      secTitle.textContent = title;
+      body.appendChild(secTitle);
+      items.forEach(item=>body.appendChild(renderInspectCard(item)));
+    }
+
+    // grouped straight from BLOCK_REGISTRY — every real block type shows up here
+    // automatically, in the order it was registered, with no separate list to edit
+    const sectionOrder = [];
+    const sectionMap = {};
+    Object.keys(BLOCK_REGISTRY).forEach(type=>{
+      const entry = BLOCK_REGISTRY[type];
+      if(!sectionMap[entry.section]){ sectionMap[entry.section] = []; sectionOrder.push(entry.section); }
+      sectionMap[entry.section].push({ type, desc: entry.desc, example: entry.example });
+    });
+    sectionOrder.forEach(sec=>renderInspectSection(sec, sectionMap[sec]));
+    EXTRA_DOCS.forEach(sec=>renderInspectSection(sec.section, sec.items));
+    // AI-authored theme elements made specifically for THIS lesson (not part of
+    // the shell's permanent library) — only shown when this lesson actually has any
+    if(lessonLocalCatalog.length){
+      renderInspectSection('This lesson\'s custom elements (not reusable elsewhere)', lessonLocalCatalog);
+    }
+
+    panel.querySelector('#lc-inspect-close').addEventListener('click', closeInspectElementsModal);
+    inspectModalEl.addEventListener('mousedown', (e)=>{ if(e.target === inspectModalEl) closeInspectElementsModal(); });
+    document.addEventListener('keydown', inspectModalEscHandler);
+  }
+  function inspectModalEscHandler(e){ if(e.key === 'Escape') closeInspectElementsModal(); }
+  function closeInspectElementsModal(){
+    if(!inspectModalEl) return;
+    inspectModalEl.remove();
+    inspectModalEl = null;
+    document.removeEventListener('keydown', inspectModalEscHandler);
+  }
+
+  // ---- demo lesson content (hand-authored, loaded on startup) ----
+  const hillWidgetHtml = `
+<div style="font-family:-apple-system,sans-serif;padding:12px;">
+  <canvas id="hillCanvas" width="520" height="260" style="width:100%;max-width:520px;background:#eef2ff;border-radius:10px;"></canvas>
+  <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <button id="rollBtn" style="background:#5b6cf0;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;">Roll the ball</button>
+    <span id="hillReadout" style="font-size:13px;color:#444;">Position: 0%  Speed: 0.00</span>
+  </div>
+<script>
+(function(){
+  const canvas = document.getElementById('hillCanvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+
+  function hillY(t){
+    return 40 + (h-90) * (t*t);
+  }
+
+  function drawHill(ballT){
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle = '#5b6cf0';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    for(let i=0;i<=100;i++){
+      const t = i/100;
+      const x = 30 + t*(w-60);
+      const y = hillY(t);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    if(ballT !== undefined){
+      const bx = 30 + ballT*(w-60);
+      const by = hillY(ballT) - 10;
+      ctx.fillStyle = '#d64550';
+      ctx.beginPath();
+      ctx.arc(bx, by, 10, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  drawHill(0);
+
+  let animId = null;
+  document.getElementById('rollBtn').addEventListener('click', function(){
+    if(animId) cancelAnimationFrame(animId);
+    const start = performance.now();
+    const duration = 2200;
+    function frame(now){
+      const elapsed = now - start;
+      const t = Math.min(1, elapsed/duration);
+      const eased = t*t;
+      drawHill(eased);
+      const y0 = hillY(Math.max(0,eased-0.01));
+      const y1 = hillY(eased);
+      const speed = (y1-y0) / 0.01;
+      document.getElementById('hillReadout').textContent =
+        'Position: ' + Math.round(eased*100) + '%  Speed: ' + speed.toFixed(2) + '  (ball \\u2192 rolling faster as slope steepens)';
+      if(t < 1){ animId = requestAnimationFrame(frame); }
+      else { document.getElementById('hillReadout').textContent = 'Reached the bottom \\u2192 fastest point!'; }
+    }
+    animId = requestAnimationFrame(frame);
+  });
+})();
+<\/script>
+</div>
+`;
+
+  const raceWidgetHtml = `
+<div style="font-family:-apple-system,sans-serif;padding:12px;">
+  <canvas id="raceCanvas" width="520" height="160" style="width:100%;max-width:520px;background:#eef2ff;border-radius:10px;"></canvas>
+  <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:#444;">
+    <label>Runner A speed: <input id="speedA" type="range" min="1" max="10" value="4" style="vertical-align:middle;"> <span id="speedAVal">4</span> units/sec</label>
+    <label>Runner B speed: <input id="speedB" type="range" min="1" max="10" value="6" style="vertical-align:middle;"> <span id="speedBVal">6</span> units/sec</label>
+  </div>
+  <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <button id="raceBtn" style="background:#5b6cf0;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;">Start race</button>
+    <span id="raceReadout" style="font-size:13px;color:#444;">Ready.</span>
+  </div>
+<script>
+(function(){
+  const canvas = document.getElementById('raceCanvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const trackStart = 30, trackEnd = w - 30;
+
+  const speedAInput = document.getElementById('speedA');
+  const speedBInput = document.getElementById('speedB');
+  const speedAVal = document.getElementById('speedAVal');
+  const speedBVal = document.getElementById('speedBVal');
+  speedAInput.addEventListener('input', function(){ speedAVal.textContent = speedAInput.value; });
+  speedBInput.addEventListener('input', function(){ speedBVal.textContent = speedBInput.value; });
+
+  function draw(posA, posB){
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle = '#c7cbf5';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(trackStart, 50); ctx.lineTo(trackEnd, 50); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(trackStart, 110); ctx.lineTo(trackEnd, 110); ctx.stroke();
+    ctx.strokeStyle = '#5b6cf0';
+    ctx.beginPath(); ctx.moveTo(trackEnd, 30); ctx.lineTo(trackEnd, 130); ctx.stroke();
+    ctx.fillStyle = '#d64550';
+    ctx.beginPath(); ctx.arc(trackStart + posA*(trackEnd-trackStart), 50, 9, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1e9e6b';
+    ctx.beginPath(); ctx.arc(trackStart + posB*(trackEnd-trackStart), 110, 9, 0, Math.PI*2); ctx.fill();
+  }
+
+  draw(0,0);
+
+  let animId = null;
+  document.getElementById('raceBtn').addEventListener('click', function(){
+    if(animId) cancelAnimationFrame(animId);
+    const speedA = parseFloat(speedAInput.value);
+    const speedB = parseFloat(speedBInput.value);
+    const distance = 100;
+    const start = performance.now();
+    let finished = false;
+    function frame(now){
+      const t = (now - start) / 1000;
+      const distA = Math.min(distance, speedA * t);
+      const distB = Math.min(distance, speedB * t);
+      draw(distA/distance, distB/distance);
+      document.getElementById('raceReadout').textContent =
+        'A: ' + distA.toFixed(1) + ' units  |  B: ' + distB.toFixed(1) + ' units  (t=' + t.toFixed(1) + 's)';
+      if(distA >= distance || distB >= distance){
+        if(!finished){
+          finished = true;
+          const winner = distA >= distB ? 'Runner A' : 'Runner B';
+          document.getElementById('raceReadout').textContent =
+            'Finish \\u2192 ' + winner + ' wins! Faster rate (distance \\u00f7 time) gets there first.';
+        }
+        return;
+      }
+      animId = requestAnimationFrame(frame);
+    }
+    animId = requestAnimationFrame(frame);
+  });
+})();
+<\/script>
+</div>
+`;
+
+  // GraphCalc's entire file, base64-encoded, so this lesson file is fully
+  // self-contained and the calculator works no matter where this file is
+  // copied/renamed/moved to -- see decodeGraphCalcHtml() above.
+  const GRAPHCALC_HTML_B64 = "PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KPGhlYWQ+CjxtZXRhIGNoYXJzZXQ9IlVURi04Ij4KPG1ldGEgbmFtZT0idmlld3BvcnQiIGNvbnRlbnQ9IndpZHRoPWRldmljZS13aWR0aCwgaW5pdGlhbC1zY2FsZT0xLjAiPgo8dGl0bGU+R3JhcGhDYWxjPC90aXRsZT4KPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2RuanMuY2xvdWRmbGFyZS5jb20vYWpheC9saWJzL21hdGhqcy8xMi40LjAvbWF0aC5taW4uanMiPjwvc2NyaXB0Pgo8c3R5bGU+CiAgOnJvb3R7CiAgICAtLXBhbmVsLWJnOiNmN2Y3Zjg7CiAgICAtLXBhbmVsLWJvcmRlcjojZTNlM2U2OwogICAgLS10ZXh0OiMyYTJhMmU7CiAgICAtLXRleHQtZGltOiM4YThhOTA7CiAgICAtLWFjY2VudDojMmQ3MGIzOwogICAgLS1yb3ctaG92ZXI6I2VlZjBmMjsKICAgIC0tY2FudmFzLWJnOiNmZmZmZmY7CiAgICAtLWdyaWQtbWlub3I6I2U4ZThlYTsKICAgIC0tZ3JpZC1tYWpvcjojZDNkM2Q3OwogICAgLS1heGlzOiM0YTRhNGU7CiAgfQogICp7Ym94LXNpemluZzpib3JkZXItYm94O30KICBodG1sLGJvZHl7bWFyZ2luOjA7cGFkZGluZzowO2hlaWdodDoxMDAlO2ZvbnQtZmFtaWx5Oi1hcHBsZS1zeXN0ZW0sQmxpbmtNYWNTeXN0ZW1Gb250LCJTZWdvZSBVSSIsUm9ib3RvLEhlbHZldGljYSxBcmlhbCxzYW5zLXNlcmlmO2NvbG9yOnZhcigtLXRleHQpO30KICBib2R5e2JhY2tncm91bmQ6I2ZmZjt9CiAgLmdjLXJvb3R7ZGlzcGxheTpmbGV4O3dpZHRoOjEwMCU7aGVpZ2h0OjEwMHZoO292ZXJmbG93OmhpZGRlbjt9CiAgLmdjLXBhbmVsewogICAgd2lkdGg6MzIwcHg7bWluLXdpZHRoOjIyMHB4O21heC13aWR0aDo1MjBweDtmbGV4LXNocmluazowOwogICAgYmFja2dyb3VuZDp2YXIoLS1wYW5lbC1iZyk7Ym9yZGVyLXJpZ2h0OjFweCBzb2xpZCB2YXIoLS1wYW5lbC1ib3JkZXIpOwogICAgZGlzcGxheTpmbGV4O2ZsZXgtZGlyZWN0aW9uOmNvbHVtbjtoZWlnaHQ6MTAwJTtwb3NpdGlvbjpyZWxhdGl2ZTsKICB9CiAgLmdjLWZuLW1lbnV7CiAgICBwb3NpdGlvbjphYnNvbHV0ZTtsZWZ0OjA7cmlnaHQ6MDtib3R0b206MDt6LWluZGV4OjMwOwogICAgYmFja2dyb3VuZDojZmZmO2Rpc3BsYXk6ZmxleDtmbGV4LWRpcmVjdGlvbjpjb2x1bW47CiAgICBib3gtc2hhZG93OjAgNnB4IDIwcHggcmdiYSgwLDAsMCwuMTUpO2JvcmRlci10b3A6MXB4IHNvbGlkIHZhcigtLXBhbmVsLWJvcmRlcik7CiAgfQogIC5nYy1mbi1tZW51LWhlYWRlcnsKICAgIGRpc3BsYXk6ZmxleDthbGlnbi1pdGVtczpjZW50ZXI7anVzdGlmeS1jb250ZW50OnNwYWNlLWJldHdlZW47cGFkZGluZzo4cHggMTJweDsKICAgIGJvcmRlci1ib3R0b206MXB4IHNvbGlkIHZhcigtLXBhbmVsLWJvcmRlcik7Zm9udC13ZWlnaHQ6NjAwO2ZvbnQtc2l6ZToxM3B4O2ZsZXgtc2hyaW5rOjA7CiAgfQogIC5nYy1mbi1tZW51LWNsb3NlewogICAgYm9yZGVyOm5vbmU7YmFja2dyb3VuZDp0cmFuc3BhcmVudDtjdXJzb3I6cG9pbnRlcjtmb250LXNpemU6MTNweDtjb2xvcjp2YXIoLS10ZXh0LWRpbSk7CiAgICB3aWR0aDoyNHB4O2hlaWdodDoyNHB4O2JvcmRlci1yYWRpdXM6NHB4OwogIH0KICAuZ2MtZm4tbWVudS1jbG9zZTpob3ZlcntiYWNrZ3JvdW5kOnZhcigtLXJvdy1ob3Zlcik7Y29sb3I6dmFyKC0tdGV4dCk7fQogIC5nYy1mbi1tZW51LWJvZHl7b3ZlcmZsb3cteTphdXRvO3BhZGRpbmc6OHB4IDEycHggMTJweCAxMnB4O2ZsZXg6MTt9CiAgLmdjLWZuLW1lbnUtc2VjdGlvbi10aXRsZXsKICAgIGZvbnQtc2l6ZToxMXB4O3RleHQtdHJhbnNmb3JtOnVwcGVyY2FzZTtsZXR0ZXItc3BhY2luZzouMDRlbTtjb2xvcjp2YXIoLS10ZXh0LWRpbSk7CiAgICBmb250LXdlaWdodDo2MDA7bWFyZ2luOjEwcHggMCA0cHggMDsKICB9CiAgLmdjLWZuLW1lbnUtc2VjdGlvbi10aXRsZTpmaXJzdC1jaGlsZHttYXJnaW4tdG9wOjA7fQogIC5nYy1mbi1tZW51LWdyaWR7ZGlzcGxheTpmbGV4O2ZsZXgtd3JhcDp3cmFwO2dhcDo0cHg7fQogIC5nYy1mbi1tZW51LWdyaWQgYnV0dG9uewogICAgYm9yZGVyOjFweCBzb2xpZCB2YXIoLS1wYW5lbC1ib3JkZXIpO2JhY2tncm91bmQ6I2ZmZjtib3JkZXItcmFkaXVzOjRweDtwYWRkaW5nOjRweCA4cHg7CiAgICBmb250LXNpemU6MTIuNXB4O2N1cnNvcjpwb2ludGVyO2NvbG9yOnZhcigtLXRleHQpO2ZvbnQtZmFtaWx5OidDYW1icmlhIE1hdGgnLENhbWJyaWEsR2VvcmdpYSxzZXJpZjsKICB9CiAgLmdjLWZuLW1lbnUtZ3JpZCBidXR0b246aG92ZXJ7YmFja2dyb3VuZDp2YXIoLS1yb3ctaG92ZXIpO30KICAuZ2MtZm4tYnRuLXVuc3VwcG9ydGVkewogICAgZGlzcGxheTpmbGV4O2ZsZXgtZGlyZWN0aW9uOmNvbHVtbjthbGlnbi1pdGVtczpjZW50ZXI7Z2FwOjJweDtjb2xvcjp2YXIoLS10ZXh0LWRpbSk7CiAgICBib3JkZXItc3R5bGU6ZGFzaGVkOwogIH0KICAuZ2MtZm4tdGFnewogICAgZm9udC1mYW1pbHk6LWFwcGxlLXN5c3RlbSxzYW5zLXNlcmlmO2ZvbnQtc2l6ZTo5cHg7dGV4dC10cmFuc2Zvcm06dXBwZXJjYXNlO2xldHRlci1zcGFjaW5nOi4wM2VtOwogICAgY29sb3I6I2IzMjYxZTtiYWNrZ3JvdW5kOnJnYmEoMTc5LDM4LDMwLC4wOCk7cGFkZGluZzoxcHggNXB4O2JvcmRlci1yYWRpdXM6M3B4OwogIH0KICAuZ2MtdG9vbGJhcnsKICAgIGRpc3BsYXk6ZmxleDtmbGV4LXdyYXA6d3JhcDtnYXA6MnB4O3BhZGRpbmc6NnB4O2JvcmRlci1ib3R0b206MXB4IHNvbGlkIHZhcigtLXBhbmVsLWJvcmRlcik7CiAgICBiYWNrZ3JvdW5kOiNmZmY7CiAgfQogIC5nYy10b29sYmFyIGJ1dHRvbnsKICAgIHdpZHRoOjMwcHg7aGVpZ2h0OjI4cHg7Ym9yZGVyOjFweCBzb2xpZCB0cmFuc3BhcmVudDtiYWNrZ3JvdW5kOnRyYW5zcGFyZW50O2JvcmRlci1yYWRpdXM6NHB4OwogICAgY3Vyc29yOnBvaW50ZXI7Zm9udC1zaXplOjE0cHg7Y29sb3I6dmFyKC0tdGV4dCk7ZGlzcGxheTpmbGV4O2FsaWduLWl0ZW1zOmNlbnRlcjtqdXN0aWZ5LWNvbnRlbnQ6Y2VudGVyOwogIH0KICAuZ2MtdG9vbGJhciBidXR0b246aG92ZXJ7YmFja2dyb3VuZDp2YXIoLS1yb3ctaG92ZXIpO2JvcmRlci1jb2xvcjp2YXIoLS1wYW5lbC1ib3JkZXIpO30KICAuZ2MtbGlzdHtmbGV4OjE7b3ZlcmZsb3cteTphdXRvO3BhZGRpbmctYm90dG9tOjhweDt9CiAgLmdjLXJvd3sKICAgIGRpc3BsYXk6ZmxleDthbGlnbi1pdGVtczpmbGV4LXN0YXJ0O2dhcDo2cHg7cGFkZGluZzo2cHggOHB4O2JvcmRlci1ib3R0b206MXB4IHNvbGlkICNlZGVjZWQ7CiAgICBiYWNrZ3JvdW5kOiNmZmY7cG9zaXRpb246cmVsYXRpdmU7CiAgfQogIC5nYy1yb3c6aG92ZXJ7YmFja2dyb3VuZDp2YXIoLS1yb3ctaG92ZXIpO30KICAuZ2Mtcm93LmdjLXJvdy1lcnJvciAuZ2MtaW5wdXR7Y29sb3I6I2IzMjYxZTt9CiAgLmdjLXN3YXRjaHsKICAgIHdpZHRoOjE0cHg7aGVpZ2h0OjE0cHg7Ym9yZGVyLXJhZGl1czo1MCU7bWFyZ2luLXRvcDo4cHg7Y3Vyc29yOnBvaW50ZXI7ZmxleC1zaHJpbms6MDtib3JkZXI6MXB4IHNvbGlkIHJnYmEoMCwwLDAsLjEpOwogIH0KICAuZ2Mtcm93LW1haW57ZmxleDoxO21pbi13aWR0aDowO30KICAuZ2MtaW5wdXR7CiAgICB3aWR0aDoxMDAlO2JvcmRlcjpub25lO2JhY2tncm91bmQ6dHJhbnNwYXJlbnQ7b3V0bGluZTpub25lO2ZvbnQtc2l6ZToxNHB4O3BhZGRpbmc6NnB4IDJweDsKICAgIGZvbnQtZmFtaWx5OidDYW1icmlhIE1hdGgnLENhbWJyaWEsR2VvcmdpYSxzZXJpZjtjb2xvcjp2YXIoLS10ZXh0KTsKICB9CiAgLmdjLXJvdy1jb250cm9sc3tkaXNwbGF5OmZsZXg7Z2FwOjJweDttYXJnaW4tdG9wOjJweDtmbGV4LXNocmluazowO30KICAuZ2MtaWNvbi1idG57CiAgICB3aWR0aDoyNHB4O2hlaWdodDoyNHB4O2JvcmRlcjpub25lO2JhY2tncm91bmQ6dHJhbnNwYXJlbnQ7Y3Vyc29yOnBvaW50ZXI7Y29sb3I6dmFyKC0tdGV4dC1kaW0pOwogICAgYm9yZGVyLXJhZGl1czo0cHg7Zm9udC1zaXplOjEzcHg7ZGlzcGxheTpmbGV4O2FsaWduLWl0ZW1zOmNlbnRlcjtqdXN0aWZ5LWNvbnRlbnQ6Y2VudGVyOwogIH0KICAuZ2MtaWNvbi1idG46aG92ZXJ7YmFja2dyb3VuZDojZTJlMmU1O2NvbG9yOnZhcigtLXRleHQpO30KICAuZ2MtYWRkLXJvd3sKICAgIGRpc3BsYXk6ZmxleDthbGlnbi1pdGVtczpjZW50ZXI7Z2FwOjZweDtwYWRkaW5nOjhweCAxMnB4O2N1cnNvcjpwb2ludGVyO2NvbG9yOnZhcigtLXRleHQtZGltKTtmb250LXNpemU6MTRweDsKICAgIHdpZHRoOjEwMCU7Ym9yZGVyOm5vbmU7YmFja2dyb3VuZDp0cmFuc3BhcmVudDt0ZXh0LWFsaWduOmxlZnQ7Zm9udC1mYW1pbHk6aW5oZXJpdDsKICB9CiAgLmdjLWFkZC1yb3c6aG92ZXJ7YmFja2dyb3VuZDp2YXIoLS1yb3ctaG92ZXIpO2NvbG9yOnZhcigtLXRleHQpO30KICAuZ2MtYWRkLW1lbnV7ZGlzcGxheTpmbGV4O2dhcDo2cHg7cGFkZGluZzo0cHggOHB4IDhweCA4cHg7fQogIC5nYy1hZGQtbWVudSBidXR0b257CiAgICBmb250LXNpemU6MTFweDtwYWRkaW5nOjRweCA4cHg7Ym9yZGVyOjFweCBzb2xpZCB2YXIoLS1wYW5lbC1ib3JkZXIpO2JhY2tncm91bmQ6I2ZmZjtib3JkZXItcmFkaXVzOjRweDtjdXJzb3I6cG9pbnRlcjtjb2xvcjp2YXIoLS10ZXh0LWRpbSk7CiAgfQogIC5nYy1hZGQtbWVudSBidXR0b246aG92ZXJ7YmFja2dyb3VuZDp2YXIoLS1yb3ctaG92ZXIpO30KICAuZ2Mtc2xpZGVyLXdyYXB7ZGlzcGxheTpmbGV4O2FsaWduLWl0ZW1zOmNlbnRlcjtnYXA6NHB4O3BhZGRpbmc6MnB4IDJweCA0cHggMnB4O2ZvbnQtc2l6ZToxMXB4O2NvbG9yOnZhcigtLXRleHQtZGltKTt9CiAgLmdjLXNsaWRlci13cmFwIGlucHV0W3R5cGU9cmFuZ2Vde2ZsZXg6MTt9CiAgLmdjLXNsaWRlci1udW17d2lkdGg6NDBweDtmb250LXNpemU6MTFweDtib3JkZXI6MXB4IHNvbGlkIHZhcigtLXBhbmVsLWJvcmRlcik7Ym9yZGVyLXJhZGl1czozcHg7cGFkZGluZzoxcHggM3B4O2JhY2tncm91bmQ6I2ZmZjtjb2xvcjp2YXIoLS10ZXh0KTt9CiAgLmdjLXNsaWRlci12YWx7d2lkdGg6NDRweDt0ZXh0LWFsaWduOnJpZ2h0O2NvbG9yOnZhcigtLXRleHQpO30KICAuZ2MtY29sb3ItcG9wb3ZlcnsKICAgIHBvc2l0aW9uOmFic29sdXRlO2xlZnQ6MjRweDt0b3A6MjZweDt6LWluZGV4OjIwO2JhY2tncm91bmQ6I2ZmZjtib3JkZXI6MXB4IHNvbGlkIHZhcigtLXBhbmVsLWJvcmRlcik7CiAgICBib3JkZXItcmFkaXVzOjZweDtwYWRkaW5nOjZweDtkaXNwbGF5OmdyaWQ7Z3JpZC10ZW1wbGF0ZS1jb2x1bW5zOnJlcGVhdCg0LDIwcHgpO2dhcDo0cHg7Ym94LXNoYWRvdzowIDRweCAxMnB4IHJnYmEoMCwwLDAsLjE1KTsKICB9CiAgLmdjLWNvbG9yLXBvcG92ZXIgZGl2e3dpZHRoOjIwcHg7aGVpZ2h0OjIwcHg7Ym9yZGVyLXJhZGl1czo1MCU7Y3Vyc29yOnBvaW50ZXI7Ym9yZGVyOjFweCBzb2xpZCByZ2JhKDAsMCwwLC4xKTt9CiAgLmdjLXRhYmxle2JvcmRlci1jb2xsYXBzZTpjb2xsYXBzZTttYXJnaW46NHB4IDA7d2lkdGg6MTAwJTt9CiAgLmdjLXRhYmxlIHRoe2ZvbnQtc2l6ZToxMHB4O2NvbG9yOnZhcigtLXRleHQtZGltKTtmb250LXdlaWdodDo2MDA7dGV4dC1hbGlnbjpsZWZ0O3BhZGRpbmc6MnB4IDRweDt9CiAgLmdjLXRhYmxlIHRke3BhZGRpbmc6MXB4IDJweDt9CiAgLmdjLXRhYmxlIGlucHV0e3dpZHRoOjEwMCU7Zm9udC1zaXplOjEycHg7Ym9yZGVyOjFweCBzb2xpZCB2YXIoLS1wYW5lbC1ib3JkZXIpO2JvcmRlci1yYWRpdXM6M3B4O3BhZGRpbmc6MnB4IDRweDt9CiAgLmdjLXRhYmxlLWFjdGlvbnN7ZGlzcGxheTpmbGV4O2dhcDo0cHg7bWFyZ2luLXRvcDoycHg7fQogIC5nYy10YWJsZS1hY3Rpb25zIGJ1dHRvbnsKICAgIGZvbnQtc2l6ZToxMHB4O3BhZGRpbmc6MnB4IDZweDtib3JkZXI6MXB4IHNvbGlkIHZhcigtLXBhbmVsLWJvcmRlcik7YmFja2dyb3VuZDojZmZmO2JvcmRlci1yYWRpdXM6M3B4O2N1cnNvcjpwb2ludGVyO2NvbG9yOnZhcigtLXRleHQtZGltKTsKICB9CiAgLmdjLXRhYmxlLWFjdGlvbnMgYnV0dG9uOmhvdmVye2JhY2tncm91bmQ6dmFyKC0tcm93LWhvdmVyKTt9CiAgLmdjLWNhbnZhcy13cmFwe2ZsZXg6MTtwb3NpdGlvbjpyZWxhdGl2ZTtiYWNrZ3JvdW5kOnZhcigtLWNhbnZhcy1iZyk7b3ZlcmZsb3c6aGlkZGVuO30KICAuZ2MtY2FudmFzLXdyYXAgY2FudmFze2Rpc3BsYXk6YmxvY2s7d2lkdGg6MTAwJTtoZWlnaHQ6MTAwJTt9CiAgLmdjLXpvb20tY29udHJvbHN7CiAgICBwb3NpdGlvbjphYnNvbHV0ZTtib3R0b206MTZweDtyaWdodDoxNnB4O2Rpc3BsYXk6ZmxleDtmbGV4LWRpcmVjdGlvbjpjb2x1bW47Z2FwOjRweDt6LWluZGV4OjU7CiAgfQogIC5nYy16b29tLWNvbnRyb2xzIGJ1dHRvbnsKICAgIHdpZHRoOjMycHg7aGVpZ2h0OjMycHg7Ym9yZGVyLXJhZGl1czo2cHg7Ym9yZGVyOjFweCBzb2xpZCB2YXIoLS1wYW5lbC1ib3JkZXIpO2JhY2tncm91bmQ6I2ZmZjtjdXJzb3I6cG9pbnRlcjsKICAgIGZvbnQtc2l6ZToxNnB4O2NvbG9yOnZhcigtLXRleHQpO2JveC1zaGFkb3c6MCAxcHggM3B4IHJnYmEoMCwwLDAsLjEpOwogIH0KICAuZ2Mtem9vbS1jb250cm9scyBidXR0b246aG92ZXJ7YmFja2dyb3VuZDp2YXIoLS1yb3ctaG92ZXIpO30KICAuZ2MtaGlkZGVue29wYWNpdHk6LjM1O30KICAuZ2MtaW5wdXQtcm93e2Rpc3BsYXk6ZmxleDthbGlnbi1pdGVtczpjZW50ZXI7Z2FwOjZweDt9CiAgLmdjLWlucHV0LXJvdyAuZ2MtaW5wdXR7ZmxleDoxO21pbi13aWR0aDowO30KICAuZ2MtdmFsdWUtYmFkZ2V7CiAgICBmbGV4LXNocmluazowO2JhY2tncm91bmQ6cmdiYSgwLDAsMCwuMDYpO2NvbG9yOiM0YTRhNGU7cGFkZGluZzozcHggOXB4O2JvcmRlci1yYWRpdXM6NXB4OwogICAgZm9udC1zaXplOjEzcHg7Zm9udC1mYW1pbHk6J0NhbWJyaWEgTWF0aCcsQ2FtYnJpYSxHZW9yZ2lhLHNlcmlmO3doaXRlLXNwYWNlOm5vd3JhcDsKICB9Cjwvc3R5bGU+CjwvaGVhZD4KPGJvZHk+CjxkaXYgaWQ9ImdjLWFwcC0xIiBzdHlsZT0iaGVpZ2h0OjEwMHZoOyI+PC9kaXY+Cgo8c2NyaXB0PgovKiA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CiAgIEdyYXBoQ2FsYyDigJQgc2VsZi1jb250YWluZWQgRGVzbW9zLXN0eWxlIGdyYXBoaW5nIGNhbGN1bGF0b3IgbW9kdWxlLgogICBQdWJsaWMgQVBJOiBjcmVhdGVHcmFwaENhbGMoY29udGFpbmVyRWwsIG9wdGlvbnMpIC0+IGluc3RhbmNlCiAgID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0gKi8KKGZ1bmN0aW9uKGdsb2JhbCl7CgogIC8vIENhbGN1bGF0b3IgY29udmVudGlvbiAoRGVzbW9zIGV0IGFsLik6IGJhcmUgbG9nKCkgaXMgYmFzZS0xMCwgbG4oKSBpcyBuYXR1cmFsIGxvZy4KICAvLyBtYXRoLmpzJ3MgYnVpbHQtaW4gbG9nKCkgZGVmYXVsdHMgdG8gbmF0dXJhbCBsb2cgKGJhc2UgZSkgd2l0aCBubyBiYXNlIGFyZ3VtZW50LAogIC8vIHNvIGl0IG11c3QgYmUgb3ZlcnJpZGRlbiB0byBtYXRjaCBzdGFuZGFyZCBncmFwaGluZy1jYWxjdWxhdG9yIGJlaGF2aW9yLgogIG1hdGguaW1wb3J0KHsKICAgIGxvZzogZnVuY3Rpb24oeCwgYmFzZSl7CiAgICAgIHJldHVybiAoYmFzZSA9PT0gdW5kZWZpbmVkKSA/IE1hdGgubG9nKHgpL01hdGguTE4xMCA6IE1hdGgubG9nKHgpL01hdGgubG9nKGJhc2UpOwogICAgfSwKICAgIGxuOiBmdW5jdGlvbih4KXsgcmV0dXJuIE1hdGgubG9nKHgpOyB9CiAgfSwge292ZXJyaWRlOnRydWV9KTsKCiAgLy8gQ2FsY3VsYXRvci1mcmllbmRseSBhbGlhc2VzIGZvciBtYXRoLmpzJ3MgY29tYmluYXRpb25zL3Blcm11dGF0aW9ucy4KICBtYXRoLmltcG9ydCh7CiAgICBuQ3I6IGZ1bmN0aW9uKG4sIHIpeyByZXR1cm4gbWF0aC5jb21iaW5hdGlvbnMobiwgcik7IH0sCiAgICBuUHI6IGZ1bmN0aW9uKG4sIHIpeyByZXR1cm4gbWF0aC5wZXJtdXRhdGlvbnMobiwgcik7IH0KICB9KTsKCiAgY29uc3QgUEFMRVRURSA9IFsnI2M3NDQ0MCcsJyMyZDcwYjMnLCcjMzg4YzQ2JywnIzYwNDJhNicsJyNmYTdlMTknLCcjMDAwMDAwJywnI2UwN2NiYicsJyM0ODliYTgnXTsKCiAgZnVuY3Rpb24gdWlkKCl7IHJldHVybiAnZScgKyBNYXRoLnJhbmRvbSgpLnRvU3RyaW5nKDM2KS5zbGljZSgyLDEwKTsgfQoKICAvLyAtLS0tIG51bWJlciBmb3JtYXR0aW5nIGZvciBheGlzIGxhYmVscyAtLS0tCiAgZnVuY3Rpb24gbmljZVN0ZXAocmF3U3RlcCl7CiAgICBjb25zdCBtYWcgPSBNYXRoLnBvdygxMCwgTWF0aC5mbG9vcihNYXRoLmxvZzEwKHJhd1N0ZXApKSk7CiAgICBjb25zdCBub3JtID0gcmF3U3RlcCAvIG1hZzsKICAgIGxldCBuaWNlOwogICAgaWYobm9ybSA8IDEuNSkgbmljZSA9IDE7CiAgICBlbHNlIGlmKG5vcm0gPCAzLjUpIG5pY2UgPSAyOwogICAgZWxzZSBpZihub3JtIDwgNy41KSBuaWNlID0gNTsKICAgIGVsc2UgbmljZSA9IDEwOwogICAgcmV0dXJuIG5pY2UgKiBtYWc7CiAgfQogIGZ1bmN0aW9uIGZvcm1hdEF4aXNOdW0obil7CiAgICBpZihNYXRoLmFicyhuKSA8IDFlLTkpIHJldHVybiAnMCc7CiAgICBpZihNYXRoLmFicyhuKSA+PSAxZTUgfHwgKE1hdGguYWJzKG4pIDwgMWUtNCkpIHJldHVybiBuLnRvRXhwb25lbnRpYWwoMSk7CiAgICBjb25zdCBzID0gcGFyc2VGbG9hdChuLnRvUHJlY2lzaW9uKDEwKSkudG9TdHJpbmcoKTsKICAgIHJldHVybiBzOwogIH0KCiAgLy8gLS0tLSBzaW1wbGUgZXZlbnQgZW1pdHRlciAtLS0tCiAgZnVuY3Rpb24gbWFrZUVtaXR0ZXIoKXsKICAgIGNvbnN0IGxpc3RlbmVycyA9IHt9OwogICAgcmV0dXJuIHsKICAgICAgb24oZXZ0LCBjYil7IChsaXN0ZW5lcnNbZXZ0XSA9IGxpc3RlbmVyc1tldnRdfHxbXSkucHVzaChjYik7IH0sCiAgICAgIG9mZihldnQsIGNiKXsgaWYobGlzdGVuZXJzW2V2dF0pIGxpc3RlbmVyc1tldnRdID0gbGlzdGVuZXJzW2V2dF0uZmlsdGVyKGY9PmYhPT1jYik7IH0sCiAgICAgIGVtaXQoZXZ0LCBkYXRhKXsgKGxpc3RlbmVyc1tldnRdfHxbXSkuZm9yRWFjaChmPT57IHRyeXsgZihkYXRhKTsgfWNhdGNoKGUpeyBjb25zb2xlLmVycm9yKGUpOyB9IH0pOyB9CiAgICB9OwogIH0KCiAgLy8gLS0tLSBsaW5lYXIgYWxnZWJyYSBoZWxwZXJzIGZvciByZWdyZXNzaW9uIC0tLS0KICBmdW5jdGlvbiBzb2x2ZUxpbmVhcihwb2ludHMpewogICAgLy8geSA9IG0geCArIGIKICAgIGNvbnN0IG4gPSBwb2ludHMubGVuZ3RoOwogICAgbGV0IHN4PTAsc3k9MCxzeHk9MCxzeHg9MDsKICAgIGZvcihjb25zdCBwIG9mIHBvaW50cyl7IHN4Kz1wLng7IHN5Kz1wLnk7IHN4eSs9cC54KnAueTsgc3h4Kz1wLngqcC54OyB9CiAgICBjb25zdCBkZW5vbSA9IChuKnN4eCAtIHN4KnN4KTsKICAgIGlmKE1hdGguYWJzKGRlbm9tKSA8IDFlLTEyKSByZXR1cm4gbnVsbDsKICAgIGNvbnN0IG0gPSAobipzeHkgLSBzeCpzeSkvZGVub207CiAgICBjb25zdCBiID0gKHN5IC0gbSpzeCkvbjsKICAgIHJldHVybiB7bSxifTsKICB9CiAgZnVuY3Rpb24gc29sdmVRdWFkcmF0aWMocG9pbnRzKXsKICAgIC8vIHkgPSBhIHheMiArIGIgeCArIGMgIHZpYSBub3JtYWwgZXF1YXRpb25zLCBzb2x2ZWQgd2l0aCBHYXVzc2lhbiBlbGltaW5hdGlvbgogICAgbGV0IFMwPXBvaW50cy5sZW5ndGgsUzE9MCxTMj0wLFMzPTAsUzQ9MCxUMD0wLFQxPTAsVDI9MDsKICAgIGZvcihjb25zdCBwIG9mIHBvaW50cyl7CiAgICAgIGNvbnN0IHg9cC54LHk9cC55LHgyPXgqeDsKICAgICAgUzErPXg7IFMyKz14MjsgUzMrPXgyKng7IFM0Kz14Mip4MjsKICAgICAgVDArPXk7IFQxKz14Knk7IFQyKz14Mip5OwogICAgfQogICAgLy8gbWF0cml4IGZvciBbYyxiLGFdIG9yZGVyaW5nIHVzaW5nIFsxLHgseDJdCiAgICBjb25zdCBBID0gWwogICAgICBbUzAsUzEsUzIsVDBdLAogICAgICBbUzEsUzIsUzMsVDFdLAogICAgICBbUzIsUzMsUzQsVDJdCiAgICBdOwogICAgZm9yKGxldCBpPTA7aTwzO2krKyl7CiAgICAgIGxldCBwaXYgPSBBW2ldW2ldOwogICAgICBpZihNYXRoLmFicyhwaXYpIDwgMWUtMTIpewogICAgICAgIGxldCBzd2FwID0gLTE7CiAgICAgICAgZm9yKGxldCBrPWkrMTtrPDM7aysrKSBpZihNYXRoLmFicyhBW2tdW2ldKT4xZS05KXsgc3dhcD1rOyBicmVhazsgfQogICAgICAgIGlmKHN3YXA8MCkgcmV0dXJuIG51bGw7CiAgICAgICAgW0FbaV0sQVtzd2FwXV0gPSBbQVtzd2FwXSxBW2ldXTsKICAgICAgICBwaXYgPSBBW2ldW2ldOwogICAgICB9CiAgICAgIGZvcihsZXQgaj1pO2o8NDtqKyspIEFbaV1bal0gLz0gcGl2OwogICAgICBmb3IobGV0IGs9MDtrPDM7aysrKXsKICAgICAgICBpZihrPT09aSkgY29udGludWU7CiAgICAgICAgY29uc3QgZmFjdG9yID0gQVtrXVtpXTsKICAgICAgICBmb3IobGV0IGo9aTtqPDQ7aisrKSBBW2tdW2pdIC09IGZhY3RvcipBW2ldW2pdOwogICAgICB9CiAgICB9CiAgICByZXR1cm4geyBjOkFbMF1bM10sIGI6QVsxXVszXSwgYTpBWzJdWzNdIH07CiAgfQoKICAvLyAtLS0tIGV4cHJlc3Npb24gY2xhc3NpZmljYXRpb24gJiBwYXJzaW5nIC0tLS0KICBjb25zdCBSRVNFUlZFRCA9IG5ldyBTZXQoWyd4JywneScsJ3BpJywnZScsJ3RhdScsJ2knLCdJbmZpbml0eScsJ3RydWUnLCdmYWxzZScsJ2FicycsJ3NpbicsJ2NvcycsJ3RhbicsCiAgICAnYXNpbicsJ2Fjb3MnLCdhdGFuJywnYXRhbjInLCdzZWMnLCdjc2MnLCdjb3QnLCdhc2VjJywnYWNzYycsJ2Fjb3QnLAogICAgJ3NxcnQnLCdjYnJ0JywnbnRoUm9vdCcsJ2xvZycsJ2xuJywnbG9nMTAnLCdsb2cyJywnZXhwJywnc2luaCcsJ2Nvc2gnLCd0YW5oJywnYXNpbmgnLCdhY29zaCcsJ2F0YW5oJywKICAgICdmbG9vcicsJ2NlaWwnLCdyb3VuZCcsJ21pbicsJ21heCcsJ3BvdycsJ3NpZ24nLCdtb2QnLAogICAgJ2ZhY3RvcmlhbCcsJ2djZCcsJ2xjbScsJ2NvbWJpbmF0aW9ucycsJ3Blcm11dGF0aW9ucycsJ25DcicsJ25QciddKTsKCiAgZnVuY3Rpb24gZmluZEZyZWVWYXJzKG5vZGUsIGV4Y2x1ZGUpewogICAgY29uc3QgZm91bmQgPSBuZXcgU2V0KCk7CiAgICBub2RlLnRyYXZlcnNlKGZ1bmN0aW9uKG4pewogICAgICBpZihuLmlzU3ltYm9sTm9kZSl7CiAgICAgICAgY29uc3QgbmFtZSA9IG4ubmFtZTsKICAgICAgICBpZighZXhjbHVkZS5oYXMobmFtZSkgJiYgIVJFU0VSVkVELmhhcyhuYW1lKSkgZm91bmQuYWRkKG5hbWUpOwogICAgICB9CiAgICB9KTsKICAgIHJldHVybiBmb3VuZDsKICB9CgogIGZ1bmN0aW9uIHNwbGl0UmVsYXRpb25hbCh0ZXh0KXsKICAgIC8vIHJldHVybnMge2xocywgcmhzLCBvcH0gZm9yID0sIDw9LCA+PSwgPCwgPiwgIT0gKGNoZWNrZWQgbG9uZ2VzdC1maXJzdCwgaWdub3JpbmcgaW5zaWRlIGZ1bmN0aW9uLWNhbGwgY29tbWFzIGlzIG5vdCBuZWVkZWQgc2luY2UgdGhlc2Ugb3BzIHJhcmVseSBhcHBlYXIgbmVzdGVkKQogICAgY29uc3Qgb3BzID0gWyc8PScsJz49JywnIT0nLCc8JywnPicsJz0nXTsKICAgIGZvcihjb25zdCBvcCBvZiBvcHMpewogICAgICBjb25zdCBpZHggPSB0ZXh0LmluZGV4T2Yob3ApOwogICAgICBpZihpZHggPiAwKXsKICAgICAgICAvLyBhdm9pZCBzcGxpdHRpbmcgb24gJz09JyBtaXN0YWtlbmx5IG9yIG9uICc9JyB0aGF0J3MgcGFydCBvZiA8PSAvPj0KICAgICAgICBpZihvcD09PSc9JyAmJiAodGV4dFtpZHgtMV09PT0nPCd8fHRleHRbaWR4LTFdPT09Jz4nfHx0ZXh0W2lkeC0xXT09PSchJykpIGNvbnRpbnVlOwogICAgICAgIHJldHVybiB7IGxoczogdGV4dC5zbGljZSgwLGlkeCksIHJoczogdGV4dC5zbGljZShpZHgrb3AubGVuZ3RoKSwgb3AgfTsKICAgICAgfQogICAgfQogICAgcmV0dXJuIG51bGw7CiAgfQoKICBmdW5jdGlvbiBzcGxpdFRvcExldmVsQ29tbWEoaW5uZXIpewogICAgbGV0IGRlcHRoPTAsIHBhcnRzPVtdLCBjdXI9Jyc7CiAgICBmb3IoY29uc3QgY2ggb2YgaW5uZXIpewogICAgICBpZihjaD09PScoJykgZGVwdGgrKzsKICAgICAgaWYoY2g9PT0nKScpIGRlcHRoLS07CiAgICAgIGlmKGNoPT09JywnICYmIGRlcHRoPT09MCl7IHBhcnRzLnB1c2goY3VyKTsgY3VyPScnOyB9CiAgICAgIGVsc2UgY3VyKz1jaDsKICAgIH0KICAgIHBhcnRzLnB1c2goY3VyKTsKICAgIHJldHVybiBwYXJ0czsKICB9CgogIC8vIC0tLS0gbnVtZXJpYyBtZXRob2RzIGZvciBjYWxjdWx1cyBzcGVjaWFsIGZvcm1zIC0tLS0KICBmdW5jdGlvbiBzYWZlRihmLCB4KXsKICAgIHRyeXsgY29uc3QgdiA9IGYoeCk7IHJldHVybiAodHlwZW9mIHYgPT09ICdudW1iZXInICYmIGlzRmluaXRlKHYpKSA/IHYgOiAwOyB9CiAgICBjYXRjaChlKXsgcmV0dXJuIDA7IH0KICB9CiAgZnVuY3Rpb24gc2FmZUZPck5hTihmLCB4KXsKICAgIHRyeXsgY29uc3QgdiA9IGYoeCk7IHJldHVybiAodHlwZW9mIHYgPT09ICdudW1iZXInKSA/IHYgOiBOYU47IH0KICAgIGNhdGNoKGUpeyByZXR1cm4gTmFOOyB9CiAgfQogIGZ1bmN0aW9uIHNpbXBzb25JbnRlZ3JhdGUoZiwgYSwgYiwgbil7CiAgICBuID0gbiB8fCAyMDA7CiAgICBpZihuICUgMiA9PT0gMSkgbisrOwogICAgaWYoYSA9PT0gYikgcmV0dXJuIDA7CiAgICBjb25zdCBzaWduID0gYSA+IGIgPyAtMSA6IDE7CiAgICBpZihhID4gYil7IGNvbnN0IHQ9YTsgYT1iOyBiPXQ7IH0KICAgIGNvbnN0IGggPSAoYi1hKS9uOwogICAgbGV0IHN1bSA9IHNhZmVGKGYsYSkgKyBzYWZlRihmLGIpOwogICAgZm9yKGxldCBpPTE7aTxuO2krKyl7CiAgICAgIGNvbnN0IHhpID0gYSArIGkqaDsKICAgICAgc3VtICs9IChpJTI9PT0wID8gMiA6IDQpICogc2FmZUYoZix4aSk7CiAgICB9CiAgICByZXR1cm4gc2lnbiAqIHN1bSAqIGgvMzsKICB9CiAgZnVuY3Rpb24gY29tcHV0ZUxpbWl0KGYsIGEpewogICAgY29uc3QgZXBzTGlzdCA9IFsxZS0yLDFlLTMsMWUtNCwxZS01LDFlLTZdOwogICAgbGV0IGxlZnQgPSBOYU4sIHJpZ2h0ID0gTmFOOwogICAgZm9yKGNvbnN0IGVwcyBvZiBlcHNMaXN0KXsKICAgICAgbGVmdCA9IHNhZmVGT3JOYU4oZiwgYS1lcHMpOwogICAgICByaWdodCA9IHNhZmVGT3JOYU4oZiwgYStlcHMpOwogICAgfQogICAgaWYoaXNGaW5pdGUobGVmdCkgJiYgaXNGaW5pdGUocmlnaHQpICYmIE1hdGguYWJzKGxlZnQtcmlnaHQpIDwgMWUtMyl7CiAgICAgIHJldHVybiAobGVmdCtyaWdodCkvMjsKICAgIH0KICAgIHJldHVybiBOYU47CiAgfQoKICAvLyAtLS0tIGNhbGN1bHVzIC8gbnVtYmVyLXRoZW9yeSBub3RhdGlvbiBub3QgZXhwcmVzc2libGUgYXMgcGxhaW4gbWF0aC5qcyBzeW50YXggLS0tLQogIGZ1bmN0aW9uIHRyeVNwZWNpYWxGb3JtKHRleHQpewogICAgbGV0IG07CgogICAgLy8gc2Vjb25kIGRlcml2YXRpdmU6IGTCsi9keMKyKGV4cHIpICAoYWxzbyBhY2NlcHRzIEFTQ0lJIGReMi9keF4yKGV4cHIpKQogICAgbSA9IHRleHQubWF0Y2goL15kwrJcL2R4wrJcKCguKilcKSQvKSB8fCB0ZXh0Lm1hdGNoKC9eZFxeMlwvZHhcXjJcKCguKilcKSQvKTsKICAgIGlmKG0pewogICAgICB0cnl7CiAgICAgICAgY29uc3QgZDEgPSBtYXRoLmRlcml2YXRpdmUobWF0aC5wYXJzZShtWzFdKSwgJ3gnKTsKICAgICAgICBjb25zdCBkMiA9IG1hdGguZGVyaXZhdGl2ZShkMSwgJ3gnKTsKICAgICAgICByZXR1cm4geyB0eXBlOidmdW5jdGlvbicsIGNvbXBpbGVkOiBkMi5jb21waWxlKCksIGZyZWVWYXJzOiBmaW5kRnJlZVZhcnMoZDIsIG5ldyBTZXQoWyd4JywneSddKSkgfTsKICAgICAgfWNhdGNoKGUpewogICAgICAgIHJldHVybiB7IHR5cGU6J2Vycm9yJywgZXJyb3I6ICdDb3VsZCBub3QgZGlmZmVyZW50aWF0ZTogJyArIGUubWVzc2FnZSB9OwogICAgICB9CiAgICB9CgogICAgLy8gZmlyc3QgZGVyaXZhdGl2ZTogZC9keChleHByKQogICAgbSA9IHRleHQubWF0Y2goL15kXC9keFwoKC4qKVwpJC8pOwogICAgaWYobSl7CiAgICAgIHRyeXsKICAgICAgICBjb25zdCBkMSA9IG1hdGguZGVyaXZhdGl2ZShtYXRoLnBhcnNlKG1bMV0pLCAneCcpOwogICAgICAgIHJldHVybiB7IHR5cGU6J2Z1bmN0aW9uJywgY29tcGlsZWQ6IGQxLmNvbXBpbGUoKSwgZnJlZVZhcnM6IGZpbmRGcmVlVmFycyhkMSwgbmV3IFNldChbJ3gnLCd5J10pKSB9OwogICAgICB9Y2F0Y2goZSl7CiAgICAgICAgcmV0dXJuIHsgdHlwZTonZXJyb3InLCBlcnJvcjogJ0NvdWxkIG5vdCBkaWZmZXJlbnRpYXRlOiAnICsgZS5tZXNzYWdlIH07CiAgICAgIH0KICAgIH0KCiAgICAvLyBpbnRlZ3JhbDog4oirKGV4cHIsIHgsIGEsIGIpIGRlZmluaXRlOyDiiKsoZXhwcikgaW5kZWZpbml0ZSAodW5zdXBwb3J0ZWQpCiAgICBtID0gdGV4dC5tYXRjaCgvXuKIq1woKC4qKVwpJC8pOwogICAgaWYobSl7CiAgICAgIGNvbnN0IHBhcnRzID0gc3BsaXRUb3BMZXZlbENvbW1hKG1bMV0pOwogICAgICBpZihwYXJ0cy5sZW5ndGggPT09IDEpewogICAgICAgIHJldHVybiB7IHR5cGU6J2Vycm9yJywgZXJyb3I6ICdJbmRlZmluaXRlIGludGVncmFscyBhcmUgbm90IHN1cHBvcnRlZCDigJQgbWF0aC5qcyBoYXMgbm8gYnVpbHQtaW4gc3ltYm9saWMgaW50ZWdyYXRpb24gKGEgZnVsbCBDQVMgd291bGQgYmUgcmVxdWlyZWQpLiBVc2UgdGhlIGRlZmluaXRlIGZvcm0g4oirKGV4cHIsIHgsIGEsIGIpIGluc3RlYWQuJyB9OwogICAgICB9CiAgICAgIGlmKHBhcnRzLmxlbmd0aCAhPT0gNCl7CiAgICAgICAgcmV0dXJuIHsgdHlwZTonZXJyb3InLCBlcnJvcjogJ0RlZmluaXRlIGludGVncmFsIG5lZWRzIHRoZSBmb3JtIOKIqyhleHByLCB4LCBhLCBiKScgfTsKICAgICAgfQogICAgICB0cnl7CiAgICAgICAgY29uc3QgZXhwck5vZGUgPSBtYXRoLnBhcnNlKHBhcnRzWzBdKTsKICAgICAgICBjb25zdCB2YXJOYW1lID0gcGFydHNbMV0udHJpbSgpOwogICAgICAgIGNvbnN0IGFOb2RlID0gbWF0aC5wYXJzZShwYXJ0c1syXSk7CiAgICAgICAgY29uc3QgYk5vZGUgPSBtYXRoLnBhcnNlKHBhcnRzWzNdKTsKICAgICAgICBjb25zdCBleHByQyA9IGV4cHJOb2RlLmNvbXBpbGUoKSwgYUMgPSBhTm9kZS5jb21waWxlKCksIGJDID0gYk5vZGUuY29tcGlsZSgpOwogICAgICAgIGNvbnN0IGZyZWVWYXJzID0gbmV3IFNldChbCiAgICAgICAgICAuLi5maW5kRnJlZVZhcnMoZXhwck5vZGUsIG5ldyBTZXQoW3Zhck5hbWUsJ3knXSkpLAogICAgICAgICAgLi4uZmluZEZyZWVWYXJzKGFOb2RlLCBuZXcgU2V0KFsneSddKSksCiAgICAgICAgICAuLi5maW5kRnJlZVZhcnMoYk5vZGUsIG5ldyBTZXQoWyd5J10pKSwKICAgICAgICBdKTsKICAgICAgICBjb25zdCBldmFsT2JqID0geyBldmFsdWF0ZShzY29wZSl7CiAgICAgICAgICBjb25zdCBhID0gYUMuZXZhbHVhdGUoc2NvcGUpLCBiID0gYkMuZXZhbHVhdGUoc2NvcGUpOwogICAgICAgICAgcmV0dXJuIHNpbXBzb25JbnRlZ3JhdGUodj0+ZXhwckMuZXZhbHVhdGUoT2JqZWN0LmFzc2lnbih7fSwgc2NvcGUsIHtbdmFyTmFtZV06dn0pKSwgYSwgYik7CiAgICAgICAgfX07CiAgICAgICAgcmV0dXJuIHsgdHlwZTondmFsdWUnLCBjb21waWxlZDogZXZhbE9iaiwgZnJlZVZhcnMgfTsKICAgICAgfWNhdGNoKGUpewogICAgICAgIHJldHVybiB7IHR5cGU6J2Vycm9yJywgZXJyb3I6IGUubWVzc2FnZSB9OwogICAgICB9CiAgICB9CgogICAgLy8gbGltaXQ6IGxpbShleHByLCB4LCBhKQogICAgbSA9IHRleHQubWF0Y2goL15saW1cKCguKilcKSQvKTsKICAgIGlmKG0pewogICAgICBjb25zdCBwYXJ0cyA9IHNwbGl0VG9wTGV2ZWxDb21tYShtWzFdKTsKICAgICAgaWYocGFydHMubGVuZ3RoICE9PSAzKXsKICAgICAgICByZXR1cm4geyB0eXBlOidlcnJvcicsIGVycm9yOiAnTGltaXQgbmVlZHMgdGhlIGZvcm0gbGltKGV4cHIsIHgsIGEpJyB9OwogICAgICB9CiAgICAgIHRyeXsKICAgICAgICBjb25zdCBleHByTm9kZSA9IG1hdGgucGFyc2UocGFydHNbMF0pOwogICAgICAgIGNvbnN0IHZhck5hbWUgPSBwYXJ0c1sxXS50cmltKCk7CiAgICAgICAgY29uc3QgYU5vZGUgPSBtYXRoLnBhcnNlKHBhcnRzWzJdKTsKICAgICAgICBjb25zdCBleHByQyA9IGV4cHJOb2RlLmNvbXBpbGUoKSwgYUMgPSBhTm9kZS5jb21waWxlKCk7CiAgICAgICAgY29uc3QgZnJlZVZhcnMgPSBuZXcgU2V0KFsKICAgICAgICAgIC4uLmZpbmRGcmVlVmFycyhleHByTm9kZSwgbmV3IFNldChbdmFyTmFtZSwneSddKSksCiAgICAgICAgICAuLi5maW5kRnJlZVZhcnMoYU5vZGUsIG5ldyBTZXQoWyd5J10pKSwKICAgICAgICBdKTsKICAgICAgICBjb25zdCBldmFsT2JqID0geyBldmFsdWF0ZShzY29wZSl7CiAgICAgICAgICBjb25zdCBhID0gYUMuZXZhbHVhdGUoc2NvcGUpOwogICAgICAgICAgcmV0dXJuIGNvbXB1dGVMaW1pdCh2PT5leHByQy5ldmFsdWF0ZShPYmplY3QuYXNzaWduKHt9LCBzY29wZSwge1t2YXJOYW1lXTp2fSkpLCBhKTsKICAgICAgICB9fTsKICAgICAgICByZXR1cm4geyB0eXBlOid2YWx1ZScsIGNvbXBpbGVkOiBldmFsT2JqLCBmcmVlVmFycyB9OwogICAgICB9Y2F0Y2goZSl7CiAgICAgICAgcmV0dXJuIHsgdHlwZTonZXJyb3InLCBlcnJvcjogZS5tZXNzYWdlIH07CiAgICAgIH0KICAgIH0KCiAgICAvLyBzdW1tYXRpb246IM6jKGV4cHIsIHgsIHN0YXJ0LCBlbmQpCiAgICBtID0gdGV4dC5tYXRjaCgvXs6jXCgoLiopXCkkLyk7CiAgICBpZihtKXsKICAgICAgY29uc3QgcGFydHMgPSBzcGxpdFRvcExldmVsQ29tbWEobVsxXSk7CiAgICAgIGlmKHBhcnRzLmxlbmd0aCAhPT0gNCl7CiAgICAgICAgcmV0dXJuIHsgdHlwZTonZXJyb3InLCBlcnJvcjogJ1N1bSBuZWVkcyB0aGUgZm9ybSDOoyhleHByLCB4LCBzdGFydCwgZW5kKScgfTsKICAgICAgfQogICAgICB0cnl7CiAgICAgICAgY29uc3QgZXhwck5vZGUgPSBtYXRoLnBhcnNlKHBhcnRzWzBdKTsKICAgICAgICBjb25zdCB2YXJOYW1lID0gcGFydHNbMV0udHJpbSgpOwogICAgICAgIGNvbnN0IHN0YXJ0Tm9kZSA9IG1hdGgucGFyc2UocGFydHNbMl0pOwogICAgICAgIGNvbnN0IGVuZE5vZGUgPSBtYXRoLnBhcnNlKHBhcnRzWzNdKTsKICAgICAgICBjb25zdCBleHByQyA9IGV4cHJOb2RlLmNvbXBpbGUoKSwgc3RhcnRDID0gc3RhcnROb2RlLmNvbXBpbGUoKSwgZW5kQyA9IGVuZE5vZGUuY29tcGlsZSgpOwogICAgICAgIGNvbnN0IGZyZWVWYXJzID0gbmV3IFNldChbCiAgICAgICAgICAuLi5maW5kRnJlZVZhcnMoZXhwck5vZGUsIG5ldyBTZXQoW3Zhck5hbWUsJ3knXSkpLAogICAgICAgICAgLi4uZmluZEZyZWVWYXJzKHN0YXJ0Tm9kZSwgbmV3IFNldChbJ3knXSkpLAogICAgICAgICAgLi4uZmluZEZyZWVWYXJzKGVuZE5vZGUsIG5ldyBTZXQoWyd5J10pKSwKICAgICAgICBdKTsKICAgICAgICBjb25zdCBldmFsT2JqID0geyBldmFsdWF0ZShzY29wZSl7CiAgICAgICAgICBjb25zdCBzdGFydCA9IE1hdGgucm91bmQoc3RhcnRDLmV2YWx1YXRlKHNjb3BlKSk7CiAgICAgICAgICBjb25zdCBlbmQgPSBNYXRoLnJvdW5kKGVuZEMuZXZhbHVhdGUoc2NvcGUpKTsKICAgICAgICAgIGxldCBzID0gMDsKICAgICAgICAgIGZvcihsZXQgaT1zdGFydDtpPD1lbmQ7aSsrKSBzICs9IGV4cHJDLmV2YWx1YXRlKE9iamVjdC5hc3NpZ24oe30sIHNjb3BlLCB7W3Zhck5hbWVdOml9KSk7CiAgICAgICAgICByZXR1cm4gczsKICAgICAgICB9fTsKICAgICAgICByZXR1cm4geyB0eXBlOid2YWx1ZScsIGNvbXBpbGVkOiBldmFsT2JqLCBmcmVlVmFycyB9OwogICAgICB9Y2F0Y2goZSl7CiAgICAgICAgcmV0dXJuIHsgdHlwZTonZXJyb3InLCBlcnJvcjogZS5tZXNzYWdlIH07CiAgICAgIH0KICAgIH0KCiAgICAvLyBwcm9kdWN0OiDOoChleHByLCB4LCBzdGFydCwgZW5kKQogICAgbSA9IHRleHQubWF0Y2goL17OoFwoKC4qKVwpJC8pOwogICAgaWYobSl7CiAgICAgIGNvbnN0IHBhcnRzID0gc3BsaXRUb3BMZXZlbENvbW1hKG1bMV0pOwogICAgICBpZihwYXJ0cy5sZW5ndGggIT09IDQpewogICAgICAgIHJldHVybiB7IHR5cGU6J2Vycm9yJywgZXJyb3I6ICdQcm9kdWN0IG5lZWRzIHRoZSBmb3JtIM6gKGV4cHIsIHgsIHN0YXJ0LCBlbmQpJyB9OwogICAgICB9CiAgICAgIHRyeXsKICAgICAgICBjb25zdCBleHByTm9kZSA9IG1hdGgucGFyc2UocGFydHNbMF0pOwogICAgICAgIGNvbnN0IHZhck5hbWUgPSBwYXJ0c1sxXS50cmltKCk7CiAgICAgICAgY29uc3Qgc3RhcnROb2RlID0gbWF0aC5wYXJzZShwYXJ0c1syXSk7CiAgICAgICAgY29uc3QgZW5kTm9kZSA9IG1hdGgucGFyc2UocGFydHNbM10pOwogICAgICAgIGNvbnN0IGV4cHJDID0gZXhwck5vZGUuY29tcGlsZSgpLCBzdGFydEMgPSBzdGFydE5vZGUuY29tcGlsZSgpLCBlbmRDID0gZW5kTm9kZS5jb21waWxlKCk7CiAgICAgICAgY29uc3QgZnJlZVZhcnMgPSBuZXcgU2V0KFsKICAgICAgICAgIC4uLmZpbmRGcmVlVmFycyhleHByTm9kZSwgbmV3IFNldChbdmFyTmFtZSwneSddKSksCiAgICAgICAgICAuLi5maW5kRnJlZVZhcnMoc3RhcnROb2RlLCBuZXcgU2V0KFsneSddKSksCiAgICAgICAgICAuLi5maW5kRnJlZVZhcnMoZW5kTm9kZSwgbmV3IFNldChbJ3knXSkpLAogICAgICAgIF0pOwogICAgICAgIGNvbnN0IGV2YWxPYmogPSB7IGV2YWx1YXRlKHNjb3BlKXsKICAgICAgICAgIGNvbnN0IHN0YXJ0ID0gTWF0aC5yb3VuZChzdGFydEMuZXZhbHVhdGUoc2NvcGUpKTsKICAgICAgICAgIGNvbnN0IGVuZCA9IE1hdGgucm91bmQoZW5kQy5ldmFsdWF0ZShzY29wZSkpOwogICAgICAgICAgbGV0IHAgPSAxOwogICAgICAgICAgZm9yKGxldCBpPXN0YXJ0O2k8PWVuZDtpKyspIHAgKj0gZXhwckMuZXZhbHVhdGUoT2JqZWN0LmFzc2lnbih7fSwgc2NvcGUsIHtbdmFyTmFtZV06aX0pKTsKICAgICAgICAgIHJldHVybiBwOwogICAgICAgIH19OwogICAgICAgIHJldHVybiB7IHR5cGU6J3ZhbHVlJywgY29tcGlsZWQ6IGV2YWxPYmosIGZyZWVWYXJzIH07CiAgICAgIH1jYXRjaChlKXsKICAgICAgICByZXR1cm4geyB0eXBlOidlcnJvcicsIGVycm9yOiBlLm1lc3NhZ2UgfTsKICAgICAgfQogICAgfQoKICAgIHJldHVybiBudWxsOwogIH0KCiAgZnVuY3Rpb24gY2xhc3NpZnlFeHByZXNzaW9uKHJhd1RleHQsIGtub3duVmFycyl7CiAgICBjb25zdCB0ZXh0ID0gcmF3VGV4dC50cmltKCk7CiAgICBjb25zdCByZXN1bHQgPSB7IHR5cGU6J2Vycm9yJywgZXJyb3I6bnVsbCB9OwogICAgaWYodGV4dCA9PT0gJycpeyByZXN1bHQudHlwZT0nZW1wdHknOyByZXR1cm4gcmVzdWx0OyB9CgogICAgdHJ5ewogICAgICBjb25zdCBzcGVjaWFsID0gdHJ5U3BlY2lhbEZvcm0odGV4dCk7CiAgICAgIGlmKHNwZWNpYWwpIHJldHVybiBPYmplY3QuYXNzaWduKHJlc3VsdCwgc3BlY2lhbCk7CgogICAgICAvLyBwb2ludCBsaXRlcmFsOiAoYSwgYikKICAgICAgY29uc3QgcG9pbnRNYXRjaCA9IHRleHQubWF0Y2goL15cKCguKylcKSQvKTsKICAgICAgaWYocG9pbnRNYXRjaCl7CiAgICAgICAgY29uc3QgcGFydHMgPSBzcGxpdFRvcExldmVsQ29tbWEocG9pbnRNYXRjaFsxXSk7CiAgICAgICAgaWYocGFydHMubGVuZ3RoID09PSAyKXsKICAgICAgICAgIGNvbnN0IG54ID0gbWF0aC5wYXJzZShwYXJ0c1swXSk7CiAgICAgICAgICBjb25zdCBueSA9IG1hdGgucGFyc2UocGFydHNbMV0pOwogICAgICAgICAgY29uc3QgdmFycyA9IG5ldyBTZXQoWy4uLmZpbmRGcmVlVmFycyhueCwgbmV3IFNldChbJ3gnLCd5J10pKSwgLi4uZmluZEZyZWVWYXJzKG55LCBuZXcgU2V0KFsneCcsJ3knXSkpXSk7CiAgICAgICAgICByZXN1bHQudHlwZSA9ICdwb2ludCc7CiAgICAgICAgICByZXN1bHQuY29tcGlsZWRYID0gbnguY29tcGlsZSgpOwogICAgICAgICAgcmVzdWx0LmNvbXBpbGVkWSA9IG55LmNvbXBpbGUoKTsKICAgICAgICAgIHJlc3VsdC5mcmVlVmFycyA9IHZhcnM7CiAgICAgICAgICByZXR1cm4gcmVzdWx0OwogICAgICAgIH0KICAgICAgfQoKICAgICAgY29uc3QgcmVsID0gc3BsaXRSZWxhdGlvbmFsKHRleHQpOwoKICAgICAgaWYocmVsKXsKICAgICAgICBjb25zdCBsaHNOb2RlID0gbWF0aC5wYXJzZShyZWwubGhzKTsKICAgICAgICBjb25zdCByaHNOb2RlID0gbWF0aC5wYXJzZShyZWwucmhzKTsKICAgICAgICAvLyB5ID0gZih4KSBleHBsaWNpdCBmb3JtIChyaHMgaGFzIG5vIHksIGxocyBpcyBleGFjdGx5ICd5JykKICAgICAgICBpZihyZWwub3AgPT09ICc9JyAmJiByZWwubGhzLnRyaW0oKSA9PT0gJ3knKXsKICAgICAgICAgIGNvbnN0IHZhcnMgPSBmaW5kRnJlZVZhcnMocmhzTm9kZSwgbmV3IFNldChbJ3gnLCd5J10pKTsKICAgICAgICAgIGNvbnN0IHJoc0hhc1kgPSBmaW5kRnJlZVZhcnMocmhzTm9kZSwgbmV3IFNldChbJ3gnXSkpLmhhcygneScpOwogICAgICAgICAgaWYoIXJoc0hhc1kpewogICAgICAgICAgICByZXN1bHQudHlwZSA9ICdmdW5jdGlvbic7CiAgICAgICAgICAgIHJlc3VsdC5jb21waWxlZCA9IHJoc05vZGUuY29tcGlsZSgpOwogICAgICAgICAgICByZXN1bHQuZnJlZVZhcnMgPSB2YXJzOwogICAgICAgICAgICByZXR1cm4gcmVzdWx0OwogICAgICAgICAgfQogICAgICAgIH0KICAgICAgICAvLyB4ID0gZih5KSBleHBsaWNpdCB2ZXJ0aWNhbC1pc2ggZm9ybSAtPiB0cmVhdCBhcyBpbXBsaWNpdCBmb3IgZ2VuZXJhbGl0eQogICAgICAgIGNvbnN0IGRpZmZOb2RlID0gbWF0aC5wYXJzZSgnKCcgKyByZWwubGhzICsgJykgLSAoJyArIHJlbC5yaHMgKyAnKScpOwogICAgICAgIGNvbnN0IHZhcnMgPSBmaW5kRnJlZVZhcnMoZGlmZk5vZGUsIG5ldyBTZXQoWyd4JywneSddKSk7CiAgICAgICAgcmVzdWx0LnR5cGUgPSAocmVsLm9wID09PSAnPScpID8gJ2ltcGxpY2l0JyA6ICdpbmVxdWFsaXR5JzsKICAgICAgICByZXN1bHQub3AgPSByZWwub3A7CiAgICAgICAgcmVzdWx0LmNvbXBpbGVkID0gZGlmZk5vZGUuY29tcGlsZSgpOwogICAgICAgIHJlc3VsdC5mcmVlVmFycyA9IHZhcnM7CiAgICAgICAgcmV0dXJuIHJlc3VsdDsKICAgICAgfQoKICAgICAgLy8gYmFyZSBleHByZXNzaW9uIC0+IHkgPSBleHByLCBidXQgb25seSBpZiBpdCBkb2Vzbid0IGNvbnRhaW4gJ3knCiAgICAgIGNvbnN0IG5vZGUgPSBtYXRoLnBhcnNlKHRleHQpOwogICAgICBjb25zdCB2YXJzQWxsID0gZmluZEZyZWVWYXJzKG5vZGUsIG5ldyBTZXQoWyd4J10pKTsKICAgICAgaWYoIXZhcnNBbGwuaGFzKCd5JykpewogICAgICAgIC8vIG5vICd4JyBpbiB0aGUgZXhwcmVzc2lvbiAtPiBpdCdzIGEgY29uc3RhbnQvdmFsdWUsIG5vdCBhIGN1cnZlIChlLmcuICI0KzUiKQogICAgICAgIGlmKCFmaW5kRnJlZVZhcnMobm9kZSwgbmV3IFNldCgpKS5oYXMoJ3gnKSl7CiAgICAgICAgICByZXN1bHQudHlwZSA9ICd2YWx1ZSc7CiAgICAgICAgICByZXN1bHQuY29tcGlsZWQgPSBub2RlLmNvbXBpbGUoKTsKICAgICAgICAgIHJlc3VsdC5mcmVlVmFycyA9IGZpbmRGcmVlVmFycyhub2RlLCBuZXcgU2V0KCkpOwogICAgICAgICAgcmV0dXJuIHJlc3VsdDsKICAgICAgICB9CiAgICAgICAgcmVzdWx0LnR5cGUgPSAnZnVuY3Rpb24nOwogICAgICAgIHJlc3VsdC5jb21waWxlZCA9IG5vZGUuY29tcGlsZSgpOwogICAgICAgIHJlc3VsdC5mcmVlVmFycyA9IGZpbmRGcmVlVmFycyhub2RlLCBuZXcgU2V0KFsneCcsJ3knXSkpOwogICAgICAgIHJldHVybiByZXN1bHQ7CiAgICAgIH0KICAgICAgLy8gY29udGFpbnMgeSBhbmQgeCB3aXRoIG5vIHJlbGF0aW9uIC0+IGNhbid0IHBsb3QgbWVhbmluZ2Z1bGx5OyBlcnJvcgogICAgICByZXN1bHQudHlwZSA9ICdlcnJvcic7CiAgICAgIHJlc3VsdC5lcnJvciA9ICdVbnN1cHBvcnRlZCBleHByZXNzaW9uJzsKICAgICAgcmV0dXJuIHJlc3VsdDsKICAgIH1jYXRjaChlcnIpewogICAgICByZXN1bHQudHlwZSA9ICdlcnJvcic7CiAgICAgIHJlc3VsdC5lcnJvciA9IGVyci5tZXNzYWdlOwogICAgICByZXR1cm4gcmVzdWx0OwogICAgfQogIH0KCiAgLy8gLS0tLSBtYXJjaGluZyBzcXVhcmVzIGZvciBpbXBsaWNpdCBjdXJ2ZXMgLyBpbmVxdWFsaXR5IHNoYWRpbmcgLS0tLQogIGZ1bmN0aW9uIGNvbXB1dGVHcmlkKGZuLCBzY29wZSwgdmlld3BvcnQsIHcsIGgsIHN0ZXApewogICAgY29uc3QgY29scyA9IE1hdGguY2VpbCh3L3N0ZXApKzE7CiAgICBjb25zdCByb3dzID0gTWF0aC5jZWlsKGgvc3RlcCkrMTsKICAgIGNvbnN0IHZhbHVlcyA9IG5ldyBGbG9hdDY0QXJyYXkoY29scypyb3dzKTsKICAgIGZvcihsZXQgaj0wO2o8cm93cztqKyspewogICAgICBjb25zdCBweSA9IGoqc3RlcDsKICAgICAgY29uc3Qgd3kgPSB2aWV3cG9ydC5weFRvV29ybGRZKHB5KTsKICAgICAgZm9yKGxldCBpPTA7aTxjb2xzO2krKyl7CiAgICAgICAgY29uc3QgcHggPSBpKnN0ZXA7CiAgICAgICAgY29uc3Qgd3ggPSB2aWV3cG9ydC5weFRvV29ybGRYKHB4KTsKICAgICAgICBsZXQgdjsKICAgICAgICB0cnl7IHYgPSBmbi5ldmFsdWF0ZShPYmplY3QuYXNzaWduKHt4Ond4LHk6d3l9LCBzY29wZSkpOyB9CiAgICAgICAgY2F0Y2goZSl7IHYgPSBOYU47IH0KICAgICAgICB2YWx1ZXNbaipjb2xzK2ldID0gKHR5cGVvZiB2ID09PSAnbnVtYmVyJykgPyB2IDogTmFOOwogICAgICB9CiAgICB9CiAgICByZXR1cm4ge3ZhbHVlcywgY29scywgcm93cywgc3RlcH07CiAgfQoKICBmdW5jdGlvbiBpbnRlcnBYKHYxLHYyLHgxLHgyKXsKICAgIGlmKHYxPT09djIpIHJldHVybiAoeDEreDIpLzI7CiAgICBjb25zdCB0ID0gKDAtdjEpLyh2Mi12MSk7CiAgICByZXR1cm4geDEgKyB0Kih4Mi14MSk7CiAgfQoKICBmdW5jdGlvbiB0cmFjZUltcGxpY2l0R3JpZChjdHgsIGdyaWQsIGNvbG9yKXsKICAgIGNvbnN0IHt2YWx1ZXMsIGNvbHMsIHJvd3MsIHN0ZXB9ID0gZ3JpZDsKICAgIGN0eC5zYXZlKCk7CiAgICBjdHguc3Ryb2tlU3R5bGUgPSBjb2xvcjsKICAgIGN0eC5saW5lV2lkdGggPSAyLjI1OwogICAgY3R4LmJlZ2luUGF0aCgpOwogICAgZm9yKGxldCBqPTA7ajxyb3dzLTE7aisrKXsKICAgICAgZm9yKGxldCBpPTA7aTxjb2xzLTE7aSsrKXsKICAgICAgICBjb25zdCB0bCA9IHZhbHVlc1tqKmNvbHMraV07CiAgICAgICAgY29uc3QgdHIgPSB2YWx1ZXNbaipjb2xzK2krMV07CiAgICAgICAgY29uc3QgYmwgPSB2YWx1ZXNbKGorMSkqY29scytpXTsKICAgICAgICBjb25zdCBiciA9IHZhbHVlc1soaisxKSpjb2xzK2krMV07CiAgICAgICAgaWYoIWlzRmluaXRlKHRsKXx8IWlzRmluaXRlKHRyKXx8IWlzRmluaXRlKGJsKXx8IWlzRmluaXRlKGJyKSkgY29udGludWU7CiAgICAgICAgbGV0IGlkeCA9IDA7CiAgICAgICAgaWYodGw+MCkgaWR4fD04OwogICAgICAgIGlmKHRyPjApIGlkeHw9NDsKICAgICAgICBpZihicj4wKSBpZHh8PTI7CiAgICAgICAgaWYoYmw+MCkgaWR4fD0xOwogICAgICAgIGlmKGlkeD09PTB8fGlkeD09PTE1KSBjb250aW51ZTsKICAgICAgICBjb25zdCB4MD1pKnN0ZXAsIHgxPShpKzEpKnN0ZXAsIHkwPWoqc3RlcCwgeTE9KGorMSkqc3RlcDsKICAgICAgICBjb25zdCBUID0gW2ludGVycFgodGwsdHIseDAseDEpLCB5MF07CiAgICAgICAgY29uc3QgUiA9IFt4MSwgaW50ZXJwWCh0cixicix5MCx5MSldOwogICAgICAgIGNvbnN0IEIgPSBbaW50ZXJwWChibCxicix4MCx4MSksIHkxXTsKICAgICAgICBjb25zdCBMID0gW3gwLCBpbnRlcnBYKHRsLGJsLHkwLHkxKV07CiAgICAgICAgY29uc3Qgc2VnID0gKHAxLHAyKT0+eyBjdHgubW92ZVRvKHAxWzBdLHAxWzFdKTsgY3R4LmxpbmVUbyhwMlswXSxwMlsxXSk7IH07CiAgICAgICAgc3dpdGNoKGlkeCl7CiAgICAgICAgICBjYXNlIDE6IHNlZyhMLEIpOyBicmVhazsKICAgICAgICAgIGNhc2UgMjogc2VnKEIsUik7IGJyZWFrOwogICAgICAgICAgY2FzZSAzOiBzZWcoTCxSKTsgYnJlYWs7CiAgICAgICAgICBjYXNlIDQ6IHNlZyhULFIpOyBicmVhazsKICAgICAgICAgIGNhc2UgNTogc2VnKFQsTCk7IHNlZyhCLFIpOyBicmVhazsKICAgICAgICAgIGNhc2UgNjogc2VnKFQsQik7IGJyZWFrOwogICAgICAgICAgY2FzZSA3OiBzZWcoVCxMKTsgYnJlYWs7CiAgICAgICAgICBjYXNlIDg6IHNlZyhULEwpOyBicmVhazsKICAgICAgICAgIGNhc2UgOTogc2VnKFQsQik7IGJyZWFrOwogICAgICAgICAgY2FzZSAxMDogc2VnKFQsUik7IHNlZyhCLEwpOyBicmVhazsKICAgICAgICAgIGNhc2UgMTE6IHNlZyhULFIpOyBicmVhazsKICAgICAgICAgIGNhc2UgMTI6IHNlZyhMLFIpOyBicmVhazsKICAgICAgICAgIGNhc2UgMTM6IHNlZyhCLFIpOyBicmVhazsKICAgICAgICAgIGNhc2UgMTQ6IHNlZyhMLEIpOyBicmVhazsKICAgICAgICB9CiAgICAgIH0KICAgIH0KICAgIGN0eC5zdHJva2UoKTsKICAgIGN0eC5yZXN0b3JlKCk7CiAgfQoKICBmdW5jdGlvbiBzaGFkZUluZXF1YWxpdHkoY3R4LCBncmlkLCBvcCwgY29sb3IpewogICAgY29uc3Qge3ZhbHVlcywgY29scywgcm93cywgc3RlcH0gPSBncmlkOwogICAgY3R4LnNhdmUoKTsKICAgIGN0eC5maWxsU3R5bGUgPSBjb2xvcjsKICAgIGN0eC5nbG9iYWxBbHBoYSA9IDAuMjg7CiAgICBmb3IobGV0IGo9MDtqPHJvd3MtMTtqKyspewogICAgICBmb3IobGV0IGk9MDtpPGNvbHMtMTtpKyspewogICAgICAgIGNvbnN0IHYgPSB2YWx1ZXNbaipjb2xzK2ldOwogICAgICAgIGlmKCFpc0Zpbml0ZSh2KSkgY29udGludWU7CiAgICAgICAgbGV0IHRydXRoOwogICAgICAgIGlmKG9wPT09JzwnKSB0cnV0aCA9IHYgPCAwOwogICAgICAgIGVsc2UgaWYob3A9PT0nPD0nKSB0cnV0aCA9IHYgPD0gMDsKICAgICAgICBlbHNlIGlmKG9wPT09Jz4nKSB0cnV0aCA9IHYgPiAwOwogICAgICAgIGVsc2UgaWYob3A9PT0nPj0nKSB0cnV0aCA9IHYgPj0gMDsKICAgICAgICBlbHNlIGlmKG9wPT09JyE9JykgdHJ1dGggPSB2ICE9PSAwOwogICAgICAgIGlmKHRydXRoKSBjdHguZmlsbFJlY3QoaSpzdGVwLCBqKnN0ZXAsIHN0ZXArMSwgc3RlcCsxKTsKICAgICAgfQogICAgfQogICAgY3R4LnJlc3RvcmUoKTsKICB9CgogIC8vIC0tLS0gVmlld3BvcnQgLS0tLQogIGNsYXNzIFZpZXdwb3J0ewogICAgY29uc3RydWN0b3IodyxoKXsKICAgICAgdGhpcy53PXc7IHRoaXMuaD1oOwogICAgICB0aGlzLmNlbnRlclggPSAwOyB0aGlzLmNlbnRlclkgPSAwOwogICAgICB0aGlzLnNjYWxlID0gNjA7IC8vIHB4IHBlciB1bml0CiAgICB9CiAgICByZXNpemUodyxoKXsgdGhpcy53PXc7IHRoaXMuaD1oOyB9CiAgICBnZXQgeE1pbigpeyByZXR1cm4gdGhpcy5jZW50ZXJYIC0gKHRoaXMudy8yKS90aGlzLnNjYWxlOyB9CiAgICBnZXQgeE1heCgpeyByZXR1cm4gdGhpcy5jZW50ZXJYICsgKHRoaXMudy8yKS90aGlzLnNjYWxlOyB9CiAgICBnZXQgeU1pbigpeyByZXR1cm4gdGhpcy5jZW50ZXJZIC0gKHRoaXMuaC8yKS90aGlzLnNjYWxlOyB9CiAgICBnZXQgeU1heCgpeyByZXR1cm4gdGhpcy5jZW50ZXJZICsgKHRoaXMuaC8yKS90aGlzLnNjYWxlOyB9CiAgICB3b3JsZFRvUHhYKHgpeyByZXR1cm4gdGhpcy53LzIgKyAoeCAtIHRoaXMuY2VudGVyWCkqdGhpcy5zY2FsZTsgfQogICAgd29ybGRUb1B4WSh5KXsgcmV0dXJuIHRoaXMuaC8yIC0gKHkgLSB0aGlzLmNlbnRlclkpKnRoaXMuc2NhbGU7IH0KICAgIHB4VG9Xb3JsZFgocHgpeyByZXR1cm4gdGhpcy5jZW50ZXJYICsgKHB4IC0gdGhpcy53LzIpL3RoaXMuc2NhbGU7IH0KICAgIHB4VG9Xb3JsZFkocHkpeyByZXR1cm4gdGhpcy5jZW50ZXJZIC0gKHB5IC0gdGhpcy5oLzIpL3RoaXMuc2NhbGU7IH0KICAgIHBhbihkeFB4LGR5UHgpeyB0aGlzLmNlbnRlclggLT0gZHhQeC90aGlzLnNjYWxlOyB0aGlzLmNlbnRlclkgKz0gZHlQeC90aGlzLnNjYWxlOyB9CiAgICB6b29tQXQocHgscHksZmFjdG9yKXsKICAgICAgY29uc3Qgd3ggPSB0aGlzLnB4VG9Xb3JsZFgocHgpLCB3eSA9IHRoaXMucHhUb1dvcmxkWShweSk7CiAgICAgIHRoaXMuc2NhbGUgKj0gZmFjdG9yOwogICAgICB0aGlzLnNjYWxlID0gTWF0aC5tYXgoMiwgTWF0aC5taW4odGhpcy5zY2FsZSwgMmU2KSk7CiAgICAgIGNvbnN0IG54ID0gdGhpcy5weFRvV29ybGRYKHB4KSwgbnkgPSB0aGlzLnB4VG9Xb3JsZFkocHkpOwogICAgICB0aGlzLmNlbnRlclggKz0gKHd4LW54KTsKICAgICAgdGhpcy5jZW50ZXJZICs9ICh3eS1ueSk7CiAgICB9CiAgfQoKICAvLyAtLS0tIE1haW4gZmFjdG9yeSAtLS0tCiAgZnVuY3Rpb24gY3JlYXRlR3JhcGhDYWxjKGNvbnRhaW5lciwgb3B0aW9ucyl7CiAgICBvcHRpb25zID0gb3B0aW9ucyB8fCB7fTsKICAgIGNvbnN0IGVtaXR0ZXIgPSBtYWtlRW1pdHRlcigpOwogICAgY29uc3QgaW5zdGFuY2VJZCA9IHVpZCgpOwoKICAgIC8vIC0tLS0gRE9NIHNjYWZmb2xkIC0tLS0KICAgIGNvbnRhaW5lci5pbm5lckhUTUwgPSAnJzsKICAgIGNvbnN0IHJvb3QgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdkaXYnKTsKICAgIHJvb3QuY2xhc3NOYW1lID0gJ2djLXJvb3QnOwogICAgY29udGFpbmVyLmFwcGVuZENoaWxkKHJvb3QpOwoKICAgIGNvbnN0IHBhbmVsID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnZGl2Jyk7CiAgICBwYW5lbC5jbGFzc05hbWUgPSAnZ2MtcGFuZWwnOwogICAgcm9vdC5hcHBlbmRDaGlsZChwYW5lbCk7CgogICAgY29uc3QgdG9vbGJhciA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2RpdicpOwogICAgdG9vbGJhci5jbGFzc05hbWUgPSAnZ2MtdG9vbGJhcic7CiAgICBwYW5lbC5hcHBlbmRDaGlsZCh0b29sYmFyKTsKCiAgICBjb25zdCBsaXN0ID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnZGl2Jyk7CiAgICBsaXN0LmNsYXNzTmFtZSA9ICdnYy1saXN0JzsKICAgIHBhbmVsLmFwcGVuZENoaWxkKGxpc3QpOwoKICAgIGNvbnN0IGNhbnZhc1dyYXAgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdkaXYnKTsKICAgIGNhbnZhc1dyYXAuY2xhc3NOYW1lID0gJ2djLWNhbnZhcy13cmFwJzsKICAgIHJvb3QuYXBwZW5kQ2hpbGQoY2FudmFzV3JhcCk7CgogICAgY29uc3QgY2FudmFzID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnY2FudmFzJyk7CiAgICBjYW52YXNXcmFwLmFwcGVuZENoaWxkKGNhbnZhcyk7CiAgICBjb25zdCBjdHggPSBjYW52YXMuZ2V0Q29udGV4dCgnMmQnKTsKCiAgICBjb25zdCB6b29tQ29udHJvbHMgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdkaXYnKTsKICAgIHpvb21Db250cm9scy5jbGFzc05hbWUgPSAnZ2Mtem9vbS1jb250cm9scyc7CiAgICB6b29tQ29udHJvbHMuaW5uZXJIVE1MID0gJzxidXR0b24gZGF0YS16b29tPSJpbiI+KzwvYnV0dG9uPjxidXR0b24gZGF0YS16b29tPSJvdXQiPuKIkjwvYnV0dG9uPic7CiAgICBjYW52YXNXcmFwLmFwcGVuZENoaWxkKHpvb21Db250cm9scyk7CgogICAgLy8gLS0tLSBzdGF0ZSAtLS0tCiAgICBsZXQgZXhwcmVzc2lvbnMgPSBbXTsgLy8gb3JkZXJlZCBsaXN0IG9mIHJvdyBvYmplY3RzCiAgICBsZXQgc2NvcGUgPSB7fTsgICAgICAgIC8vIHNoYXJlZCBzbGlkZXIgdmFyaWFibGUgdmFsdWVzCiAgICBsZXQgc2xpZGVyT3duZXIgPSB7fTsgIC8vIHZhck5hbWUgLT4gZXhwcklkIHRoYXQgb3ducyB0aGUgc2xpZGVyIFVJCiAgICBsZXQgcmVhZE9ubHkgPSAhIW9wdGlvbnMucmVhZE9ubHk7CiAgICBsZXQgbGFzdEZvY3VzZWRJbnB1dCA9IG51bGw7CiAgICBsZXQgY29sb3JDeWNsZSA9IDA7CiAgICBsZXQgYmFkZ2VFbHMgPSB7fTsgLy8gcm93SWQgLT4gYmFkZ2UgPHNwYW4+IGVsZW1lbnQsIHJlYnVpbHQgZWFjaCByZW5kZXJMaXN0KCkKCiAgICBmdW5jdGlvbiBmb3JtYXRCYWRnZVZhbHVlKHYpewogICAgICBpZih0eXBlb2YgdiAhPT0gJ251bWJlcicgfHwgIWlzRmluaXRlKHYpKSByZXR1cm4gbnVsbDsKICAgICAgaWYoTWF0aC5hYnModiAtIE1hdGgucm91bmQodikpIDwgMWUtOSkgcmV0dXJuIFN0cmluZyhNYXRoLnJvdW5kKHYpKTsKICAgICAgY29uc3QgYWJzID0gTWF0aC5hYnModik7CiAgICAgIGlmKGFicyA8IDFlLTQgfHwgYWJzID49IDFlMTUpewogICAgICAgIC8vIHZlcnkgc21hbGwvbGFyZ2UgbWFnbml0dWRlOiBzaWduaWZpY2FudC1maWd1cmUgZm9ybSByZWFkcyBiZXR0ZXIgdGhhbiBmaXhlZCBkZWNpbWFscwogICAgICAgIHJldHVybiBTdHJpbmcocGFyc2VGbG9hdCh2LnRvUHJlY2lzaW9uKDYpKSk7CiAgICAgIH0KICAgICAgLy8gZml4ZWQgZGVjaW1hbCBwbGFjZXMgKG5vdCBzaWduaWZpY2FudCBmaWd1cmVzKSBzbyBhIGxhcmdlIGludGVnZXIgcGFydAogICAgICAvLyBuZXZlciBlYXRzIGludG8gdGhlIGZyYWN0aW9uYWwgcGFydCwgZS5nLiAxMTAwMDAuMyBtdXN0IG5vdCByb3VuZCB0byAxMTAwMDAKICAgICAgcmV0dXJuIHYudG9GaXhlZCg2KS5yZXBsYWNlKC8wKyQvLCcnKS5yZXBsYWNlKC9cLiQvLCcnKTsKICAgIH0KCiAgICBmdW5jdGlvbiBjb21wdXRlVmFsdWVCYWRnZVRleHQocm93KXsKICAgICAgaWYoIXJvdy5jb21waWxlZCkgcmV0dXJuICcnOwogICAgICB0cnl7CiAgICAgICAgY29uc3QgdiA9IHJvdy5jb21waWxlZC5ldmFsdWF0ZShPYmplY3QuYXNzaWduKHt9LCBzY29wZSkpOwogICAgICAgIGNvbnN0IGZvcm1hdHRlZCA9IGZvcm1hdEJhZGdlVmFsdWUodik7CiAgICAgICAgcmV0dXJuIGZvcm1hdHRlZCA9PT0gbnVsbCA/ICcnIDogKCc9ICcgKyBmb3JtYXR0ZWQpOwogICAgICB9Y2F0Y2goZSl7IHJldHVybiAnJzsgfQogICAgfQoKICAgIGZ1bmN0aW9uIHJlZnJlc2hWYWx1ZUJhZGdlcygpewogICAgICBleHByZXNzaW9ucy5mb3JFYWNoKHJvdz0+ewogICAgICAgIGlmKHJvdy50eXBlPT09J3ZhbHVlJyAmJiBiYWRnZUVsc1tyb3cuaWRdKXsKICAgICAgICAgIGJhZGdlRWxzW3Jvdy5pZF0udGV4dENvbnRlbnQgPSBjb21wdXRlVmFsdWVCYWRnZVRleHQocm93KTsKICAgICAgICB9CiAgICAgIH0pOwogICAgfQoKICAgIGNvbnN0IHZpZXdwb3J0ID0gbmV3IFZpZXdwb3J0KGNhbnZhc1dyYXAuY2xpZW50V2lkdGh8fDgwMCwgY2FudmFzV3JhcC5jbGllbnRIZWlnaHR8fDYwMCk7CgogICAgZnVuY3Rpb24gbmV4dENvbG9yKCl7CiAgICAgIGNvbnN0IGMgPSBQQUxFVFRFW2NvbG9yQ3ljbGUgJSBQQUxFVFRFLmxlbmd0aF07CiAgICAgIGNvbG9yQ3ljbGUrKzsKICAgICAgcmV0dXJuIGM7CiAgICB9CgogICAgZnVuY3Rpb24gbmV3Um93KHBhcnRpYWwpewogICAgICBjb25zdCByb3cgPSBPYmplY3QuYXNzaWduKHsKICAgICAgICBpZDogdWlkKCksCiAgICAgICAgdGV4dDogJycsCiAgICAgICAgY29sb3I6IG5leHRDb2xvcigpLAogICAgICAgIHZpc2libGU6IHRydWUsCiAgICAgICAgdHlwZTogJ2VtcHR5JywKICAgICAgICBpc1RhYmxlOiBmYWxzZSwKICAgICAgICB0YWJsZURhdGE6IFt7eDonJyx5OicnfSx7eDonJyx5OicnfSx7eDonJyx5OicnfV0sCiAgICAgICAgcmVncmVzc2lvbk9mOiBudWxsLAogICAgICAgIHJlZ3Jlc3Npb25UeXBlOiBudWxsLAogICAgICAgIHNsaWRlck1pbjogLTEwLAogICAgICAgIHNsaWRlck1heDogMTAsCiAgICAgICAgc2xpZGVyU3RlcDogMC4xLAogICAgICAgIHNsaWRlclZhbHVlOiAxLAogICAgICAgIGRpc21pc3NlZFNsaWRlcjogZmFsc2UKICAgICAgfSwgcGFydGlhbHx8e30pOwogICAgICByZXR1cm4gcm93OwogICAgfQoKICAgIC8vIC0tLS0gZXZhbHVhdGlvbiAvIGNsYXNzaWZpY2F0aW9uIHBhc3MgLS0tLQogICAgZnVuY3Rpb24gcmVjbGFzc2lmeShyb3cpewogICAgICBpZihyb3cuaXNUYWJsZSl7CiAgICAgICAgcm93LnR5cGUgPSAndGFibGUnOwogICAgICAgIHJldHVybjsKICAgICAgfQogICAgICBpZihyb3cucmVncmVzc2lvbk9mKXsKICAgICAgICAvLyByZWNvbXB1dGVkIHNlcGFyYXRlbHkKICAgICAgICByZXR1cm47CiAgICAgIH0KICAgICAgY29uc3QgY2xzID0gY2xhc3NpZnlFeHByZXNzaW9uKHJvdy50ZXh0LCBuZXcgU2V0KCkpOwogICAgICByb3cudHlwZSA9IGNscy50eXBlOwogICAgICByb3cuZXJyb3IgPSBjbHMuZXJyb3J8fG51bGw7CiAgICAgIHJvdy5jb21waWxlZCA9IGNscy5jb21waWxlZHx8bnVsbDsKICAgICAgcm93LmNvbXBpbGVkWCA9IGNscy5jb21waWxlZFh8fG51bGw7CiAgICAgIHJvdy5jb21waWxlZFkgPSBjbHMuY29tcGlsZWRZfHxudWxsOwogICAgICByb3cub3AgPSBjbHMub3B8fG51bGw7CiAgICAgIHJvdy5mcmVlVmFycyA9IGNscy5mcmVlVmFycyB8fCBuZXcgU2V0KCk7CgogICAgICBpZihyb3cuZnJlZVZhcnMgJiYgcm93LmZyZWVWYXJzLnNpemUpewogICAgICAgIHJvdy5mcmVlVmFycy5mb3JFYWNoKHY9PnsKICAgICAgICAgIGlmKCEodiBpbiBzY29wZSkpewogICAgICAgICAgICBzY29wZVt2XSA9IHJvdy5zbGlkZXJWYWx1ZTsKICAgICAgICAgIH0KICAgICAgICAgIGlmKCFzbGlkZXJPd25lclt2XSl7CiAgICAgICAgICAgIHNsaWRlck93bmVyW3ZdID0gcm93LmlkOwogICAgICAgICAgfQogICAgICAgIH0pOwogICAgICB9CiAgICB9CgogICAgZnVuY3Rpb24gcmVjb21wdXRlUmVncmVzc2lvbihyb3cpewogICAgICBjb25zdCB0YWJsZSA9IGV4cHJlc3Npb25zLmZpbmQoZT0+ZS5pZD09PXJvdy5yZWdyZXNzaW9uT2YpOwogICAgICBpZighdGFibGUpeyByb3cudHlwZT0nZXJyb3InOyByb3cuZXJyb3I9J3RhYmxlIG1pc3NpbmcnOyByZXR1cm47IH0KICAgICAgY29uc3QgcHRzID0gdGFibGUudGFibGVEYXRhCiAgICAgICAgLm1hcChyPT4oe3g6cGFyc2VGbG9hdChyLngpLCB5OnBhcnNlRmxvYXQoci55KX0pKQogICAgICAgIC5maWx0ZXIocD0+aXNGaW5pdGUocC54KSYmaXNGaW5pdGUocC55KSk7CiAgICAgIGNvbnN0IHNpZ25lZCA9ICh2KT0+ICh2PDAgPyAnLSAnICsgKC12KS50b0ZpeGVkKDQpIDogJysgJyArIHYudG9GaXhlZCg0KSk7CiAgICAgIGlmKHJvdy5yZWdyZXNzaW9uVHlwZSA9PT0gJ2xpbmVhcicpewogICAgICAgIGlmKHB0cy5sZW5ndGggPCAyKXsgcm93LnR5cGU9J2Vycm9yJzsgcm93LmVycm9yPSduZWVkID49MiBwb2ludHMnOyByZXR1cm47IH0KICAgICAgICBjb25zdCBmaXQgPSBzb2x2ZUxpbmVhcihwdHMpOwogICAgICAgIGlmKCFmaXQpeyByb3cudHlwZT0nZXJyb3InOyByb3cuZXJyb3I9J2RlZ2VuZXJhdGUgZml0JzsgcmV0dXJuOyB9CiAgICAgICAgcm93LnRleHQgPSBgeSA9ICR7Zml0Lm0udG9GaXhlZCg0KX14ICR7c2lnbmVkKGZpdC5iKX1gOwogICAgICAgIHJvdy5jb21waWxlZCA9IG1hdGgucGFyc2UoYCR7Zml0Lm19KnggKyAke2ZpdC5ifWApLmNvbXBpbGUoKTsKICAgICAgICByb3cudHlwZSA9ICdmdW5jdGlvbic7CiAgICAgICAgcm93LmZyZWVWYXJzID0gbmV3IFNldCgpOwogICAgICB9IGVsc2UgaWYocm93LnJlZ3Jlc3Npb25UeXBlID09PSAncXVhZHJhdGljJyl7CiAgICAgICAgaWYocHRzLmxlbmd0aCA8IDMpeyByb3cudHlwZT0nZXJyb3InOyByb3cuZXJyb3I9J25lZWQgPj0zIHBvaW50cyc7IHJldHVybjsgfQogICAgICAgIGNvbnN0IGZpdCA9IHNvbHZlUXVhZHJhdGljKHB0cyk7CiAgICAgICAgaWYoIWZpdCl7IHJvdy50eXBlPSdlcnJvcic7IHJvdy5lcnJvcj0nZGVnZW5lcmF0ZSBmaXQnOyByZXR1cm47IH0KICAgICAgICByb3cudGV4dCA9IGB5ID0gJHtmaXQuYS50b0ZpeGVkKDQpfXjCsiAke3NpZ25lZChmaXQuYil9eCAke3NpZ25lZChmaXQuYyl9YDsKICAgICAgICByb3cuY29tcGlsZWQgPSBtYXRoLnBhcnNlKGAke2ZpdC5hfSp4XjIgKyAke2ZpdC5ifSp4ICsgJHtmaXQuY31gKS5jb21waWxlKCk7CiAgICAgICAgcm93LnR5cGUgPSAnZnVuY3Rpb24nOwogICAgICAgIHJvdy5mcmVlVmFycyA9IG5ldyBTZXQoKTsKICAgICAgfQogICAgfQoKICAgIGZ1bmN0aW9uIHJlY2xhc3NpZnlBbGwoKXsKICAgICAgLy8gcmVzZXQgc2xpZGVyIG93bmVyc2hpcCBtYXAsIHJlYnVpbGQgZnJvbSBzY3JhdGNoIHByZXNlcnZpbmcgZXhpc3Rpbmcgc2NvcGUgdmFsdWVzCiAgICAgIHNsaWRlck93bmVyID0ge307CiAgICAgIGZvcihjb25zdCByb3cgb2YgZXhwcmVzc2lvbnMpewogICAgICAgIGlmKHJvdy5yZWdyZXNzaW9uT2YpeyByZWNvbXB1dGVSZWdyZXNzaW9uKHJvdyk7IH0KICAgICAgICBlbHNlIHJlY2xhc3NpZnkocm93KTsKICAgICAgfQogICAgfQoKICAgIC8vIC0tLS0gcmVuZGVyaW5nIC0tLS0KICAgIGZ1bmN0aW9uIHJlc2l6ZUNhbnZhcygpewogICAgICBjb25zdCBkcHIgPSB3aW5kb3cuZGV2aWNlUGl4ZWxSYXRpb3x8MTsKICAgICAgY29uc3QgdyA9IGNhbnZhc1dyYXAuY2xpZW50V2lkdGgsIGggPSBjYW52YXNXcmFwLmNsaWVudEhlaWdodDsKICAgICAgY2FudmFzLndpZHRoID0gdypkcHI7IGNhbnZhcy5oZWlnaHQgPSBoKmRwcjsKICAgICAgY2FudmFzLnN0eWxlLndpZHRoID0gdysncHgnOyBjYW52YXMuc3R5bGUuaGVpZ2h0ID0gaCsncHgnOwogICAgICBjdHguc2V0VHJhbnNmb3JtKGRwciwwLDAsZHByLDAsMCk7CiAgICAgIHZpZXdwb3J0LnJlc2l6ZSh3LGgpOwogICAgICByZW5kZXIoKTsKICAgIH0KCiAgICBmdW5jdGlvbiBkcmF3R3JpZCgpewogICAgICBjb25zdCB3ID0gdmlld3BvcnQudywgaCA9IHZpZXdwb3J0Lmg7CiAgICAgIGN0eC5maWxsU3R5bGUgPSAnI2ZmZmZmZic7CiAgICAgIGN0eC5maWxsUmVjdCgwLDAsdyxoKTsKCiAgICAgIGNvbnN0IHRhcmdldFB4ID0gNzA7CiAgICAgIGNvbnN0IHJhd1N0ZXAgPSB0YXJnZXRQeC92aWV3cG9ydC5zY2FsZTsKICAgICAgY29uc3Qgc3RlcCA9IG5pY2VTdGVwKHJhd1N0ZXApOwogICAgICBjb25zdCBtaW5vclN0ZXAgPSBzdGVwLzU7CgogICAgICAvLyBtaW5vciBncmlkbGluZXMKICAgICAgY3R4LnN0cm9rZVN0eWxlID0gJ3ZhcigtLWdyaWQtbWlub3IpJy5zdGFydHNXaXRoKCd2YXInKSA/ICcjZWVmMGYyJyA6ICcjZWVmMGYyJzsKICAgICAgY3R4LmxpbmVXaWR0aCA9IDE7CiAgICAgIGN0eC5iZWdpblBhdGgoKTsKICAgICAgbGV0IHN0YXJ0WGkgPSBNYXRoLmZsb29yKHZpZXdwb3J0LnhNaW4vbWlub3JTdGVwKTsKICAgICAgbGV0IGVuZFhpID0gTWF0aC5jZWlsKHZpZXdwb3J0LnhNYXgvbWlub3JTdGVwKTsKICAgICAgZm9yKGxldCBpPXN0YXJ0WGk7aTw9ZW5kWGk7aSsrKXsKICAgICAgICBjb25zdCB3eCA9IGkqbWlub3JTdGVwOwogICAgICAgIGNvbnN0IHB4ID0gTWF0aC5yb3VuZCh2aWV3cG9ydC53b3JsZFRvUHhYKHd4KSkrMC41OwogICAgICAgIGN0eC5tb3ZlVG8ocHgsMCk7IGN0eC5saW5lVG8ocHgsaCk7CiAgICAgIH0KICAgICAgbGV0IHN0YXJ0WWkgPSBNYXRoLmZsb29yKHZpZXdwb3J0LnlNaW4vbWlub3JTdGVwKTsKICAgICAgbGV0IGVuZFlpID0gTWF0aC5jZWlsKHZpZXdwb3J0LnlNYXgvbWlub3JTdGVwKTsKICAgICAgZm9yKGxldCBpPXN0YXJ0WWk7aTw9ZW5kWWk7aSsrKXsKICAgICAgICBjb25zdCB3eSA9IGkqbWlub3JTdGVwOwogICAgICAgIGNvbnN0IHB5ID0gTWF0aC5yb3VuZCh2aWV3cG9ydC53b3JsZFRvUHhZKHd5KSkrMC41OwogICAgICAgIGN0eC5tb3ZlVG8oMCxweSk7IGN0eC5saW5lVG8odyxweSk7CiAgICAgIH0KICAgICAgY3R4LnN0cm9rZSgpOwoKICAgICAgLy8gbWFqb3IgZ3JpZGxpbmVzCiAgICAgIGN0eC5zdHJva2VTdHlsZSA9ICcjZDNkM2Q3JzsKICAgICAgY3R4LmJlZ2luUGF0aCgpOwogICAgICBsZXQgc3hpID0gTWF0aC5mbG9vcih2aWV3cG9ydC54TWluL3N0ZXApOwogICAgICBsZXQgZXhpID0gTWF0aC5jZWlsKHZpZXdwb3J0LnhNYXgvc3RlcCk7CiAgICAgIGZvcihsZXQgaT1zeGk7aTw9ZXhpO2krKyl7CiAgICAgICAgY29uc3Qgd3ggPSBpKnN0ZXA7CiAgICAgICAgY29uc3QgcHggPSBNYXRoLnJvdW5kKHZpZXdwb3J0LndvcmxkVG9QeFgod3gpKSswLjU7CiAgICAgICAgY3R4Lm1vdmVUbyhweCwwKTsgY3R4LmxpbmVUbyhweCxoKTsKICAgICAgfQogICAgICBsZXQgc3lpID0gTWF0aC5mbG9vcih2aWV3cG9ydC55TWluL3N0ZXApOwogICAgICBsZXQgZXlpID0gTWF0aC5jZWlsKHZpZXdwb3J0LnlNYXgvc3RlcCk7CiAgICAgIGZvcihsZXQgaT1zeWk7aTw9ZXlpO2krKyl7CiAgICAgICAgY29uc3Qgd3kgPSBpKnN0ZXA7CiAgICAgICAgY29uc3QgcHkgPSBNYXRoLnJvdW5kKHZpZXdwb3J0LndvcmxkVG9QeFkod3kpKSswLjU7CiAgICAgICAgY3R4Lm1vdmVUbygwLHB5KTsgY3R4LmxpbmVUbyh3LHB5KTsKICAgICAgfQogICAgICBjdHguc3Ryb2tlKCk7CgogICAgICAvLyBheGVzCiAgICAgIGN0eC5zdHJva2VTdHlsZSA9ICcjNGE0YTRlJzsKICAgICAgY3R4LmxpbmVXaWR0aCA9IDEuNTsKICAgICAgY3R4LmJlZ2luUGF0aCgpOwogICAgICBjb25zdCBheGlzWCA9IHZpZXdwb3J0LndvcmxkVG9QeFgoMCk7CiAgICAgIGNvbnN0IGF4aXNZID0gdmlld3BvcnQud29ybGRUb1B4WSgwKTsKICAgICAgaWYoYXhpc1g+PTAgJiYgYXhpc1g8PXcpeyBjdHgubW92ZVRvKGF4aXNYLDApOyBjdHgubGluZVRvKGF4aXNYLGgpOyB9CiAgICAgIGlmKGF4aXNZPj0wICYmIGF4aXNZPD1oKXsgY3R4Lm1vdmVUbygwLGF4aXNZKTsgY3R4LmxpbmVUbyh3LGF4aXNZKTsgfQogICAgICBjdHguc3Ryb2tlKCk7CgogICAgICAvLyBsYWJlbHMKICAgICAgY3R4LmZpbGxTdHlsZSA9ICcjNmE2YTcwJzsKICAgICAgY3R4LmZvbnQgPSAnMTFweCAtYXBwbGUtc3lzdGVtLHNhbnMtc2VyaWYnOwogICAgICBjdHgudGV4dEJhc2VsaW5lID0gJ3RvcCc7CiAgICAgIGNvbnN0IGxhYmVsWSA9IChheGlzWT49MCAmJiBheGlzWTw9aC0xNCkgPyBheGlzWSszIDogMjsKICAgICAgZm9yKGxldCBpPXN4aTtpPD1leGk7aSsrKXsKICAgICAgICBpZihpPT09MCkgY29udGludWU7CiAgICAgICAgY29uc3Qgd3ggPSBpKnN0ZXA7CiAgICAgICAgY29uc3QgcHggPSB2aWV3cG9ydC53b3JsZFRvUHhYKHd4KTsKICAgICAgICBpZihweDwtMjB8fHB4PncrMjApIGNvbnRpbnVlOwogICAgICAgIGN0eC5maWxsVGV4dChmb3JtYXRBeGlzTnVtKHd4KSwgcHgrMywgbGFiZWxZKTsKICAgICAgfQogICAgICBjb25zdCBsYWJlbFggPSAoYXhpc1g+PTAgJiYgYXhpc1g8PXctMzApID8gYXhpc1grMyA6IDI7CiAgICAgIGN0eC50ZXh0QmFzZWxpbmUgPSAnbWlkZGxlJzsKICAgICAgZm9yKGxldCBpPXN5aTtpPD1leWk7aSsrKXsKICAgICAgICBpZihpPT09MCkgY29udGludWU7CiAgICAgICAgY29uc3Qgd3kgPSBpKnN0ZXA7CiAgICAgICAgY29uc3QgcHkgPSB2aWV3cG9ydC53b3JsZFRvUHhZKHd5KTsKICAgICAgICBpZihweTwtMTB8fHB5PmgrMTApIGNvbnRpbnVlOwogICAgICAgIGN0eC5maWxsVGV4dChmb3JtYXRBeGlzTnVtKHd5KSwgbGFiZWxYLCBweSk7CiAgICAgIH0KICAgIH0KCiAgICBmdW5jdGlvbiBwbG90RnVuY3Rpb24ocm93KXsKICAgICAgY29uc3QgdyA9IHZpZXdwb3J0Lnc7CiAgICAgIGN0eC5zYXZlKCk7CiAgICAgIGN0eC5zdHJva2VTdHlsZSA9IHJvdy5jb2xvcjsKICAgICAgY3R4LmxpbmVXaWR0aCA9IDIuNTsKICAgICAgY3R4LmxpbmVKb2luID0gJ3JvdW5kJzsKICAgICAgY3R4LmJlZ2luUGF0aCgpOwogICAgICBsZXQgc3RhcnRlZCA9IGZhbHNlOwogICAgICBsZXQgcHJldlkgPSBudWxsOwogICAgICBjb25zdCBzYW1wbGVzID0gTWF0aC5tYXgodywgNDAwKTsKICAgICAgZm9yKGxldCBpPTA7aTw9c2FtcGxlcztpKyspewogICAgICAgIGNvbnN0IHB4ID0gKGkvc2FtcGxlcykqdzsKICAgICAgICBjb25zdCB3eCA9IHZpZXdwb3J0LnB4VG9Xb3JsZFgocHgpOwogICAgICAgIGxldCB3eTsKICAgICAgICB0cnl7IHd5ID0gcm93LmNvbXBpbGVkLmV2YWx1YXRlKE9iamVjdC5hc3NpZ24oe3g6d3h9LCBzY29wZSkpOyB9CiAgICAgICAgY2F0Y2goZSl7IHd5ID0gTmFOOyB9CiAgICAgICAgaWYodHlwZW9mIHd5ICE9PSAnbnVtYmVyJyB8fCAhaXNGaW5pdGUod3kpKXsKICAgICAgICAgIHN0YXJ0ZWQgPSBmYWxzZTsKICAgICAgICAgIGNvbnRpbnVlOwogICAgICAgIH0KICAgICAgICBjb25zdCBweSA9IHZpZXdwb3J0LndvcmxkVG9QeFkod3kpOwogICAgICAgIGlmKCFzdGFydGVkKXsKICAgICAgICAgIGN0eC5tb3ZlVG8ocHgscHkpOwogICAgICAgICAgc3RhcnRlZCA9IHRydWU7CiAgICAgICAgfSBlbHNlIHsKICAgICAgICAgIC8vIGJyZWFrIG9uIGh1Z2UganVtcHMgKGFzeW1wdG90ZXMpCiAgICAgICAgICBpZihwcmV2WSE9PW51bGwgJiYgTWF0aC5hYnMocHktcHJldlkpID4gdmlld3BvcnQuaCoxLjUpewogICAgICAgICAgICBjdHgubW92ZVRvKHB4LHB5KTsKICAgICAgICAgIH0gZWxzZSB7CiAgICAgICAgICAgIGN0eC5saW5lVG8ocHgscHkpOwogICAgICAgICAgfQogICAgICAgIH0KICAgICAgICBwcmV2WSA9IHB5OwogICAgICB9CiAgICAgIGN0eC5zdHJva2UoKTsKICAgICAgY3R4LnJlc3RvcmUoKTsKICAgIH0KCiAgICBmdW5jdGlvbiBwbG90UG9pbnQocm93KXsKICAgICAgbGV0IHgseTsKICAgICAgdHJ5ewogICAgICAgIHggPSByb3cuY29tcGlsZWRYLmV2YWx1YXRlKHNjb3BlKTsKICAgICAgICB5ID0gcm93LmNvbXBpbGVkWS5ldmFsdWF0ZShzY29wZSk7CiAgICAgIH1jYXRjaChlKXsgcmV0dXJuOyB9CiAgICAgIGlmKHR5cGVvZiB4IT09J251bWJlcid8fHR5cGVvZiB5IT09J251bWJlcid8fCFpc0Zpbml0ZSh4KXx8IWlzRmluaXRlKHkpKSByZXR1cm47CiAgICAgIGNvbnN0IHB4ID0gdmlld3BvcnQud29ybGRUb1B4WCh4KSwgcHkgPSB2aWV3cG9ydC53b3JsZFRvUHhZKHkpOwogICAgICBjdHguc2F2ZSgpOwogICAgICBjdHguZmlsbFN0eWxlID0gcm93LmNvbG9yOwogICAgICBjdHguYmVnaW5QYXRoKCk7CiAgICAgIGN0eC5hcmMocHgscHksNSwwLE1hdGguUEkqMik7CiAgICAgIGN0eC5maWxsKCk7CiAgICAgIGN0eC5zdHJva2VTdHlsZSA9ICcjZmZmJzsKICAgICAgY3R4LmxpbmVXaWR0aCA9IDEuNTsKICAgICAgY3R4LnN0cm9rZSgpOwogICAgICBjdHgucmVzdG9yZSgpOwogICAgfQoKICAgIGZ1bmN0aW9uIHBsb3RUYWJsZShyb3cpewogICAgICBjdHguc2F2ZSgpOwogICAgICBjdHguZmlsbFN0eWxlID0gcm93LmNvbG9yOwogICAgICBmb3IoY29uc3QgciBvZiByb3cudGFibGVEYXRhKXsKICAgICAgICBjb25zdCB4ID0gcGFyc2VGbG9hdChyLngpLCB5ID0gcGFyc2VGbG9hdChyLnkpOwogICAgICAgIGlmKCFpc0Zpbml0ZSh4KXx8IWlzRmluaXRlKHkpKSBjb250aW51ZTsKICAgICAgICBjb25zdCBweCA9IHZpZXdwb3J0LndvcmxkVG9QeFgoeCksIHB5ID0gdmlld3BvcnQud29ybGRUb1B4WSh5KTsKICAgICAgICBjdHguYmVnaW5QYXRoKCk7CiAgICAgICAgY3R4LmFyYyhweCxweSw0LjUsMCxNYXRoLlBJKjIpOwogICAgICAgIGN0eC5maWxsKCk7CiAgICAgIH0KICAgICAgY3R4LnJlc3RvcmUoKTsKICAgIH0KCiAgICBmdW5jdGlvbiBwbG90SW1wbGljaXRPckluZXF1YWxpdHkocm93KXsKICAgICAgY29uc3Qgc3RlcCA9IChyb3cudHlwZT09PSdpbmVxdWFsaXR5JykgPyA1IDogNDsKICAgICAgY29uc3QgZ3JpZCA9IGNvbXB1dGVHcmlkKHJvdy5jb21waWxlZCwgc2NvcGUsIHZpZXdwb3J0LCB2aWV3cG9ydC53LCB2aWV3cG9ydC5oLCBzdGVwKTsKICAgICAgaWYocm93LnR5cGU9PT0naW5lcXVhbGl0eScpewogICAgICAgIHNoYWRlSW5lcXVhbGl0eShjdHgsIGdyaWQsIHJvdy5vcCwgcm93LmNvbG9yKTsKICAgICAgfSBlbHNlIHsKICAgICAgICB0cmFjZUltcGxpY2l0R3JpZChjdHgsIGdyaWQsIHJvdy5jb2xvcik7CiAgICAgIH0KICAgIH0KCiAgICBmdW5jdGlvbiByZW5kZXIoKXsKICAgICAgZHJhd0dyaWQoKTsKICAgICAgZm9yKGNvbnN0IHJvdyBvZiBleHByZXNzaW9ucyl7CiAgICAgICAgaWYoIXJvdy52aXNpYmxlKSBjb250aW51ZTsKICAgICAgICB0cnl7CiAgICAgICAgICBpZihyb3cudHlwZT09PSdmdW5jdGlvbicgJiYgcm93LmNvbXBpbGVkKSBwbG90RnVuY3Rpb24ocm93KTsKICAgICAgICAgIGVsc2UgaWYocm93LnR5cGU9PT0ncG9pbnQnICYmIHJvdy5jb21waWxlZFgpIHBsb3RQb2ludChyb3cpOwogICAgICAgICAgZWxzZSBpZihyb3cudHlwZT09PSd0YWJsZScpIHBsb3RUYWJsZShyb3cpOwogICAgICAgICAgZWxzZSBpZigocm93LnR5cGU9PT0naW1wbGljaXQnfHxyb3cudHlwZT09PSdpbmVxdWFsaXR5JykgJiYgcm93LmNvbXBpbGVkKSBwbG90SW1wbGljaXRPckluZXF1YWxpdHkocm93KTsKICAgICAgICB9Y2F0Y2goZSl7IC8qIHNraXAgYnJva2VuIHBsb3Qgc2lsZW50bHksIGRvbid0IGNyYXNoIHRoZSByZW5kZXIgbG9vcCAqLyB9CiAgICAgIH0KICAgICAgZW1pdHRlci5lbWl0KCdyZW5kZXInLCBnZXRTdGF0ZSgpKTsKICAgIH0KCiAgICAvLyAtLS0tIHBhbiAvIHpvb20gaW50ZXJhY3Rpb24gLS0tLQogICAgbGV0IGRyYWdnaW5nID0gZmFsc2UsIGxhc3RYPTAsIGxhc3RZPTA7CiAgICBjYW52YXMuYWRkRXZlbnRMaXN0ZW5lcignbW91c2Vkb3duJywgKGUpPT57CiAgICAgIGRyYWdnaW5nID0gdHJ1ZTsgbGFzdFggPSBlLm9mZnNldFg7IGxhc3RZID0gZS5vZmZzZXRZOwogICAgICBjYW52YXMuc3R5bGUuY3Vyc29yPSdncmFiYmluZyc7CiAgICB9KTsKICAgIHdpbmRvdy5hZGRFdmVudExpc3RlbmVyKCdtb3VzZXVwJywgKCk9PnsgZHJhZ2dpbmc9ZmFsc2U7IGNhbnZhcy5zdHlsZS5jdXJzb3I9J2dyYWInOyB9KTsKICAgIHdpbmRvdy5hZGRFdmVudExpc3RlbmVyKCdtb3VzZW1vdmUnLCAoZSk9PnsKICAgICAgaWYoIWRyYWdnaW5nKSByZXR1cm47CiAgICAgIGNvbnN0IHJlY3QgPSBjYW52YXMuZ2V0Qm91bmRpbmdDbGllbnRSZWN0KCk7CiAgICAgIGNvbnN0IHggPSBlLmNsaWVudFgtcmVjdC5sZWZ0LCB5ID0gZS5jbGllbnRZLXJlY3QudG9wOwogICAgICB2aWV3cG9ydC5wYW4oeC1sYXN0WCwgeS1sYXN0WSk7CiAgICAgIGxhc3RYPXg7IGxhc3RZPXk7CiAgICAgIHJlbmRlcigpOwogICAgfSk7CiAgICBjYW52YXMuc3R5bGUuY3Vyc29yPSdncmFiJzsKICAgIGNhbnZhcy5hZGRFdmVudExpc3RlbmVyKCd3aGVlbCcsIChlKT0+ewogICAgICBlLnByZXZlbnREZWZhdWx0KCk7CiAgICAgIGNvbnN0IHJlY3QgPSBjYW52YXMuZ2V0Qm91bmRpbmdDbGllbnRSZWN0KCk7CiAgICAgIGNvbnN0IHB4ID0gZS5jbGllbnRYLXJlY3QubGVmdCwgcHkgPSBlLmNsaWVudFktcmVjdC50b3A7CiAgICAgIGNvbnN0IGZhY3RvciA9IE1hdGgucG93KDEuMDAxNSwgLWUuZGVsdGFZKTsKICAgICAgdmlld3BvcnQuem9vbUF0KHB4LHB5LGZhY3Rvcik7CiAgICAgIHJlbmRlcigpOwogICAgfSwge3Bhc3NpdmU6ZmFsc2V9KTsKICAgIHpvb21Db250cm9scy5hZGRFdmVudExpc3RlbmVyKCdjbGljaycsIChlKT0+ewogICAgICBjb25zdCBidG4gPSBlLnRhcmdldC5jbG9zZXN0KCdidXR0b24nKTsgaWYoIWJ0bikgcmV0dXJuOwogICAgICBjb25zdCBkaXIgPSBidG4uZGF0YXNldC56b29tOwogICAgICB2aWV3cG9ydC56b29tQXQodmlld3BvcnQudy8yLCB2aWV3cG9ydC5oLzIsIGRpcj09PSdpbic/MS40OjEvMS40KTsKICAgICAgcmVuZGVyKCk7CiAgICB9KTsKCiAgICBjb25zdCBybyA9IG5ldyBSZXNpemVPYnNlcnZlcigoKT0+cmVzaXplQ2FudmFzKCkpOwogICAgcm8ub2JzZXJ2ZShjYW52YXNXcmFwKTsKCiAgICAvLyAtLS0tIGV4cHJlc3Npb24gbGlzdCByZW5kZXJpbmcgLS0tLQogICAgZnVuY3Rpb24gY29sb3JQb3BvdmVyKGFuY2hvckVsLCByb3cpewogICAgICBkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCcuZ2MtY29sb3ItcG9wb3ZlcicpLmZvckVhY2gocD0+cC5yZW1vdmUoKSk7CiAgICAgIGNvbnN0IHBvcCA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2RpdicpOwogICAgICBwb3AuY2xhc3NOYW1lID0gJ2djLWNvbG9yLXBvcG92ZXInOwogICAgICBQQUxFVFRFLmZvckVhY2goYz0+ewogICAgICAgIGNvbnN0IHN3ID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnZGl2Jyk7CiAgICAgICAgc3cuc3R5bGUuYmFja2dyb3VuZCA9IGM7CiAgICAgICAgc3cuYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCAoKT0+ewogICAgICAgICAgcm93LmNvbG9yID0gYzsKICAgICAgICAgIHBvcC5yZW1vdmUoKTsKICAgICAgICAgIHJlbmRlckxpc3QoKTsKICAgICAgICAgIHJlbmRlcigpOwogICAgICAgIH0pOwogICAgICAgIHBvcC5hcHBlbmRDaGlsZChzdyk7CiAgICAgIH0pOwogICAgICBhbmNob3JFbC5wYXJlbnRFbGVtZW50LmFwcGVuZENoaWxkKHBvcCk7CiAgICAgIGNvbnN0IGNsb3NlSGFuZGxlciA9IChldik9PnsKICAgICAgICBpZighcG9wLmNvbnRhaW5zKGV2LnRhcmdldCkgJiYgZXYudGFyZ2V0IT09YW5jaG9yRWwpewogICAgICAgICAgcG9wLnJlbW92ZSgpOwogICAgICAgICAgZG9jdW1lbnQucmVtb3ZlRXZlbnRMaXN0ZW5lcignbW91c2Vkb3duJywgY2xvc2VIYW5kbGVyKTsKICAgICAgICB9CiAgICAgIH07CiAgICAgIHNldFRpbWVvdXQoKCk9PmRvY3VtZW50LmFkZEV2ZW50TGlzdGVuZXIoJ21vdXNlZG93bicsIGNsb3NlSGFuZGxlciksIDApOwogICAgfQoKICAgIGZ1bmN0aW9uIGJ1aWxkVGFibGVET00ocm93KXsKICAgICAgY29uc3Qgd3JhcCA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2RpdicpOwogICAgICBjb25zdCB0YWJsZSA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ3RhYmxlJyk7CiAgICAgIHRhYmxlLmNsYXNzTmFtZSA9ICdnYy10YWJsZSc7CiAgICAgIHRhYmxlLmlubmVySFRNTCA9ICc8dGhlYWQ+PHRyPjx0aD54PC90aD48dGg+eTwvdGg+PHRoPjwvdGg+PC90cj48L3RoZWFkPic7CiAgICAgIGNvbnN0IHRib2R5ID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgndGJvZHknKTsKICAgICAgcm93LnRhYmxlRGF0YS5mb3JFYWNoKChyLCBpZHgpPT57CiAgICAgICAgY29uc3QgdHIgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCd0cicpOwogICAgICAgIGNvbnN0IHRkWCA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ3RkJyk7CiAgICAgICAgY29uc3QgaW5YID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnaW5wdXQnKTsKICAgICAgICBpblgudmFsdWUgPSByLng7CiAgICAgICAgaW5YLmFkZEV2ZW50TGlzdGVuZXIoJ2lucHV0JywgKCk9Pnsgci54ID0gaW5YLnZhbHVlOyBvblRhYmxlQ2hhbmdlZChyb3cpOyB9KTsKICAgICAgICB0ZFguYXBwZW5kQ2hpbGQoaW5YKTsKICAgICAgICBjb25zdCB0ZFkgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCd0ZCcpOwogICAgICAgIGNvbnN0IGluWSA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2lucHV0Jyk7CiAgICAgICAgaW5ZLnZhbHVlID0gci55OwogICAgICAgIGluWS5hZGRFdmVudExpc3RlbmVyKCdpbnB1dCcsICgpPT57IHIueSA9IGluWS52YWx1ZTsgb25UYWJsZUNoYW5nZWQocm93KTsgfSk7CiAgICAgICAgdGRZLmFwcGVuZENoaWxkKGluWSk7CiAgICAgICAgY29uc3QgdGREZWwgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCd0ZCcpOwogICAgICAgIGNvbnN0IGRlbEJ0biA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2J1dHRvbicpOwogICAgICAgIGRlbEJ0bi5jbGFzc05hbWU9J2djLWljb24tYnRuJzsgZGVsQnRuLnRleHRDb250ZW50PSfDlyc7IGRlbEJ0bi50aXRsZT0nUmVtb3ZlIHJvdyc7CiAgICAgICAgZGVsQnRuLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgKCk9PnsKICAgICAgICAgIHJvdy50YWJsZURhdGEuc3BsaWNlKGlkeCwxKTsKICAgICAgICAgIG9uVGFibGVDaGFuZ2VkKHJvdyk7CiAgICAgICAgICByZW5kZXJMaXN0KCk7CiAgICAgICAgfSk7CiAgICAgICAgdGREZWwuYXBwZW5kQ2hpbGQoZGVsQnRuKTsKICAgICAgICB0ci5hcHBlbmRDaGlsZCh0ZFgpOyB0ci5hcHBlbmRDaGlsZCh0ZFkpOyB0ci5hcHBlbmRDaGlsZCh0ZERlbCk7CiAgICAgICAgdGJvZHkuYXBwZW5kQ2hpbGQodHIpOwogICAgICB9KTsKICAgICAgdGFibGUuYXBwZW5kQ2hpbGQodGJvZHkpOwogICAgICB3cmFwLmFwcGVuZENoaWxkKHRhYmxlKTsKCiAgICAgIGNvbnN0IGFjdGlvbnMgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdkaXYnKTsKICAgICAgYWN0aW9ucy5jbGFzc05hbWUgPSAnZ2MtdGFibGUtYWN0aW9ucyc7CiAgICAgIGNvbnN0IGFkZEJ0biA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2J1dHRvbicpOwogICAgICBhZGRCdG4udGV4dENvbnRlbnQgPSAnKyByb3cnOwogICAgICBhZGRCdG4uYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCAoKT0+eyByb3cudGFibGVEYXRhLnB1c2goe3g6JycseTonJ30pOyByZW5kZXJMaXN0KCk7IH0pOwogICAgICBjb25zdCBsaW5CdG4gPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdidXR0b24nKTsKICAgICAgbGluQnRuLnRleHRDb250ZW50ID0gJ0xpbmVhciBmaXQnOwogICAgICBsaW5CdG4uYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCAoKT0+YWRkUmVncmVzc2lvbihyb3csJ2xpbmVhcicpKTsKICAgICAgY29uc3QgcXVhZEJ0biA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2J1dHRvbicpOwogICAgICBxdWFkQnRuLnRleHRDb250ZW50ID0gJ1F1YWRyYXRpYyBmaXQnOwogICAgICBxdWFkQnRuLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgKCk9PmFkZFJlZ3Jlc3Npb24ocm93LCdxdWFkcmF0aWMnKSk7CiAgICAgIGFjdGlvbnMuYXBwZW5kQ2hpbGQoYWRkQnRuKTsgYWN0aW9ucy5hcHBlbmRDaGlsZChsaW5CdG4pOyBhY3Rpb25zLmFwcGVuZENoaWxkKHF1YWRCdG4pOwogICAgICB3cmFwLmFwcGVuZENoaWxkKGFjdGlvbnMpOwogICAgICByZXR1cm4gd3JhcDsKICAgIH0KCiAgICBmdW5jdGlvbiBhZGRSZWdyZXNzaW9uKHRhYmxlUm93LCBraW5kKXsKICAgICAgY29uc3QgZXhpc3RpbmcgPSBleHByZXNzaW9ucy5maW5kKGU9PmUucmVncmVzc2lvbk9mPT09dGFibGVSb3cuaWQgJiYgZS5yZWdyZXNzaW9uVHlwZT09PWtpbmQpOwogICAgICBpZihleGlzdGluZykgcmV0dXJuOwogICAgICBjb25zdCByb3cgPSBuZXdSb3coeyByZWdyZXNzaW9uT2Y6IHRhYmxlUm93LmlkLCByZWdyZXNzaW9uVHlwZToga2luZCwgY29sb3I6IG5leHRDb2xvcigpIH0pOwogICAgICBjb25zdCBpZHggPSBleHByZXNzaW9ucy5pbmRleE9mKHRhYmxlUm93KTsKICAgICAgZXhwcmVzc2lvbnMuc3BsaWNlKGlkeCsxLCAwLCByb3cpOwogICAgICBvblRhYmxlQ2hhbmdlZCh0YWJsZVJvdyk7CiAgICAgIHJlbmRlckxpc3QoKTsKICAgIH0KCiAgICBmdW5jdGlvbiBvblRhYmxlQ2hhbmdlZCh0YWJsZVJvdyl7CiAgICAgIGV4cHJlc3Npb25zLmZpbHRlcihlPT5lLnJlZ3Jlc3Npb25PZj09PXRhYmxlUm93LmlkKS5mb3JFYWNoKHJlY29tcHV0ZVJlZ3Jlc3Npb24pOwogICAgICByZW5kZXIoKTsKICAgICAgZW1pdENoYW5nZSgpOwogICAgfQoKICAgIGZ1bmN0aW9uIGJ1aWxkU2xpZGVyRE9NKHJvdywgdmFyTmFtZSl7CiAgICAgIGNvbnN0IHdyYXAgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdkaXYnKTsKICAgICAgd3JhcC5jbGFzc05hbWUgPSAnZ2Mtc2xpZGVyLXdyYXAnOwogICAgICBjb25zdCBtaW5JbiA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2lucHV0Jyk7CiAgICAgIG1pbkluLmNsYXNzTmFtZT0nZ2Mtc2xpZGVyLW51bSc7IG1pbkluLnZhbHVlID0gcm93LnNsaWRlck1pbjsKICAgICAgY29uc3QgcmFuZ2UgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdpbnB1dCcpOwogICAgICByYW5nZS50eXBlPSdyYW5nZSc7CiAgICAgIHJhbmdlLm1pbiA9IHJvdy5zbGlkZXJNaW47IHJhbmdlLm1heCA9IHJvdy5zbGlkZXJNYXg7IHJhbmdlLnN0ZXAgPSByb3cuc2xpZGVyU3RlcDsKICAgICAgcmFuZ2UudmFsdWUgPSBzY29wZVt2YXJOYW1lXSAhPT0gdW5kZWZpbmVkID8gc2NvcGVbdmFyTmFtZV0gOiByb3cuc2xpZGVyVmFsdWU7CiAgICAgIGNvbnN0IG1heEluID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnaW5wdXQnKTsKICAgICAgbWF4SW4uY2xhc3NOYW1lPSdnYy1zbGlkZXItbnVtJzsgbWF4SW4udmFsdWUgPSByb3cuc2xpZGVyTWF4OwogICAgICBjb25zdCB2YWxTcGFuID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnc3BhbicpOwogICAgICB2YWxTcGFuLmNsYXNzTmFtZT0nZ2Mtc2xpZGVyLXZhbCc7CiAgICAgIHZhbFNwYW4udGV4dENvbnRlbnQgPSB2YXJOYW1lKycgPSAnK3BhcnNlRmxvYXQocmFuZ2UudmFsdWUpLnRvRml4ZWQoMik7CgogICAgICByYW5nZS5hZGRFdmVudExpc3RlbmVyKCdpbnB1dCcsICgpPT57CiAgICAgICAgc2NvcGVbdmFyTmFtZV0gPSBwYXJzZUZsb2F0KHJhbmdlLnZhbHVlKTsKICAgICAgICByb3cuc2xpZGVyVmFsdWUgPSBzY29wZVt2YXJOYW1lXTsKICAgICAgICB2YWxTcGFuLnRleHRDb250ZW50ID0gdmFyTmFtZSsnID0gJytzY29wZVt2YXJOYW1lXS50b0ZpeGVkKDIpOwogICAgICAgIHJlY29tcHV0ZUFsbFRhYmxlc0FuZFJlZ3Jlc3Npb25zKCk7CiAgICAgICAgcmVmcmVzaFZhbHVlQmFkZ2VzKCk7CiAgICAgICAgcmVuZGVyKCk7CiAgICAgICAgZW1pdENoYW5nZSgpOwogICAgICB9KTsKICAgICAgbWluSW4uYWRkRXZlbnRMaXN0ZW5lcignY2hhbmdlJywgKCk9Pnsgcm93LnNsaWRlck1pbiA9IHBhcnNlRmxvYXQobWluSW4udmFsdWUpfHwwOyByYW5nZS5taW49cm93LnNsaWRlck1pbjsgfSk7CiAgICAgIG1heEluLmFkZEV2ZW50TGlzdGVuZXIoJ2NoYW5nZScsICgpPT57IHJvdy5zbGlkZXJNYXggPSBwYXJzZUZsb2F0KG1heEluLnZhbHVlKXx8MTA7IHJhbmdlLm1heD1yb3cuc2xpZGVyTWF4OyB9KTsKCiAgICAgIHdyYXAuYXBwZW5kQ2hpbGQobWluSW4pOyB3cmFwLmFwcGVuZENoaWxkKHJhbmdlKTsgd3JhcC5hcHBlbmRDaGlsZChtYXhJbik7IHdyYXAuYXBwZW5kQ2hpbGQodmFsU3Bhbik7CiAgICAgIHJldHVybiB3cmFwOwogICAgfQoKICAgIGZ1bmN0aW9uIHJlY29tcHV0ZUFsbFRhYmxlc0FuZFJlZ3Jlc3Npb25zKCl7CiAgICAgIGV4cHJlc3Npb25zLmZpbHRlcihlPT5lLnJlZ3Jlc3Npb25PZikuZm9yRWFjaChyZWNvbXB1dGVSZWdyZXNzaW9uKTsKICAgIH0KCiAgICBmdW5jdGlvbiByZW5kZXJSb3cocm93KXsKICAgICAgY29uc3QgZWwgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdkaXYnKTsKICAgICAgZWwuY2xhc3NOYW1lID0gJ2djLXJvdycgKyAocm93LnR5cGU9PT0nZXJyb3InICYmIHJvdy50ZXh0LnRyaW0oKSE9PScnID8gJyBnYy1yb3ctZXJyb3InOicnKSArICghcm93LnZpc2libGU/JyBnYy1oaWRkZW4nOicnKTsKICAgICAgZWwuZGF0YXNldC5yb3dJZCA9IHJvdy5pZDsKCiAgICAgIGNvbnN0IHN3YXRjaCA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2RpdicpOwogICAgICBzd2F0Y2guY2xhc3NOYW1lID0gJ2djLXN3YXRjaCc7CiAgICAgIHN3YXRjaC5zdHlsZS5iYWNrZ3JvdW5kID0gcm93LmNvbG9yOwogICAgICBzd2F0Y2guYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCAoZSk9PmNvbG9yUG9wb3Zlcihzd2F0Y2gscm93KSk7CiAgICAgIGVsLmFwcGVuZENoaWxkKHN3YXRjaCk7CgogICAgICBjb25zdCBtYWluID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnZGl2Jyk7CiAgICAgIG1haW4uY2xhc3NOYW1lID0gJ2djLXJvdy1tYWluJzsKCiAgICAgIGlmKHJvdy5pc1RhYmxlKXsKICAgICAgICBtYWluLmFwcGVuZENoaWxkKGJ1aWxkVGFibGVET00ocm93KSk7CiAgICAgIH0gZWxzZSB7CiAgICAgICAgY29uc3QgaW5wdXQgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdpbnB1dCcpOwogICAgICAgIGlucHV0LmNsYXNzTmFtZSA9ICdnYy1pbnB1dCc7CiAgICAgICAgaW5wdXQucGxhY2Vob2xkZXIgPSAneSA9IGYoeCknOwogICAgICAgIGlucHV0LnZhbHVlID0gcm93LnRleHQ7CiAgICAgICAgaW5wdXQucmVhZE9ubHkgPSByZWFkT25seSB8fCAhIXJvdy5yZWdyZXNzaW9uT2Y7CiAgICAgICAgaWYocm93LnR5cGUgPT09ICdlcnJvcicgJiYgcm93LmVycm9yKSBpbnB1dC50aXRsZSA9IHJvdy5lcnJvcjsKICAgICAgICBpbnB1dC5hZGRFdmVudExpc3RlbmVyKCdmb2N1cycsICgpPT57IGxhc3RGb2N1c2VkSW5wdXQgPSBpbnB1dDsgfSk7CiAgICAgICAgaW5wdXQuYWRkRXZlbnRMaXN0ZW5lcignaW5wdXQnLCAoKT0+ewogICAgICAgICAgcm93LnRleHQgPSBpbnB1dC52YWx1ZTsKICAgICAgICAgIHJvdy5kaXNtaXNzZWRTbGlkZXIgPSBmYWxzZTsKICAgICAgICAgIGNvbnN0IGNhcmV0ID0geyByb3dJZDogcm93LmlkLCBzdGFydDogaW5wdXQuc2VsZWN0aW9uU3RhcnQsIGVuZDogaW5wdXQuc2VsZWN0aW9uRW5kIH07CiAgICAgICAgICByZWNsYXNzaWZ5QWxsKCk7CiAgICAgICAgICByZW5kZXIoKTsKICAgICAgICAgIHJlbmRlckxpc3RQcmVzZXJ2aW5nRm9jdXMoY2FyZXQpOwogICAgICAgICAgZW1pdENoYW5nZSgpOwogICAgICAgIH0pOwogICAgICAgIGNvbnN0IGlucHV0Um93ID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnZGl2Jyk7CiAgICAgICAgaW5wdXRSb3cuY2xhc3NOYW1lID0gJ2djLWlucHV0LXJvdyc7CiAgICAgICAgaW5wdXRSb3cuYXBwZW5kQ2hpbGQoaW5wdXQpOwogICAgICAgIGlmKHJvdy50eXBlID09PSAndmFsdWUnKXsKICAgICAgICAgIGNvbnN0IGJhZGdlID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnc3BhbicpOwogICAgICAgICAgYmFkZ2UuY2xhc3NOYW1lID0gJ2djLXZhbHVlLWJhZGdlJzsKICAgICAgICAgIGJhZGdlLnRleHRDb250ZW50ID0gY29tcHV0ZVZhbHVlQmFkZ2VUZXh0KHJvdyk7CiAgICAgICAgICBiYWRnZUVsc1tyb3cuaWRdID0gYmFkZ2U7CiAgICAgICAgICBpbnB1dFJvdy5hcHBlbmRDaGlsZChiYWRnZSk7CiAgICAgICAgfQogICAgICAgIG1haW4uYXBwZW5kQ2hpbGQoaW5wdXRSb3cpOwoKICAgICAgICAvLyBzbGlkZXIgb2ZmZXIgZm9yIGZyZWUgdmFycyBvd25lZCBieSB0aGlzIHJvdyBhbmQgbm90IGRpc21pc3NlZAogICAgICAgIGlmKHJvdy5mcmVlVmFycyAmJiByb3cuZnJlZVZhcnMuc2l6ZSAmJiAhcm93LmRpc21pc3NlZFNsaWRlcil7CiAgICAgICAgICByb3cuZnJlZVZhcnMuZm9yRWFjaCh2PT57CiAgICAgICAgICAgIGlmKHNsaWRlck93bmVyW3ZdID09PSByb3cuaWQpewogICAgICAgICAgICAgIG1haW4uYXBwZW5kQ2hpbGQoYnVpbGRTbGlkZXJET00ocm93LCB2KSk7CiAgICAgICAgICAgIH0KICAgICAgICAgIH0pOwogICAgICAgIH0KICAgICAgfQogICAgICBlbC5hcHBlbmRDaGlsZChtYWluKTsKCiAgICAgIGNvbnN0IGNvbnRyb2xzID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnZGl2Jyk7CiAgICAgIGNvbnRyb2xzLmNsYXNzTmFtZSA9ICdnYy1yb3ctY29udHJvbHMnOwogICAgICBjb25zdCB0b2dnbGVCdG4gPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdidXR0b24nKTsKICAgICAgdG9nZ2xlQnRuLmNsYXNzTmFtZT0nZ2MtaWNvbi1idG4nOyB0b2dnbGVCdG4udGl0bGU9J1Nob3cvaGlkZSc7CiAgICAgIHRvZ2dsZUJ0bi50ZXh0Q29udGVudCA9IHJvdy52aXNpYmxlID8gJ+KXiScgOiAn4peLJzsKICAgICAgdG9nZ2xlQnRuLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgKCk9Pnsgcm93LnZpc2libGU9IXJvdy52aXNpYmxlOyByZW5kZXJMaXN0KCk7IHJlbmRlcigpOyBlbWl0Q2hhbmdlKCk7IH0pOwogICAgICBjb25zdCBkZWxCdG4gPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdidXR0b24nKTsKICAgICAgZGVsQnRuLmNsYXNzTmFtZT0nZ2MtaWNvbi1idG4nOyBkZWxCdG4udGl0bGU9J0RlbGV0ZSc7IGRlbEJ0bi50ZXh0Q29udGVudD0n4pyVJzsKICAgICAgZGVsQnRuLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgKCk9PnsKICAgICAgICBleHByZXNzaW9ucyA9IGV4cHJlc3Npb25zLmZpbHRlcihlPT5lLmlkIT09cm93LmlkICYmIGUucmVncmVzc2lvbk9mIT09cm93LmlkKTsKICAgICAgICByZWNsYXNzaWZ5QWxsKCk7CiAgICAgICAgcmVuZGVyTGlzdCgpOyByZW5kZXIoKTsgZW1pdENoYW5nZSgpOwogICAgICB9KTsKICAgICAgY29udHJvbHMuYXBwZW5kQ2hpbGQodG9nZ2xlQnRuKTsgY29udHJvbHMuYXBwZW5kQ2hpbGQoZGVsQnRuKTsKICAgICAgZWwuYXBwZW5kQ2hpbGQoY29udHJvbHMpOwoKICAgICAgcmV0dXJuIGVsOwogICAgfQoKICAgIGZ1bmN0aW9uIHJlbmRlckxpc3QoKXsKICAgICAgbGlzdC5pbm5lckhUTUwgPSAnJzsKICAgICAgYmFkZ2VFbHMgPSB7fTsKICAgICAgZXhwcmVzc2lvbnMuZm9yRWFjaChyb3c9Pmxpc3QuYXBwZW5kQ2hpbGQocmVuZGVyUm93KHJvdykpKTsKCiAgICAgIGNvbnN0IGFkZFJvd0VsID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnYnV0dG9uJyk7CiAgICAgIGFkZFJvd0VsLnR5cGUgPSAnYnV0dG9uJzsKICAgICAgYWRkUm93RWwuY2xhc3NOYW1lID0gJ2djLWFkZC1yb3cnOwogICAgICBhZGRSb3dFbC5pbm5lckhUTUwgPSAnPHNwYW4gc3R5bGU9ImZvbnQtc2l6ZToxNnB4OyI+Kzwvc3Bhbj4gQWRkIGV4cHJlc3Npb24nOwogICAgICBhZGRSb3dFbC5hZGRFdmVudExpc3RlbmVyKCdjbGljaycsICgpPT57CiAgICAgICAgY29uc3Qgcm93ID0gbmV3Um93KHt9KTsKICAgICAgICBleHByZXNzaW9ucy5wdXNoKHJvdyk7CiAgICAgICAgcmVuZGVyTGlzdCgpOwogICAgICAgIGNvbnN0IGlucHV0cyA9IGxpc3QucXVlcnlTZWxlY3RvckFsbCgnLmdjLWlucHV0Jyk7CiAgICAgICAgaWYoaW5wdXRzLmxlbmd0aCkgaW5wdXRzW2lucHV0cy5sZW5ndGgtMV0uZm9jdXMoKTsKICAgICAgfSk7CiAgICAgIGxpc3QuYXBwZW5kQ2hpbGQoYWRkUm93RWwpOwoKICAgICAgY29uc3QgbWVudSA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2RpdicpOwogICAgICBtZW51LmNsYXNzTmFtZSA9ICdnYy1hZGQtbWVudSc7CiAgICAgIGNvbnN0IHRhYmxlQnRuID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnYnV0dG9uJyk7CiAgICAgIHRhYmxlQnRuLnRleHRDb250ZW50ID0gJysgVGFibGUnOwogICAgICB0YWJsZUJ0bi5hZGRFdmVudExpc3RlbmVyKCdjbGljaycsICgpPT57CiAgICAgICAgY29uc3Qgcm93ID0gbmV3Um93KHsgaXNUYWJsZTp0cnVlLCB0eXBlOid0YWJsZScgfSk7CiAgICAgICAgZXhwcmVzc2lvbnMucHVzaChyb3cpOwogICAgICAgIHJlbmRlckxpc3QoKTsgcmVuZGVyKCk7CiAgICAgIH0pOwogICAgICBtZW51LmFwcGVuZENoaWxkKHRhYmxlQnRuKTsKICAgICAgbGlzdC5hcHBlbmRDaGlsZChtZW51KTsKICAgIH0KCiAgICBmdW5jdGlvbiByZW5kZXJMaXN0UHJlc2VydmluZ0ZvY3VzKGNhcmV0KXsKICAgICAgcmVuZGVyTGlzdCgpOwogICAgICBpZighY2FyZXQpIHJldHVybjsKICAgICAgY29uc3Qgcm93RWwgPSBsaXN0LnF1ZXJ5U2VsZWN0b3IoYFtkYXRhLXJvdy1pZD0iJHtjYXJldC5yb3dJZH0iXSAuZ2MtaW5wdXRgKTsKICAgICAgaWYocm93RWwpewogICAgICAgIHJvd0VsLmZvY3VzKCk7CiAgICAgICAgdHJ5eyByb3dFbC5zZXRTZWxlY3Rpb25SYW5nZShjYXJldC5zdGFydCwgY2FyZXQuZW5kKTsgfWNhdGNoKGUpe30KICAgICAgICBsYXN0Rm9jdXNlZElucHV0ID0gcm93RWw7CiAgICAgIH0KICAgIH0KCiAgICAvLyAtLS0tIHRvb2xiYXIgKFBoYXNlIDcpIC0tLS0KICAgIGZ1bmN0aW9uIGluc2VydFNuaXBwZXQoYmVmb3JlLCBhZnRlcil7CiAgICAgIGNvbnN0IGlucHV0ID0gbGFzdEZvY3VzZWRJbnB1dDsKICAgICAgaWYoIWlucHV0IHx8ICFkb2N1bWVudC5ib2R5LmNvbnRhaW5zKGlucHV0KSkgcmV0dXJuOwogICAgICBjb25zdCBzdGFydCA9IGlucHV0LnNlbGVjdGlvblN0YXJ0LCBlbmQgPSBpbnB1dC5zZWxlY3Rpb25FbmQ7CiAgICAgIGNvbnN0IHZhbCA9IGlucHV0LnZhbHVlOwogICAgICBpbnB1dC52YWx1ZSA9IHZhbC5zbGljZSgwLHN0YXJ0KSArIGJlZm9yZSArIGFmdGVyICsgdmFsLnNsaWNlKGVuZCk7CiAgICAgIGNvbnN0IGN1cnNvciA9IHN0YXJ0ICsgYmVmb3JlLmxlbmd0aDsKICAgICAgaW5wdXQuZm9jdXMoKTsKICAgICAgaW5wdXQuc2V0U2VsZWN0aW9uUmFuZ2UoY3Vyc29yLCBjdXJzb3IpOwogICAgICBpbnB1dC5kaXNwYXRjaEV2ZW50KG5ldyBFdmVudCgnaW5wdXQnKSk7CiAgICB9CgogICAgLy8gLS0tLSBmdW5jdGlvbiByZWZlcmVuY2UgbWVudSAtLS0tCiAgICBjb25zdCBGVU5DVElPTl9NRU5VX1NFQ1RJT05TID0gWwogICAgICB7IHRpdGxlOidMb2dhcml0aG1zJywgaXRlbXM6WwogICAgICAgIHtsYWJlbDonbG9nKHgpJywgYmVmb3JlOidsb2coJywgYWZ0ZXI6JyknfSwKICAgICAgICB7bGFiZWw6J2xuKHgpJywgYmVmb3JlOidsbignLCBhZnRlcjonKSd9LAogICAgICBdfSwKICAgICAgeyB0aXRsZTonVHJpZ29ub21ldHJ5JywgaXRlbXM6WwogICAgICAgIHtsYWJlbDonc2luKHgpJywgYmVmb3JlOidzaW4oJywgYWZ0ZXI6JyknfSwKICAgICAgICB7bGFiZWw6J2Nvcyh4KScsIGJlZm9yZTonY29zKCcsIGFmdGVyOicpJ30sCiAgICAgICAge2xhYmVsOid0YW4oeCknLCBiZWZvcmU6J3RhbignLCBhZnRlcjonKSd9LAogICAgICAgIHtsYWJlbDonc2lu4oG7wrkoeCknLCBiZWZvcmU6J2FzaW4oJywgYWZ0ZXI6JyknfSwKICAgICAgICB7bGFiZWw6J2Nvc+KBu8K5KHgpJywgYmVmb3JlOidhY29zKCcsIGFmdGVyOicpJ30sCiAgICAgICAge2xhYmVsOid0YW7igbvCuSh4KScsIGJlZm9yZTonYXRhbignLCBhZnRlcjonKSd9LAogICAgICAgIHtsYWJlbDonc2VjKHgpJywgYmVmb3JlOidzZWMoJywgYWZ0ZXI6JyknfSwKICAgICAgICB7bGFiZWw6J2NzYyh4KScsIGJlZm9yZTonY3NjKCcsIGFmdGVyOicpJ30sCiAgICAgICAge2xhYmVsOidjb3QoeCknLCBiZWZvcmU6J2NvdCgnLCBhZnRlcjonKSd9LAogICAgICBdfSwKICAgICAgeyB0aXRsZTonUm9vdHMgJiBQb3dlcnMnLCBpdGVtczpbCiAgICAgICAge2xhYmVsOifiiJp4JywgYmVmb3JlOidzcXJ0KCcsIGFmdGVyOicpJ30sCiAgICAgICAge2xhYmVsOifiiJt4JywgYmVmb3JlOidjYnJ0KCcsIGFmdGVyOicpJ30sCiAgICAgICAge2xhYmVsOifigb/iiJp4JywgYmVmb3JlOidudGhSb290KCcsIGFmdGVyOicsbiknfSwKICAgICAgICB7bGFiZWw6J3jCsicsIGJlZm9yZTonXignLCBhZnRlcjonKSd9LAogICAgICAgIHtsYWJlbDoneMq4JywgYmVmb3JlOideKCcsIGFmdGVyOicpJ30sCiAgICAgICAge2xhYmVsOidhL2InLCBiZWZvcmU6JygnLCBhZnRlcjonKS8oKSd9LAogICAgICBdfSwKICAgICAgeyB0aXRsZTonU3ltYm9scycsIGl0ZW1zOlsKICAgICAgICB7bGFiZWw6JygnLCBiZWZvcmU6JygnLCBhZnRlcjonJ30sCiAgICAgICAge2xhYmVsOicpJywgYmVmb3JlOicpJywgYWZ0ZXI6Jyd9LAogICAgICAgIHtsYWJlbDon4omkJywgYmVmb3JlOic8PScsIGFmdGVyOicnfSwKICAgICAgICB7bGFiZWw6J+KJpScsIGJlZm9yZTonPj0nLCBhZnRlcjonJ30sCiAgICAgICAge2xhYmVsOic8JywgYmVmb3JlOic8JywgYWZ0ZXI6Jyd9LAogICAgICAgIHtsYWJlbDonPicsIGJlZm9yZTonPicsIGFmdGVyOicnfSwKICAgICAgXX0sCiAgICAgIHsgdGl0bGU6J0NhbGN1bHVzJywgaXRlbXM6WwogICAgICAgIHtsYWJlbDonZC9keCguLi4pJywgYmVmb3JlOidkL2R4KCcsIGFmdGVyOicpJ30sCiAgICAgICAge2xhYmVsOidkwrIvZHjCsiguLi4pJywgYmVmb3JlOidkwrIvZHjCsignLCBhZnRlcjonKSd9LAogICAgICAgIHtsYWJlbDon4oirKGV4cHIseCxhLGIpJywgYmVmb3JlOifiiKsoJywgYWZ0ZXI6Jyx4LDAsMSknfSwKICAgICAgICB7bGFiZWw6J+KIqyhleHByKSBkeCcsIGJlZm9yZTon4oirKCcsIGFmdGVyOicpJywgdGFnOidub3QgeWV0IHN1cHBvcnRlZCd9LAogICAgICAgIHtsYWJlbDonbGltKGV4cHIseCxhKScsIGJlZm9yZTonbGltKCcsIGFmdGVyOicseCwwKSd9LAogICAgICAgIHtsYWJlbDonzqMoZXhwcix4LGEsYiknLCBiZWZvcmU6J86jKCcsIGFmdGVyOicseCwxLDEwKSd9LAogICAgICAgIHtsYWJlbDonzqAoZXhwcix4LGEsYiknLCBiZWZvcmU6J86gKCcsIGFmdGVyOicseCwxLDUpJ30sCiAgICAgIF19LAogICAgICB7IHRpdGxlOidIeXBlcmJvbGljJywgaXRlbXM6WwogICAgICAgIHtsYWJlbDonc2luaCh4KScsIGJlZm9yZTonc2luaCgnLCBhZnRlcjonKSd9LAogICAgICAgIHtsYWJlbDonY29zaCh4KScsIGJlZm9yZTonY29zaCgnLCBhZnRlcjonKSd9LAogICAgICAgIHtsYWJlbDondGFuaCh4KScsIGJlZm9yZTondGFuaCgnLCBhZnRlcjonKSd9LAogICAgICAgIHtsYWJlbDonc2luaOKBu8K5KHgpJywgYmVmb3JlOidhc2luaCgnLCBhZnRlcjonKSd9LAogICAgICAgIHtsYWJlbDonY29zaOKBu8K5KHgpJywgYmVmb3JlOidhY29zaCgnLCBhZnRlcjonKSd9LAogICAgICAgIHtsYWJlbDondGFuaOKBu8K5KHgpJywgYmVmb3JlOidhdGFuaCgnLCBhZnRlcjonKSd9LAogICAgICBdfSwKICAgICAgeyB0aXRsZTonTnVtYmVyIFRoZW9yeScsIGl0ZW1zOlsKICAgICAgICB7bGFiZWw6J24hJywgYmVmb3JlOidmYWN0b3JpYWwoJywgYWZ0ZXI6JyknfSwKICAgICAgICB7bGFiZWw6J2djZChhLGIpJywgYmVmb3JlOidnY2QoJywgYWZ0ZXI6JywpJ30sCiAgICAgICAge2xhYmVsOidsY20oYSxiKScsIGJlZm9yZTonbGNtKCcsIGFmdGVyOicsKSd9LAogICAgICAgIHtsYWJlbDonbW9kKGEsYiknLCBiZWZvcmU6J21vZCgnLCBhZnRlcjonLCknfSwKICAgICAgICB7bGFiZWw6J2Zsb29yKHgpJywgYmVmb3JlOidmbG9vcignLCBhZnRlcjonKSd9LAogICAgICAgIHtsYWJlbDonY2VpbCh4KScsIGJlZm9yZTonY2VpbCgnLCBhZnRlcjonKSd9LAogICAgICAgIHtsYWJlbDoncm91bmQoeCknLCBiZWZvcmU6J3JvdW5kKCcsIGFmdGVyOicpJ30sCiAgICAgICAge2xhYmVsOiduQ3IobixyKScsIGJlZm9yZTonbkNyKCcsIGFmdGVyOicsKSd9LAogICAgICAgIHtsYWJlbDonblByKG4sciknLCBiZWZvcmU6J25QcignLCBhZnRlcjonLCknfSwKICAgICAgXX0sCiAgICAgIHsgdGl0bGU6J090aGVyJywgaXRlbXM6WwogICAgICAgIHtsYWJlbDonfHh8JywgYmVmb3JlOidhYnMoJywgYWZ0ZXI6JyknfSwKICAgICAgICB7bGFiZWw6J8+AJywgYmVmb3JlOidwaScsIGFmdGVyOicnfSwKICAgICAgICB7bGFiZWw6J2UnLCBiZWZvcmU6J2UnLCBhZnRlcjonJ30sCiAgICAgICAge2xhYmVsOidtaW4oYSxiKScsIGJlZm9yZTonbWluKCcsIGFmdGVyOicsKSd9LAogICAgICAgIHtsYWJlbDonbWF4KGEsYiknLCBiZWZvcmU6J21heCgnLCBhZnRlcjonLCknfSwKICAgICAgXX0sCiAgICBdOwoKICAgIGNvbnN0IGZuTWVudUJ0biA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2J1dHRvbicpOwogICAgZm5NZW51QnRuLnRleHRDb250ZW50ID0gJ8aSKHgpJzsKICAgIGZuTWVudUJ0bi50aXRsZSA9ICdGdW5jdGlvbiByZWZlcmVuY2UnOwogICAgZm5NZW51QnRuLnN0eWxlLmZvbnRXZWlnaHQgPSAnNjAwJzsKICAgIHRvb2xiYXIuYXBwZW5kQ2hpbGQoZm5NZW51QnRuKTsKCiAgICBsZXQgZm5NZW51RWwgPSBudWxsOwogICAgZm5NZW51QnRuLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgKCk9PnsKICAgICAgaWYoZm5NZW51RWwpeyByZXR1cm47IH0gLy8gYWxyZWFkeSBvcGVuCiAgICAgIGZuTWVudUVsID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnZGl2Jyk7CiAgICAgIGZuTWVudUVsLmNsYXNzTmFtZSA9ICdnYy1mbi1tZW51JzsKICAgICAgZm5NZW51RWwuc3R5bGUudG9wID0gdG9vbGJhci5vZmZzZXRIZWlnaHQgKyAncHgnOwogICAgICBjb25zdCBoZWFkZXIgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdkaXYnKTsKICAgICAgaGVhZGVyLmNsYXNzTmFtZSA9ICdnYy1mbi1tZW51LWhlYWRlcic7CiAgICAgIGhlYWRlci5pbm5lckhUTUwgPSAnPHNwYW4+RnVuY3Rpb25zPC9zcGFuPic7CiAgICAgIGNvbnN0IGNsb3NlQnRuID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnYnV0dG9uJyk7CiAgICAgIGNsb3NlQnRuLmNsYXNzTmFtZSA9ICdnYy1mbi1tZW51LWNsb3NlJzsKICAgICAgY2xvc2VCdG4udGV4dENvbnRlbnQgPSAn4pyVJzsKICAgICAgY2xvc2VCdG4udGl0bGUgPSAnQ2xvc2UnOwogICAgICBjbG9zZUJ0bi5hZGRFdmVudExpc3RlbmVyKCdjbGljaycsICgpPT57IGZuTWVudUVsLnJlbW92ZSgpOyBmbk1lbnVFbCA9IG51bGw7IH0pOwogICAgICBoZWFkZXIuYXBwZW5kQ2hpbGQoY2xvc2VCdG4pOwogICAgICBmbk1lbnVFbC5hcHBlbmRDaGlsZChoZWFkZXIpOwoKICAgICAgY29uc3QgYm9keSA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2RpdicpOwogICAgICBib2R5LmNsYXNzTmFtZSA9ICdnYy1mbi1tZW51LWJvZHknOwogICAgICBGVU5DVElPTl9NRU5VX1NFQ1RJT05TLmZvckVhY2goc2VjdGlvbj0+ewogICAgICAgIGNvbnN0IHNlY1RpdGxlID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnZGl2Jyk7CiAgICAgICAgc2VjVGl0bGUuY2xhc3NOYW1lID0gJ2djLWZuLW1lbnUtc2VjdGlvbi10aXRsZSc7CiAgICAgICAgc2VjVGl0bGUudGV4dENvbnRlbnQgPSBzZWN0aW9uLnRpdGxlOwogICAgICAgIGJvZHkuYXBwZW5kQ2hpbGQoc2VjVGl0bGUpOwogICAgICAgIGNvbnN0IGdyaWQgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdkaXYnKTsKICAgICAgICBncmlkLmNsYXNzTmFtZSA9ICdnYy1mbi1tZW51LWdyaWQnOwogICAgICAgIHNlY3Rpb24uaXRlbXMuZm9yRWFjaChpdGVtPT57CiAgICAgICAgICBjb25zdCBiID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnYnV0dG9uJyk7CiAgICAgICAgICBiLnRleHRDb250ZW50ID0gaXRlbS5sYWJlbDsKICAgICAgICAgIGlmKGl0ZW0udGFnKXsKICAgICAgICAgICAgYi5jbGFzc0xpc3QuYWRkKCdnYy1mbi1idG4tdW5zdXBwb3J0ZWQnKTsKICAgICAgICAgICAgYi50aXRsZSA9IGl0ZW0udGFnOwogICAgICAgICAgICBjb25zdCB0YWdFbCA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ3NwYW4nKTsKICAgICAgICAgICAgdGFnRWwuY2xhc3NOYW1lID0gJ2djLWZuLXRhZyc7CiAgICAgICAgICAgIHRhZ0VsLnRleHRDb250ZW50ID0gaXRlbS50YWc7CiAgICAgICAgICAgIGIuYXBwZW5kQ2hpbGQodGFnRWwpOwogICAgICAgICAgfQogICAgICAgICAgYi5hZGRFdmVudExpc3RlbmVyKCdtb3VzZWRvd24nLCAoZSk9PnsKICAgICAgICAgICAgZS5wcmV2ZW50RGVmYXVsdCgpOwogICAgICAgICAgICBpbnNlcnRTbmlwcGV0KGl0ZW0uYmVmb3JlLCBpdGVtLmFmdGVyKTsKICAgICAgICAgICAgaWYoZm5NZW51RWwpeyBmbk1lbnVFbC5yZW1vdmUoKTsgZm5NZW51RWwgPSBudWxsOyB9CiAgICAgICAgICB9KTsKICAgICAgICAgIGdyaWQuYXBwZW5kQ2hpbGQoYik7CiAgICAgICAgfSk7CiAgICAgICAgYm9keS5hcHBlbmRDaGlsZChncmlkKTsKICAgICAgfSk7CiAgICAgIGZuTWVudUVsLmFwcGVuZENoaWxkKGJvZHkpOwogICAgICBwYW5lbC5hcHBlbmRDaGlsZChmbk1lbnVFbCk7CiAgICB9KTsKCiAgICAvLyAtLS0tIGNoYW5nZSBlbWlzc2lvbiAtLS0tCiAgICBmdW5jdGlvbiBlbWl0Q2hhbmdlKCl7CiAgICAgIGVtaXR0ZXIuZW1pdCgnY2hhbmdlJywgZ2V0U3RhdGUoKSk7CiAgICB9CgogICAgZnVuY3Rpb24gc2VyaWFsaXplRXhwcihyb3cpewogICAgICByZXR1cm4gewogICAgICAgIGlkOiByb3cuaWQsIHRleHQ6IHJvdy50ZXh0LCBjb2xvcjogcm93LmNvbG9yLCB2aXNpYmxlOiByb3cudmlzaWJsZSwKICAgICAgICBpc1RhYmxlOiByb3cuaXNUYWJsZSwgdGFibGVEYXRhOiByb3cuaXNUYWJsZSA/IHJvdy50YWJsZURhdGEubWFwKHI9Pih7Li4ucn0pKSA6IHVuZGVmaW5lZCwKICAgICAgICByZWdyZXNzaW9uT2Y6IHJvdy5yZWdyZXNzaW9uT2YsIHJlZ3Jlc3Npb25UeXBlOiByb3cucmVncmVzc2lvblR5cGUsCiAgICAgICAgc2xpZGVyTWluOiByb3cuc2xpZGVyTWluLCBzbGlkZXJNYXg6IHJvdy5zbGlkZXJNYXgsIHNsaWRlclN0ZXA6IHJvdy5zbGlkZXJTdGVwLCBzbGlkZXJWYWx1ZTogcm93LnNsaWRlclZhbHVlCiAgICAgIH07CiAgICB9CgogICAgZnVuY3Rpb24gZ2V0U3RhdGUoKXsKICAgICAgcmV0dXJuIHsKICAgICAgICBleHByZXNzaW9uczogZXhwcmVzc2lvbnMubWFwKHNlcmlhbGl6ZUV4cHIpLAogICAgICAgIHNjb3BlOiBPYmplY3QuYXNzaWduKHt9LCBzY29wZSksCiAgICAgICAgdmlld3BvcnQ6IHsgY2VudGVyWDogdmlld3BvcnQuY2VudGVyWCwgY2VudGVyWTogdmlld3BvcnQuY2VudGVyWSwgc2NhbGU6IHZpZXdwb3J0LnNjYWxlIH0KICAgICAgfTsKICAgIH0KCiAgICBmdW5jdGlvbiBzZXRFeHByZXNzaW9ucyhsaXN0KXsKICAgICAgZXhwcmVzc2lvbnMgPSAobGlzdHx8W10pLm1hcChlPT57CiAgICAgICAgY29uc3Qgcm93ID0gbmV3Um93KGUpOwogICAgICAgIHJldHVybiByb3c7CiAgICAgIH0pOwogICAgICByZWNsYXNzaWZ5QWxsKCk7CiAgICAgIHJlbmRlckxpc3QoKTsKICAgICAgcmVuZGVyKCk7CiAgICAgIGVtaXRDaGFuZ2UoKTsKICAgIH0KCiAgICAvLyAtLS0tIGluaXQgLS0tLQogICAgaWYob3B0aW9ucy5leHByZXNzaW9ucyAmJiBvcHRpb25zLmV4cHJlc3Npb25zLmxlbmd0aCl7CiAgICAgIHNldEV4cHJlc3Npb25zKG9wdGlvbnMuZXhwcmVzc2lvbnMubWFwKGU9Pih7IHRleHQ6IGUubGF0ZXggfHwgZS50ZXh0IHx8ICcnLCBjb2xvcjogZS5jb2xvciB9KSkpOwogICAgfSBlbHNlIHsKICAgICAgZXhwcmVzc2lvbnMgPSBbbmV3Um93KHt9KV07CiAgICAgIHJlbmRlckxpc3QoKTsKICAgIH0KICAgIHJlcXVlc3RBbmltYXRpb25GcmFtZShyZXNpemVDYW52YXMpOwoKICAgIHJldHVybiB7CiAgICAgIHNldEV4cHJlc3Npb25zLAogICAgICBnZXRTdGF0ZSwKICAgICAgb246IGVtaXR0ZXIub24sCiAgICAgIG9mZjogZW1pdHRlci5vZmYsCiAgICAgIGRlc3Ryb3koKXsgcm8uZGlzY29ubmVjdCgpOyBjb250YWluZXIuaW5uZXJIVE1MPScnOyB9LAogICAgICBfdmlld3BvcnQ6IHZpZXdwb3J0CiAgICB9OwogIH0KCiAgZ2xvYmFsLmNyZWF0ZUdyYXBoQ2FsYyA9IGNyZWF0ZUdyYXBoQ2FsYzsKCn0pKHdpbmRvdyk7CgovLyBib290c3RyYXAgdGhlIHN0YW5kYWxvbmUgZGVtbyBpbnN0YW5jZQpjcmVhdGVHcmFwaENhbGMoZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2djLWFwcC0xJyksIHsKICBleHByZXNzaW9uczogWwogICAgeyBsYXRleDogJ3kgPSBhKnheMicsIGNvbG9yOiAnI2M3NDQ0MCcgfSwKICAgIHsgbGF0ZXg6ICd4XjIgKyB5XjIgPSAyNScsIGNvbG9yOiAnIzJkNzBiMycgfQogIF0KfSk7Cjwvc2NyaXB0Pgo8L2JvZHk+CjwvaHRtbD4K";
+
+  const demoLesson = {
+    title: "Rates of Change: Hills and Races",
+    slides: [
+      {
+        id: "intro",
+        blocks: [
+          { type:"heading", text:"Rates of Change: Hills and Races" },
+          { type:"text", text:`A **rate of change** tells you how fast something is changing — whether that's a ball speeding up as it rolls downhill, or a runner covering ground over time.
+
+Here's the general idea:
+- It's always a *ratio*: how much one quantity changes compared to another
+- On a graph, it's the slope of the line connecting two points
+- The steeper the slope, the faster the rate of change
+
+We'll explore this two ways: a hill (where the rate keeps changing) and a race (where the rate stays constant).` },
+          { type:"math", latex:"\\dfrac{f(b)-f(a)}{b-a}" }
+        ]
+      },
+      {
+        id: "hill",
+        blocks: [
+          { type:"heading", text:"Rolling Down the Hill" },
+          { type:"text", text:`As the ball rolls down the hill, its speed isn't constant — it keeps increasing as the slope gets steeper. That's a **changing rate of change**.
+
+Press "Roll the ball" below and watch the readout: position → speed.` },
+          { type:"math", latex:"\\text{instantaneous rate} = \\lim_{\\Delta x \\to 0} \\dfrac{\\Delta y}{\\Delta x}" },
+          { type:"custom", html: hillWidgetHtml }
+        ]
+      },
+      {
+        id: "race",
+        blocks: [
+          { type:"heading", text:"Race to the Finish" },
+          { type:"text", text:`When something moves at a **constant** rate, the relationship between distance and time is a straight line — no curving hill needed.
+
+$d = rt$ — distance equals rate times time. Set each runner's speed below and see who reaches the finish line first.` },
+          { type:"custom", html: raceWidgetHtml }
+        ]
+      },
+      {
+        id: "check",
+        blocks: [
+          { type:"heading", text:"Check Your Understanding" },
+          {
+            type:"multiple_choice",
+            id:"mc-rate",
+            question:"A ball rolls down a hill. Which statement is true about its speed?",
+            options:[
+              "It stays constant the whole way down",
+              "It increases as the hill gets steeper",
+              "It decreases as the hill gets steeper",
+              "Speed has nothing to do with slope"
+            ],
+            correct_answer: 1,
+            explanation:"The steeper the hill, the greater the rate of change of height with respect to distance — so the ball accelerates.",
+            verification:{
+              steps:[
+                "Slope of a curve measures rate of change",
+                "A steeper hill means a larger-magnitude slope",
+                "A larger slope near the bottom means the ball is moving faster there"
+              ]
+            }
+          },
+          {
+            type:"number_input",
+            id:"num-race",
+            question:"Runner A moves at 4 units/sec. How far have they traveled after 6 seconds?",
+            correct_answer: 24,
+            tolerance: 0.01,
+            verification:{
+              steps:[
+                "Use d = r × t",
+                "d = 4 × 6",
+                "d = 24"
+              ],
+              check_expression:"4*t",
+              check_variable:"t",
+              check_value: 6,
+              expected_result: 24
+            }
+          }
+        ]
+      }
+    ]
+  };
+
+  buildShell();
+  loadLesson(demoLesson);
+
+})();
+</script>
+</body>
+</html>
