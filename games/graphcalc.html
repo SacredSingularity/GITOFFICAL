@@ -70,6 +70,9 @@
     cursor:pointer;font-size:14px;color:var(--text);display:flex;align-items:center;justify-content:center;
   }
   .gc-toolbar button:hover{background:var(--row-hover);border-color:var(--panel-border);}
+  .gc-toolbar button.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .gc-toolbar button.active:hover{background:var(--accent);}
+  .gc-overlay-canvas{position:absolute;inset:0;pointer-events:none;z-index:4;}
   .gc-list{flex:1;overflow-y:auto;padding-bottom:8px;}
   .gc-row{
     display:flex;align-items:flex-start;gap:6px;padding:6px 8px;border-bottom:1px solid #edeced;
@@ -247,6 +250,16 @@
     'sqrt','cbrt','nthRoot','log','ln','log10','log2','exp','sinh','cosh','tanh','asinh','acosh','atanh',
     'floor','ceil','round','min','max','pow','sign','mod',
     'factorial','gcd','lcm','combinations','permutations','nCr','nPr']);
+
+  // RESERVED includes 'x'/'y' themselves (they're the plotting variables, not
+  // free parameters), so findFreeVars() can never report them regardless of its
+  // exclude set -- it's for finding slider variables. containsSymbol() is a
+  // separate, unfiltered check for "does this expression reference x at all".
+  function containsSymbol(node, name){
+    let found = false;
+    node.traverse(function(n){ if(n.isSymbolNode && n.name === name) found = true; });
+    return found;
+  }
 
   function findFreeVars(node, exclude){
     const found = new Set();
@@ -526,7 +539,7 @@
       const varsAll = findFreeVars(node, new Set(['x']));
       if(!varsAll.has('y')){
         // no 'x' in the expression -> it's a constant/value, not a curve (e.g. "4+5")
-        if(!findFreeVars(node, new Set()).has('x')){
+        if(!containsSymbol(node, 'x')){
           result.type = 'value';
           result.compiled = node.compile();
           result.freeVars = findFreeVars(node, new Set());
@@ -701,6 +714,15 @@
     canvasWrap.appendChild(canvas);
     const ctx = canvas.getContext('2d');
 
+    // Overlay canvas for the Select Point marker/tooltip: kept separate from the
+    // main canvas so hovering never triggers a full grid+function replot (that
+    // replot is what actually gets slow with 5+ functions), just a cheap clear
+    // + tiny marker draw on every mousemove.
+    const overlayCanvas = document.createElement('canvas');
+    overlayCanvas.className = 'gc-overlay-canvas';
+    canvasWrap.appendChild(overlayCanvas);
+    const octx = overlayCanvas.getContext('2d');
+
     const zoomControls = document.createElement('div');
     zoomControls.className = 'gc-zoom-controls';
     zoomControls.innerHTML = '<button data-zoom="in">+</button><button data-zoom="out">−</button>';
@@ -846,6 +868,9 @@
       canvas.width = w*dpr; canvas.height = h*dpr;
       canvas.style.width = w+'px'; canvas.style.height = h+'px';
       ctx.setTransform(dpr,0,0,dpr,0,0);
+      overlayCanvas.width = w*dpr; overlayCanvas.height = h*dpr;
+      overlayCanvas.style.width = w+'px'; overlayCanvas.style.height = h+'px';
+      octx.setTransform(dpr,0,0,dpr,0,0);
       viewport.resize(w,h);
       render();
     }
@@ -1027,13 +1052,148 @@
       emitter.emit('render', getState());
     }
 
+    // ---- Select Point (hover a curve to read its coordinates, snapping onto
+    // curve-curve intersections when the cursor is close to one) ----
+    let selectPointMode = false;
+    const SELECT_HOVER_PX = 18;          // max vertical px distance to "catch" a curve
+    const SELECT_SNAP_PX = 22;           // max px distance to snap onto an intersection
+    const SELECT_SEARCH_RADIUS_PX = 90;  // x-window (in px) searched for intersections around the cursor
+    const SELECT_SEARCH_SAMPLES = 24;    // coarse samples per function pair across that window
+
+    function visibleFunctionRows(){
+      return expressions.filter(r=>r.visible && r.type==='function' && r.compiled);
+    }
+    function evalFnAt(row, wx){
+      try{
+        const v = row.compiled.evaluate(Object.assign({x:wx}, scope));
+        return (typeof v === 'number' && isFinite(v)) ? v : NaN;
+      }catch(e){ return NaN; }
+    }
+    function formatCoordNum(v){
+      if(Math.abs(v) < 1e-9) return '0';
+      if(Math.abs(v) >= 1e5 || Math.abs(v) < 1e-4) return v.toExponential(2);
+      return String(parseFloat(v.toFixed(4)));
+    }
+
+    // Nearest point straight-up/down from the cursor on any visible function curve.
+    // Only costs one evaluate() per visible function, independent of plot resolution.
+    function findNearestCurvePoint(mx, my){
+      const rows = visibleFunctionRows();
+      const wx = viewport.pxToWorldX(mx);
+      let best = null;
+      for(const row of rows){
+        const wy = evalFnAt(row, wx);
+        if(!isFinite(wy)) continue;
+        const py = viewport.worldToPxY(wy);
+        const dist = Math.abs(py-my);
+        if(dist <= SELECT_HOVER_PX && (!best || dist < best.dist)){
+          best = { x:wx, y:wy, px:mx, py, dist, row, isIntersection:false };
+        }
+      }
+      return best;
+    }
+
+    // Looks for a sign change of (fa(x) - fb(x)) within a small x-window around the
+    // cursor for every visible function pair, then bisects to refine it. Bounded to a
+    // small local window + coarse sample count so it stays cheap even with many curves —
+    // it runs on mousemove, not inside the (much more expensive) full-canvas render().
+    function findNearestIntersection(mx, my){
+      const rows = visibleFunctionRows();
+      if(rows.length < 2) return null;
+      const xLo = viewport.pxToWorldX(mx - SELECT_SEARCH_RADIUS_PX);
+      const xHi = viewport.pxToWorldX(mx + SELECT_SEARCH_RADIUS_PX);
+      let best = null;
+      for(let i=0;i<rows.length;i++){
+        for(let j=i+1;j<rows.length;j++){
+          const a = rows[i], b = rows[j];
+          let prevX = xLo, prevD = evalFnAt(a,prevX) - evalFnAt(b,prevX);
+          for(let s=1;s<=SELECT_SEARCH_SAMPLES;s++){
+            const x = xLo + (xHi-xLo)*(s/SELECT_SEARCH_SAMPLES);
+            const d = evalFnAt(a,x) - evalFnAt(b,x);
+            const bracket = isFinite(prevD) && isFinite(d) && ((prevD<0 && d>0) || (prevD>0 && d<0) || (prevD===0 && d!==0) || (d===0 && prevD!==0));
+            if(bracket){
+              let lo=prevX, hi=x, dlo=prevD;
+              for(let iter=0; iter<25; iter++){
+                const mid=(lo+hi)/2;
+                const dmid = evalFnAt(a,mid)-evalFnAt(b,mid);
+                if(!isFinite(dmid)) break;
+                if((dlo<0 && dmid>0) || (dlo>0 && dmid<0)){ hi=mid; }
+                else { lo=mid; dlo=dmid; }
+              }
+              const ix = (lo+hi)/2;
+              const iy = evalFnAt(a, ix);
+              if(isFinite(iy)){
+                const ipx = viewport.worldToPxX(ix), ipy = viewport.worldToPxY(iy);
+                const dist = Math.hypot(ipx-mx, ipy-my);
+                if(dist <= SELECT_SNAP_PX && (!best || dist < best.dist)){
+                  best = { x:ix, y:iy, px:ipx, py:ipy, dist, rows:[a,b], isIntersection:true };
+                }
+              }
+            }
+            prevX = x; prevD = d;
+          }
+        }
+      }
+      return best;
+    }
+
+    function clearSelectMarker(){
+      octx.clearRect(0,0,viewport.w,viewport.h);
+    }
+
+    function drawSelectMarker(target){
+      clearSelectMarker();
+      if(!target) return;
+      octx.save();
+      const color = target.isIntersection ? '#000000' : target.row.color;
+      octx.beginPath();
+      octx.arc(target.px, target.py, target.isIntersection?6:5, 0, Math.PI*2);
+      octx.fillStyle = target.isIntersection ? '#ffffff' : color;
+      octx.fill();
+      octx.lineWidth = target.isIntersection ? 2.5 : 2;
+      octx.strokeStyle = target.isIntersection ? color : '#ffffff';
+      octx.stroke();
+      if(target.isIntersection){
+        octx.beginPath();
+        octx.arc(target.px, target.py, 10, 0, Math.PI*2);
+        octx.strokeStyle = '#2d70b3';
+        octx.lineWidth = 1.5;
+        octx.setLineDash([3,3]);
+        octx.stroke();
+        octx.setLineDash([]);
+      }
+
+      const label = (target.isIntersection ? '⋂ ' : '') + '(' + formatCoordNum(target.x) + ', ' + formatCoordNum(target.y) + ')';
+      octx.font = '12px -apple-system,sans-serif';
+      const metrics = octx.measureText(label);
+      const padX = 6, boxW = metrics.width + padX*2, boxH = 20;
+      let boxX = target.px + 12, boxY = target.py - boxH - 8;
+      if(boxX + boxW > viewport.w) boxX = target.px - boxW - 12;
+      if(boxY < 0) boxY = target.py + 12;
+      octx.fillStyle = 'rgba(30,30,30,0.9)';
+      octx.beginPath();
+      if(octx.roundRect) octx.roundRect(boxX, boxY, boxW, boxH, 4); else octx.rect(boxX, boxY, boxW, boxH);
+      octx.fill();
+      octx.fillStyle = '#fff';
+      octx.textBaseline = 'middle';
+      octx.fillText(label, boxX+padX, boxY+boxH/2+0.5);
+      octx.restore();
+    }
+
+    function updateSelectMarker(mx, my){
+      const intersection = findNearestIntersection(mx, my);
+      const target = intersection || findNearestCurvePoint(mx, my);
+      drawSelectMarker(target);
+    }
+
     // ---- pan / zoom interaction ----
     let dragging = false, lastX=0, lastY=0;
     canvas.addEventListener('mousedown', (e)=>{
+      if(selectPointMode) return; // selecting, not panning
       dragging = true; lastX = e.offsetX; lastY = e.offsetY;
       canvas.style.cursor='grabbing';
     });
-    window.addEventListener('mouseup', ()=>{ dragging=false; canvas.style.cursor='grab'; });
+    window.addEventListener('mouseup', ()=>{ dragging=false; canvas.style.cursor = selectPointMode?'crosshair':'grab'; });
     window.addEventListener('mousemove', (e)=>{
       if(!dragging) return;
       const rect = canvas.getBoundingClientRect();
@@ -1043,6 +1203,12 @@
       render();
     });
     canvas.style.cursor='grab';
+    canvas.addEventListener('mousemove', (e)=>{
+      if(!selectPointMode) return;
+      const rect = canvas.getBoundingClientRect();
+      updateSelectMarker(e.clientX-rect.left, e.clientY-rect.top);
+    });
+    canvasWrap.addEventListener('mouseleave', ()=>{ if(selectPointMode) clearSelectMarker(); });
     canvas.addEventListener('wheel', (e)=>{
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
@@ -1050,12 +1216,26 @@
       const factor = Math.pow(1.0015, -e.deltaY);
       viewport.zoomAt(px,py,factor);
       render();
+      if(selectPointMode) updateSelectMarker(px,py);
     }, {passive:false});
     zoomControls.addEventListener('click', (e)=>{
       const btn = e.target.closest('button'); if(!btn) return;
       const dir = btn.dataset.zoom;
       viewport.zoomAt(viewport.w/2, viewport.h/2, dir==='in'?1.4:1/1.4);
       render();
+      if(selectPointMode) clearSelectMarker();
+    });
+
+    const selectPointBtn = document.createElement('button');
+    selectPointBtn.textContent = '⌖';
+    selectPointBtn.title = 'Select Point — hover a curve to read its coordinates; snaps onto intersections';
+    toolbar.appendChild(selectPointBtn);
+    selectPointBtn.addEventListener('click', ()=>{
+      selectPointMode = !selectPointMode;
+      selectPointBtn.classList.toggle('active', selectPointMode);
+      dragging = false;
+      canvas.style.cursor = selectPointMode ? 'crosshair' : 'grab';
+      if(!selectPointMode) clearSelectMarker();
     });
 
     const ro = new ResizeObserver(()=>resizeCanvas());

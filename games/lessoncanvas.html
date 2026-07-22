@@ -72,9 +72,10 @@
   .lc-title{font-size:16px;font-weight:700;flex-shrink:0;}
   .lc-progress{display:flex;align-items:center;gap:6px;flex:1;justify-content:center;flex-wrap:wrap;}
   .lc-dot{
-    width:9px;height:9px;border-radius:50%;background:var(--border);cursor:pointer;flex-shrink:0;transition:background .15s,transform .15s;
+    width:9px;height:9px;border-radius:50%;background:var(--border);cursor:pointer;flex-shrink:0;
+    transition:background-color .25s ease, transform .25s ease;
   }
-  .lc-dot.active{background:var(--accent);transform:scale(1.3);}
+  .lc-dot.active{background:var(--accent);transform:scale(1.35);}
   .lc-dot.done{background:#c7cbf5;}
   .lc-header-right{display:flex;gap:8px;flex-shrink:0;}
 
@@ -112,6 +113,11 @@
   .lc-block-image .lc-caption{font-size:12.5px;color:var(--text-dim);margin-top:6px;}
   .lc-block-pdf canvas{max-width:100%;border-radius:10px;border:1px solid var(--border);display:block;}
   .lc-block-video video, .lc-block-video iframe{width:100%;aspect-ratio:16/9;border-radius:10px;border:none;display:block;}
+  .lc-video-fallback{position:relative;width:100%;aspect-ratio:16/9;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#111;color:#fff;text-decoration:none;}
+  .lc-video-fallback-thumb{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.75;}
+  .lc-video-fallback-play{position:relative;z-index:1;width:64px;height:64px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;padding-left:4px;box-shadow:0 0 0 3px rgba(255,255,255,.85);}
+  .lc-video-fallback-label{position:absolute;left:0;right:0;bottom:0;z-index:1;padding:8px 12px;font-size:13px;font-weight:600;background:linear-gradient(transparent,rgba(0,0,0,.75));text-align:left;}
+  .lc-video-fallback:hover .lc-video-fallback-play{background:rgba(0,0,0,.8);}
 
   .lc-end-screen{
     position:relative;min-height:360px;border-radius:16px;display:flex;align-items:center;justify-content:center;
@@ -224,6 +230,34 @@
   .lc-modal-body{flex:1;min-height:0;}
   .lc-modal-body iframe{width:100%;height:100%;border:none;display:block;}
   .lc-modal-body-scroll{flex:1;min-height:0;overflow-y:auto;padding:16px 20px;}
+
+  .lc-whiteboard-window{
+    position:fixed;z-index:250;background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    box-shadow:0 16px 44px rgba(0,0,0,.28);display:flex;flex-direction:column;overflow:hidden;
+    min-width:320px;min-height:280px;
+  }
+  .lc-whiteboard-titlebar{
+    display:flex;align-items:center;justify-content:space-between;padding:8px 12px;
+    background:var(--accent-dim);border-bottom:1px solid var(--border);cursor:move;user-select:none;
+    flex-shrink:0;touch-action:none;
+  }
+  .lc-whiteboard-titlebar strong{font-size:13px;}
+  .lc-whiteboard-toolbar{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;
+    border-bottom:1px solid var(--border);flex-shrink:0;font-size:12px;color:var(--text-dim);
+  }
+  .lc-wb-colors{display:flex;gap:6px;}
+  .lc-wb-swatch{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;}
+  .lc-wb-swatch.active{border-color:var(--text);}
+  .lc-wb-size-label{display:flex;align-items:center;gap:6px;white-space:nowrap;}
+  .lc-wb-size-label input[type=range]{width:70px;}
+  .lc-wb-eraser-toggle.active{background:var(--accent);color:#fff;}
+  .lc-whiteboard-canvas-wrap{flex:1;min-height:0;position:relative;background:#fff;}
+  .lc-whiteboard-canvas-wrap canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;}
+  .lc-whiteboard-resize-handle{
+    position:absolute;right:2px;bottom:2px;width:16px;height:16px;cursor:nwse-resize;touch-action:none;
+    background:linear-gradient(135deg,transparent 50%,var(--text-dim) 50%);opacity:.5;border-radius:2px;
+  }
 
   .lc-ai-panel{width:420px;max-width:94vw;height:min(600px,86vh);}
   .lc-ai-messages{flex:1;min-height:0;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:10px;}
@@ -548,9 +582,9 @@ window.addEventListener('load', function(){
   // ---- video URL detection ----
   function videoEmbedUrl(src){
     const yt = src.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)/);
-    if(yt) return { kind:'iframe', url: 'https://www.youtube.com/embed/' + yt[1] };
+    if(yt) return { kind:'iframe', provider:'youtube', id: yt[1], url: 'https://www.youtube.com/embed/' + yt[1], watchUrl: 'https://www.youtube.com/watch?v=' + yt[1] };
     const vimeo = src.match(/vimeo\.com\/(\d+)/);
-    if(vimeo) return { kind:'iframe', url: 'https://player.vimeo.com/video/' + vimeo[1] };
+    if(vimeo) return { kind:'iframe', provider:'vimeo', id: vimeo[1], url: 'https://player.vimeo.com/video/' + vimeo[1], watchUrl: 'https://vimeo.com/' + vimeo[1] };
     return { kind:'file', url: src };
   }
 
@@ -699,7 +733,15 @@ window.addEventListener('load', function(){
     const box = document.createElement('div');
     box.className = 'lc-block-video';
     const info = videoEmbedUrl(block.src || '');
-    if(info.kind === 'iframe'){
+    // YouTube/Vimeo's iframe embed API requires a real http(s) origin and
+    // reliably fails (YouTube Error 153: "Video player configuration error")
+    // when loaded from a local file:// page, which is exactly how a
+    // LessonCanvas lesson is normally opened. Fall back to a clickable
+    // thumbnail/link card in that case instead of showing a broken player;
+    // the real inline embed still works fine for an http(s)-hosted copy.
+    if(info.kind === 'iframe' && location.protocol === 'file:'){
+      box.appendChild(buildVideoFallbackCard(info));
+    } else if(info.kind === 'iframe'){
       const ifr = document.createElement('iframe');
       ifr.src = info.url;
       ifr.setAttribute('allowfullscreen','');
@@ -712,6 +754,30 @@ window.addEventListener('load', function(){
       box.appendChild(v);
     }
     wrap.appendChild(box);
+  }
+
+  function buildVideoFallbackCard(info){
+    const a = document.createElement('a');
+    a.className = 'lc-video-fallback';
+    a.href = info.watchUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    if(info.provider === 'youtube'){
+      const img = document.createElement('img');
+      img.className = 'lc-video-fallback-thumb';
+      img.src = 'https://img.youtube.com/vi/' + info.id + '/hqdefault.jpg';
+      img.alt = '';
+      a.appendChild(img);
+    }
+    const playBadge = document.createElement('div');
+    playBadge.className = 'lc-video-fallback-play';
+    playBadge.textContent = '▶';
+    a.appendChild(playBadge);
+    const label = document.createElement('div');
+    label.className = 'lc-video-fallback-label';
+    label.textContent = 'Watch on ' + (info.provider === 'youtube' ? 'YouTube' : 'Vimeo') + ' ↗';
+    a.appendChild(label);
+    return a;
   }
 
   async function renderPdfPage(assetId, pageNum, canvas){
@@ -1246,16 +1312,30 @@ window.addEventListener('load', function(){
     document.getElementById('lc-back').disabled = currentSlide <= 0;
     document.getElementById('lc-next').disabled = currentSlide >= lesson.slides.length-1 || lesson.slides.length===0;
     document.getElementById('lc-title').textContent = lesson.title || 'Untitled Lesson';
-    const dotsWrap = document.getElementById('lc-progress');
-    dotsWrap.innerHTML = '';
-    lesson.slides.forEach((s,i)=>{
-      const dot = document.createElement('div');
-      dot.className = 'lc-dot' + (i===currentSlide?' active':(i<currentSlide?' done':''));
-      dot.title = 'Slide ' + (i+1);
-      dot.addEventListener('click', ()=>goToSlide(i));
-      dotsWrap.appendChild(dot);
-    });
+    updateProgressDots();
     updateSourcesButton();
+  }
+
+  // Dot elements are only rebuilt when the slide count actually changes (a new
+  // lesson loaded) — every plain navigation just toggles classes on the same,
+  // already-in-the-DOM dot elements. Rebuilding from scratch on every call (the
+  // previous behavior) meant .lc-dot's CSS transition never had anything to
+  // animate from, since a freshly-created element has no prior state.
+  function updateProgressDots(){
+    const dotsWrap = document.getElementById('lc-progress');
+    if(dotsWrap.children.length !== lesson.slides.length){
+      dotsWrap.innerHTML = '';
+      lesson.slides.forEach((s,i)=>{
+        const dot = document.createElement('div');
+        dot.className = 'lc-dot';
+        dot.title = 'Slide ' + (i+1);
+        dot.addEventListener('click', ()=>goToSlide(i));
+        dotsWrap.appendChild(dot);
+      });
+    }
+    [...dotsWrap.children].forEach((dot,i)=>{
+      dot.className = 'lc-dot' + (i===currentSlide?' active':(i<currentSlide?' done':''));
+    });
   }
 
   function goToSlide(index){
@@ -1418,6 +1498,7 @@ window.addEventListener('load', function(){
         <button class="lc-btn lc-btn-small" id="lc-code-toggle" style="display:none;">💻 Code</button>
         <button class="lc-btn lc-btn-small" id="lc-sources-toggle">📚 Sources<span class="lc-badge" id="lc-sources-badge" style="display:none;"></span></button>
         <button class="lc-btn lc-btn-small" id="lc-calc-toggle">🧮 Calculator</button>
+        <button class="lc-btn lc-btn-small" id="lc-whiteboard-toggle">🖊️ Whiteboard</button>
         <button class="lc-btn lc-btn-small" id="lc-ai-toggle">🤖 AI Helper</button>
         <button class="lc-btn lc-btn-small" id="lc-dev-toggle">{ } Dev</button>
       </div>
@@ -1458,6 +1539,7 @@ window.addEventListener('load', function(){
     });
     document.getElementById('lc-dev-toggle').addEventListener('click', toggleDevPanel);
     document.getElementById('lc-calc-toggle').addEventListener('click', toggleCalculatorModal);
+    document.getElementById('lc-whiteboard-toggle').addEventListener('click', toggleWhiteboardWindow);
     document.getElementById('lc-sources-toggle').addEventListener('click', toggleSourcesModal);
     document.getElementById('lc-ai-toggle').addEventListener('click', toggleAiHelperModal);
     document.getElementById('lc-code-toggle').addEventListener('click', toggleCodeModal);
@@ -1510,6 +1592,194 @@ window.addEventListener('load', function(){
     calcModalEl.remove();
     calcModalEl = null;
     document.removeEventListener('keydown', calcModalEscHandler);
+  }
+
+  // ---- Whiteboard (floating, draggable, resizable scratch-drawing window) ----
+  let whiteboardWindowEl = null;
+  let whiteboardCtx = null;
+  let whiteboardDrawing = false;
+  let whiteboardLastPoint = null;
+  let whiteboardColor = '#1e1e1e';
+  let whiteboardErasing = false;
+  const WHITEBOARD_COLORS = ['#1e1e1e', '#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#ffffff'];
+
+  function toggleWhiteboardWindow(){
+    if(whiteboardWindowEl){ closeWhiteboardWindow(); return; }
+    whiteboardWindowEl = document.createElement('div');
+    whiteboardWindowEl.className = 'lc-whiteboard-window';
+    const startW = Math.min(520, window.innerWidth - 40);
+    const startH = Math.min(420, window.innerHeight - 100);
+    whiteboardWindowEl.style.left = Math.max(20, (window.innerWidth - startW) / 2) + 'px';
+    whiteboardWindowEl.style.top = Math.max(70, (window.innerHeight - startH) / 3) + 'px';
+    whiteboardWindowEl.style.width = startW + 'px';
+    whiteboardWindowEl.style.height = startH + 'px';
+    whiteboardWindowEl.innerHTML = `
+      <div class="lc-whiteboard-titlebar" id="lc-whiteboard-titlebar">
+        <strong>🖊️ Whiteboard</strong>
+        <button class="lc-btn lc-btn-small" id="lc-whiteboard-close">✕</button>
+      </div>
+      <div class="lc-whiteboard-toolbar">
+        <div class="lc-wb-colors" id="lc-wb-colors"></div>
+        <label class="lc-wb-size-label">Pen <input type="range" id="lc-wb-pen-size" min="1" max="30" value="4"></label>
+        <button class="lc-btn lc-btn-small" id="lc-wb-eraser-toggle">🧽 Eraser</button>
+        <label class="lc-wb-size-label">Eraser <input type="range" id="lc-wb-eraser-size" min="5" max="80" value="24"></label>
+        <button class="lc-btn lc-btn-small" id="lc-wb-clear">🗑 Clear all</button>
+      </div>
+      <div class="lc-whiteboard-canvas-wrap">
+        <canvas id="lc-whiteboard-canvas"></canvas>
+      </div>
+      <div class="lc-whiteboard-resize-handle" id="lc-whiteboard-resize"></div>
+    `;
+    document.body.appendChild(whiteboardWindowEl);
+
+    const colorsWrap = document.getElementById('lc-wb-colors');
+    WHITEBOARD_COLORS.forEach(c => {
+      const sw = document.createElement('button');
+      sw.className = 'lc-wb-swatch' + (c === whiteboardColor ? ' active' : '');
+      sw.style.background = c;
+      if(c === '#ffffff') sw.style.boxShadow = 'inset 0 0 0 1px var(--border)';
+      sw.title = c;
+      sw.addEventListener('click', () => {
+        whiteboardColor = c;
+        whiteboardErasing = false;
+        document.getElementById('lc-wb-eraser-toggle').classList.remove('active');
+        [...colorsWrap.children].forEach(el => el.classList.remove('active'));
+        sw.classList.add('active');
+      });
+      colorsWrap.appendChild(sw);
+    });
+
+    const canvas = document.getElementById('lc-whiteboard-canvas');
+    setupWhiteboardCanvas(canvas);
+
+    document.getElementById('lc-whiteboard-close').addEventListener('click', closeWhiteboardWindow);
+    document.getElementById('lc-wb-eraser-toggle').addEventListener('click', (e) => {
+      whiteboardErasing = !whiteboardErasing;
+      e.currentTarget.classList.toggle('active', whiteboardErasing);
+    });
+    document.getElementById('lc-wb-clear').addEventListener('click', () => {
+      whiteboardCtx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    setupWhiteboardDrag(document.getElementById('lc-whiteboard-titlebar'));
+    setupWhiteboardResize(document.getElementById('lc-whiteboard-resize'), canvas);
+  }
+
+  function closeWhiteboardWindow(){
+    if(!whiteboardWindowEl) return;
+    whiteboardWindowEl.remove();
+    whiteboardWindowEl = null;
+    whiteboardCtx = null;
+  }
+
+  function setupWhiteboardCanvas(canvas){
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = Math.round(rect.width);
+    canvas.height = Math.round(rect.height);
+    whiteboardCtx = canvas.getContext('2d');
+    whiteboardCtx.lineCap = 'round';
+    whiteboardCtx.lineJoin = 'round';
+
+    canvas.addEventListener('pointerdown', (e) => {
+      whiteboardDrawing = true;
+      // pointer capture can fail in some embedding contexts; it's an optimization
+      // (keeps the stroke going if the pointer leaves the canvas mid-drag), not a
+      // requirement, so a failure here must not abort setting the start point below.
+      try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+      whiteboardLastPoint = whiteboardCanvasPoint(canvas, e);
+      // a single tap/click should leave a dot, not require movement to draw anything
+      whiteboardDrawSegment(whiteboardLastPoint, whiteboardLastPoint);
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if(!whiteboardDrawing) return;
+      const pt = whiteboardCanvasPoint(canvas, e);
+      whiteboardDrawSegment(whiteboardLastPoint, pt);
+      whiteboardLastPoint = pt;
+    });
+    const endStroke = () => { whiteboardDrawing = false; whiteboardLastPoint = null; };
+    canvas.addEventListener('pointerup', endStroke);
+    canvas.addEventListener('pointercancel', endStroke);
+    canvas.addEventListener('pointerleave', endStroke);
+  }
+
+  function whiteboardCanvasPoint(canvas, e){
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function whiteboardDrawSegment(from, to){
+    if(!whiteboardCtx || !from) return;
+    const eraserSize = Number(document.getElementById('lc-wb-eraser-size').value);
+    const penSize = Number(document.getElementById('lc-wb-pen-size').value);
+    whiteboardCtx.globalCompositeOperation = whiteboardErasing ? 'destination-out' : 'source-over';
+    whiteboardCtx.strokeStyle = whiteboardColor;
+    whiteboardCtx.lineWidth = whiteboardErasing ? eraserSize : penSize;
+    whiteboardCtx.beginPath();
+    whiteboardCtx.moveTo(from.x, from.y);
+    whiteboardCtx.lineTo(to.x, to.y);
+    whiteboardCtx.stroke();
+  }
+
+  function setupWhiteboardDrag(titlebar){
+    let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+    titlebar.addEventListener('pointerdown', (e) => {
+      if(e.target.closest('button')) return;
+      dragging = true;
+      try{ titlebar.setPointerCapture(e.pointerId); }catch(err){}
+      startX = e.clientX; startY = e.clientY;
+      const r = whiteboardWindowEl.getBoundingClientRect();
+      startLeft = r.left; startTop = r.top;
+    });
+    titlebar.addEventListener('pointermove', (e) => {
+      if(!dragging) return;
+      const dx = e.clientX - startX, dy = e.clientY - startY;
+      let left = startLeft + dx, top = startTop + dy;
+      left = Math.max(0, Math.min(left, window.innerWidth - 80));
+      top = Math.max(0, Math.min(top, window.innerHeight - 40));
+      whiteboardWindowEl.style.left = left + 'px';
+      whiteboardWindowEl.style.top = top + 'px';
+    });
+    const stop = () => { dragging = false; };
+    titlebar.addEventListener('pointerup', stop);
+    titlebar.addEventListener('pointercancel', stop);
+  }
+
+  function setupWhiteboardResize(handle, canvas){
+    let resizing = false, startX = 0, startY = 0, startW = 0, startH = 0;
+    handle.addEventListener('pointerdown', (e) => {
+      resizing = true;
+      try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+      startX = e.clientX; startY = e.clientY;
+      const r = whiteboardWindowEl.getBoundingClientRect();
+      startW = r.width; startH = r.height;
+      e.stopPropagation();
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if(!resizing) return;
+      const dx = e.clientX - startX, dy = e.clientY - startY;
+      const newW = Math.max(320, startW + dx);
+      const newH = Math.max(280, startH + dy);
+      whiteboardWindowEl.style.width = newW + 'px';
+      whiteboardWindowEl.style.height = newH + 'px';
+      resizeWhiteboardCanvas(canvas);
+    });
+    const stop = () => { resizing = false; };
+    handle.addEventListener('pointerup', stop);
+    handle.addEventListener('pointercancel', stop);
+  }
+
+  function resizeWhiteboardCanvas(canvas){
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const newW = Math.round(rect.width), newH = Math.round(rect.height);
+    if(canvas.width === newW && canvas.height === newH) return;
+    const prev = document.createElement('canvas');
+    prev.width = canvas.width; prev.height = canvas.height;
+    prev.getContext('2d').drawImage(canvas, 0, 0);
+    canvas.width = newW; canvas.height = newH;
+    whiteboardCtx = canvas.getContext('2d');
+    whiteboardCtx.lineCap = 'round';
+    whiteboardCtx.lineJoin = 'round';
+    whiteboardCtx.drawImage(prev, 0, 0);
   }
 
   // ---- Sources section ----
@@ -1728,6 +1998,19 @@ window.addEventListener('load', function(){
     return parts.join('\n').trim();
   }
 
+  // A style directive prepended to every request's `context` field, since the
+  // Worker itself is a separate deployment with its own system prompt we can't
+  // edit from here — this is the one lever available client-side to steer tone
+  // without touching the backend. Kept short and stated once per request rather
+  // than baked into `question` so the model's actual answer content isn't
+  // competing with instructions for the same field.
+  const AI_HELPER_STYLE_WRAP = 'Answer concisely, in an academic but approachable tone: precise, well-organized, and genuinely helpful. Avoid sounding robotic or like a canned FAQ response — write like a knowledgeable tutor explaining something to a student, not a customer-support script. No unnecessary filler, hedging, or repetition.';
+
+  function buildAiHelperContext(){
+    const slideContext = getCurrentSlideContext();
+    return AI_HELPER_STYLE_WRAP + (slideContext ? '\n\nCurrent slide content:\n' + slideContext : '');
+  }
+
   function renderAiHelperMessages(){
     const body = aiHelperModalEl.querySelector('.lc-ai-messages');
     body.innerHTML = '';
@@ -1760,7 +2043,7 @@ window.addEventListener('load', function(){
       const res = await fetch('https://lessoncanvas.jtraini.workers.dev/api/ask', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ question, context: getCurrentSlideContext() })
+        body: JSON.stringify({ question, context: buildAiHelperContext() })
       });
       if(!res.ok) throw new Error('request failed (' + res.status + ')');
       const data = await res.json();
@@ -1889,8 +2172,13 @@ window.addEventListener('load', function(){
       'button#lc-ai-inspect-toggle  — this inspector, Dev Mode only'
     ].join('\n'));
 
+    section('Tone/style wrap (prepended to every request\'s context — live value)');
+    code(AI_HELPER_STYLE_WRAP);
+    note('This is the one lever available client-side to steer tone, since the Worker itself is a separate deployment with its own system prompt this file can\'t edit.');
+
     section('Client-side code (live — this is the actual running source)');
     code('function getCurrentSlideContext(){\n' + getCurrentSlideContext.toString().replace(/^function[^{]*\{/, '').replace(/\}$/, '').trim() + '\n}');
+    code('function buildAiHelperContext(){\n' + buildAiHelperContext.toString().replace(/^function[^{]*\{/, '').replace(/\}$/, '').trim() + '\n}');
     code('async function sendAiHelperQuestion(){\n' + sendAiHelperQuestion.toString().replace(/^async function[^{]*\{/, '').replace(/\}$/, '').trim() + '\n}');
 
     section('.md / guardrails file');
