@@ -114,6 +114,7 @@
   .lc-btn:hover{background:var(--accent-dim);}
   .lc-btn:disabled{opacity:.35;cursor:default;background:var(--panel);}
   .lc-btn:focus-visible, .lc-mc-option:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .lc-dot:focus-visible{outline:2px solid var(--accent);outline-offset:3px;}
   .lc-btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);}
   .lc-btn-primary:hover{background:#4a5adf;}
   .lc-btn-primary:disabled{opacity:.35;background:var(--accent);}
@@ -680,18 +681,16 @@ window.addEventListener('load', function(){
 
   function computeLessonScore(){
     const items = [];
-    (lesson.slides||[]).forEach(slide=>{
-      (slide.blocks||[]).forEach(block=>{
-        if((block.type==='multiple_choice' || block.type==='number_input') && block.id){
-          const ans = answerState[block.id];
-          items.push({
-            id: block.id,
-            question: block.question || '(untitled question)',
-            answered: !!ans,
-            correct: !!(ans && ans.correct)
-          });
-        }
-      });
+    forEachBlock(lesson, block=>{
+      if((block.type==='multiple_choice' || block.type==='number_input') && block.id){
+        const ans = answerState[block.id];
+        items.push({
+          id: block.id,
+          question: block.question || '(untitled question)',
+          answered: !!ans,
+          correct: !!(ans && ans.correct)
+        });
+      }
     });
     return {
       items,
@@ -830,6 +829,9 @@ window.addEventListener('load', function(){
   //     check that actually ties verification back to the value the student is graded against.
   //     Without it, a self-consistent check_expression/expected_result pair could still silently
   //     disagree with correct_answer and nothing would catch it.
+  // This function is read-only with respect to the lesson: it never assigns onto `block` or
+  // `block.verification`, only reads from them, so the Code modal / lastGoodSnapshot / a
+  // saved-out lesson never ends up with a field the author never actually wrote.
   let warnedMathMissing = false;
   function verifyBlock(block){
     const v = block.verification;
@@ -844,11 +846,25 @@ window.addEventListener('load', function(){
       }
       return;
     }
-    if(v.expected_result === undefined) v.expected_result = block.correct_answer;
+    // expected_result can only be inferred from correct_answer for number_input, where both
+    // describe the same arithmetic value. For multiple_choice, correct_answer is an option
+    // INDEX -- a categorically different value -- so defaulting it as an expected arithmetic
+    // result would compare, say, index 1 against "4*6" and report a confident but meaningless
+    // MISMATCH. The author has to state what the expression is supposed to produce instead.
+    let expected = v.expected_result;
+    if(expected === undefined){
+      if(block.type === 'number_input'){
+        expected = block.correct_answer;
+      } else {
+        block._verified = false;
+        console.warn('[LessonCanvas] Verification for block "'+(block.id||'(no id)')+'" ('+block.type+') has check_expression '+
+          'but no expected_result -- required for this block type, since correct_answer here is an option index, not an arithmetic result.');
+        return;
+      }
+    }
     try{
       const scope = {}; scope[v.check_variable] = v.check_value;
       const result = math.evaluate(v.check_expression, scope);
-      const expected = v.expected_result;
       const ok = typeof result === 'number' && typeof expected === 'number' && Math.abs(result-expected) < 1e-6;
       block._verified = ok;
       block._verifyComputed = result;
@@ -865,11 +881,11 @@ window.addEventListener('load', function(){
     // Independent second check: even a self-consistent check_expression/expected_result pair is
     // worthless if expected_result has drifted from the actual answer key (correct_answer) --
     // this is what originally let a wrong correct_answer pass verification cleanly.
-    if(block.type === 'number_input' && typeof v.expected_result === 'number' && typeof block.correct_answer === 'number'){
-      if(Math.abs(v.expected_result - block.correct_answer) >= 1e-6){
+    if(block.type === 'number_input' && typeof expected === 'number' && typeof block.correct_answer === 'number'){
+      if(Math.abs(expected - block.correct_answer) >= 1e-6){
         block._verified = false;
         console.warn('[LessonCanvas] Verification/answer-key DISAGREEMENT for block "'+(block.id||'(no id)')+'": '+
-          'verification.expected_result='+v.expected_result+' but block.correct_answer='+block.correct_answer+
+          'verification.expected_result='+expected+' but block.correct_answer='+block.correct_answer+
           ' -- these describe the same value and must match.');
       }
     }
@@ -910,43 +926,48 @@ window.addEventListener('load', function(){
     }
   }
 
+  // The single definition of "every block in this lesson". A reveal block's `content`
+  // is a real block list -- blocks in there are just as gradeable, just as capable of
+  // colliding on id, and just as much a part of the score as top-level ones. Three
+  // separate walkers previously disagreed about this, so a question nested inside a
+  // reveal was id-checked but silently never validated and never scored.
+  function forEachBlock(lessonObj, fn){
+    function visit(block){
+      fn(block);
+      if(block.type === 'reveal' && Array.isArray(block.content)) block.content.forEach(visit);
+    }
+    (lessonObj.slides||[]).forEach(slide => (slide.blocks||[]).forEach(visit));
+  }
+
   function runVerificationPass(lessonObj){
-    (lessonObj.slides||[]).forEach(slide=>{
-      (slide.blocks||[]).forEach(block=>{
-        if(block.type==='multiple_choice' || block.type==='number_input'){
-          validateGradedBlock(block);
-          const structurallyValid = block._verified !== false;
-          if(block.verification) verifyBlock(block);
-          // a passing arithmetic check_expression can't paper over a structural problem
-          // (bad correct_answer/options/tolerance) that validateGradedBlock already found
-          if(!structurallyValid) block._verified = false;
-        }
-      });
+    forEachBlock(lessonObj, block=>{
+      if(block.type==='multiple_choice' || block.type==='number_input'){
+        validateGradedBlock(block);
+        const structurallyValid = block._verified !== false;
+        if(block.verification) verifyBlock(block);
+        // a passing arithmetic check_expression can't paper over a structural problem
+        // (bad correct_answer/options/tolerance) that validateGradedBlock already found
+        if(!structurallyValid) block._verified = false;
+      }
     });
   }
 
   // Block ids key answerState, findBlockById(), and reveal targets, but uniqueness/presence
   // was never checked anywhere. Two blocks sharing an id silently share answer state and
   // findBlockById() only ever resolves the first one; a graded block with no id is silently
-  // excluded from performance_summary (computeLessonScore() keys entirely on block.id).
-  // Warn-only, deliberately: auto-generating a missing id would break lockAnswer restore
-  // across reloads, since the id has to be the exact one the author ships next time too.
+  // excluded from performance_summary (computeLessonScore() keys entirely on block.id via
+  // this same forEachBlock walk, so a nested block with no id really is excluded from
+  // scoring, not just from this warning). Warn-only, deliberately: auto-generating a
+  // missing id would break lockAnswer restore across reloads, since the id has to be the
+  // exact one the author ships next time too.
   function checkBlockIds(lessonObj){
     const idCounts = new Map();
-    function visit(block){
+    forEachBlock(lessonObj, block=>{
       if(block.id) idCounts.set(block.id, (idCounts.get(block.id)||0) + 1);
       if((block.type === 'multiple_choice' || block.type === 'number_input') && !block.id){
         console.warn('[LessonCanvas] Graded block with no id (question: "'+(block.question||'(untitled)')+'") -- '+
           'it will be silently excluded from performance_summary, since computeLessonScore() keys entirely on block.id.');
       }
-      // reveal blocks can nest their own block list in `content`; those blocks are just as
-      // capable of colliding on id as top-level ones, so they need to be walked too
-      if(block.type === 'reveal' && Array.isArray(block.content)){
-        block.content.forEach(visit);
-      }
-    }
-    (lessonObj.slides||[]).forEach(slide=>{
-      (slide.blocks||[]).forEach(visit);
     });
     idCounts.forEach((count, id)=>{
       if(count > 1){
@@ -1217,6 +1238,7 @@ window.addEventListener('load', function(){
     card.appendChild(row);
     wrap.appendChild(card);
 
+    let warnedThresholdTargetMissing = false;
     function applyThreshold(){
       if(block.on_threshold && block.on_threshold.reveal_block){
         const target = findBlockById(block.on_threshold.reveal_block);
@@ -1229,16 +1251,25 @@ window.addEventListener('load', function(){
             ? parseFloat(input.value) <= parseFloat(block.on_threshold.value)
             : parseFloat(input.value) >= parseFloat(block.on_threshold.value);
           setBlockRevealed(revealEl, crossed);
+        } else if(!warnedThresholdTargetMissing){
+          // matches the warning runAction() gives for a button's reveal_block/reveal_hint
+          // target -- a slider's on_threshold target failing to resolve was previously
+          // silent. Warned once per render (not per drag) so dragging the slider can't
+          // flood the console.
+          warnedThresholdTargetMissing = true;
+          console.warn('[LessonCanvas] slider "'+(block.label||'(no label)')+'" on_threshold.reveal_block targets id "'+block.on_threshold.reveal_block+'", which does not resolve to any block on the current slide.');
         }
       }
     }
     // A restored value that already crosses the threshold must reveal its target
     // immediately, not wait for the next drag -- renderBlock() hides targeted blocks
     // by default, so without this a restored slider could disagree with what it's
-    // pointing at until the student nudges it. Deferred to a microtask because the
-    // target block may not exist in the DOM yet: renderBlocks() appends blocks in
-    // order, so a target later in the same slide hasn't been rendered when this
-    // slider (rendered first) would otherwise try to look it up synchronously.
+    // pointing at until the student nudges it. Deferred to a microtask because
+    // findBlockById() uses document.querySelector(), which finds nothing until
+    // renderSlide() finishes appending the whole slide to the document -- and
+    // renderSlide() runs synchronously start to finish, so any microtask queued
+    // during it (regardless of this block's position among its siblings) only
+    // drains once the entire slide, including this target, is already in the DOM.
     queueMicrotask(applyThreshold);
 
     input.addEventListener('input', ()=>{
@@ -1953,12 +1984,14 @@ window.addEventListener('load', function(){
     document.getElementById('lc-next').addEventListener('click', ()=>goToSlide(currentSlide+1));
     // Left/Right arrow-key slide navigation, registered once here (not per render).
     // Ignored while focus is inside a text-entry field (so typing in the AI Helper,
-    // Code editor, etc. doesn't accidentally flip slides) or while any modal is open
+    // Code editor, etc. doesn't accidentally flip slides), while any modal is open
     // (modalStack from the shared modal helper -- a modal's own content, like the
-    // Calculator, should own arrow keys while it's on top).
+    // Calculator, should own arrow keys while it's on top), or while the Whiteboard
+    // is open (a floating window, not a modal, so it isn't on modalStack -- see the
+    // comment at toggleWhiteboardWindow for why it's deliberately not one).
     document.addEventListener('keydown', (e)=>{
       if(e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      if(modalStack.length) return;
+      if(modalStack.length || whiteboardWindowEl) return;
       const tag = document.activeElement && document.activeElement.tagName;
       if(tag === 'INPUT' || tag === 'TEXTAREA' || (document.activeElement && document.activeElement.isContentEditable)) return;
       if(e.key === 'ArrowLeft') goToSlide(currentSlide-1);
@@ -2031,20 +2064,40 @@ window.addEventListener('load', function(){
     panel.className = 'lc-modal-panel' + (panelClass ? ' ' + panelClass : '');
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'true');
-    panel.innerHTML = `
-      <div class="lc-modal-header">
-        <strong>${title}</strong>
-        <div style="display:flex;align-items:center;">
-          ${headerExtraHtml || ''}
-          <button class="lc-btn lc-btn-small" id="${closeButtonId}" aria-label="Close">✕ Close</button>
-        </div>
-      </div>
-      ${bodyHtml || ''}
-    `;
+
+    const header = document.createElement('div');
+    header.className = 'lc-modal-header';
+    const titleEl = document.createElement('strong');
+    titleEl.textContent = title; // never innerHTML here -- every current caller passes a
+    header.appendChild(titleEl);  // literal, but a future lesson-sourced title must not become markup
+    const headerRight = document.createElement('div');
+    headerRight.style.display = 'flex';
+    headerRight.style.alignItems = 'center';
+    // headerExtraHtml stays raw HTML -- every call site only ever passes a developer-authored
+    // literal (e.g. the Dev-Mode-only AI Inspect button), never anything sourced from lesson
+    // content. If a caller ever needs to inject lesson-derived text here, it needs the same
+    // textContent treatment as title above, not this.
+    if(headerExtraHtml) headerRight.insertAdjacentHTML('beforeend', headerExtraHtml);
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'lc-btn lc-btn-small';
+    closeBtn.id = closeButtonId;
+    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.textContent = '✕ Close';
+    headerRight.appendChild(closeBtn);
+    header.appendChild(headerRight);
+    panel.appendChild(header);
+    if(bodyHtml) panel.insertAdjacentHTML('beforeend', bodyHtml);
+
     backdrop.appendChild(panel);
     document.body.appendChild(backdrop);
 
+    // handle is declared before close() so close()'s reference to it is never a forward
+    // reference -- close: null is a placeholder, filled in right below. Previously handle
+    // was declared after close(), which happened to work only because nothing called
+    // close() before that declaration ran; any hook fired earlier (e.g. from onMount)
+    // would have thrown "Cannot access 'handle' before initialization".
     let closed = false;
+    const handle = { el: backdrop, panel, close: null };
     function close(){
       if(closed) return;
       closed = true;
@@ -2057,14 +2110,14 @@ window.addEventListener('load', function(){
         previousFocus.focus();
       }
     }
+    handle.close = close;
     // lets a caller's own "if already open" branch close it (`xModalEl._modalClose()`)
     // without needing to keep a second handle variable alongside the element itself
     backdrop._modalClose = close;
 
-    document.getElementById(closeButtonId).addEventListener('click', close);
+    closeBtn.addEventListener('click', close); // direct reference from construction above, not a lookup that could hit the wrong element
     backdrop.addEventListener('mousedown', (e)=>{ if(e.target === backdrop) close(); });
 
-    const handle = { el: backdrop, panel, close };
     modalStack.push(handle);
 
     if(onMount) onMount(panel, close);
@@ -2117,6 +2170,12 @@ window.addEventListener('load', function(){
   let whiteboardErasing = false;
   const WHITEBOARD_COLORS = ['#1e1e1e', '#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#ffffff'];
 
+  // Deliberately NOT built on openModal(): the Whiteboard is a persistent scratch
+  // tool meant to sit alongside the lesson (draggable/resizable, no backdrop) rather
+  // than block interaction with it like the five true modals do, so it's never
+  // pushed onto modalStack. Code that needs to know "is something covering the
+  // lesson right now" (e.g. the arrow-key slide nav in buildShell()) has to check
+  // whiteboardWindowEl in addition to modalStack for that reason.
   function toggleWhiteboardWindow(){
     if(whiteboardWindowEl){ closeWhiteboardWindow(); return; }
     whiteboardWindowEl = document.createElement('div');
@@ -2621,79 +2680,71 @@ window.addEventListener('load', function(){
   let aiInspectViewEl = null;
   function toggleAiHelperInspectView(){
     if(!devModeActive) return;
-    if(aiInspectViewEl){ aiInspectViewEl.remove(); aiInspectViewEl = null; return; }
-    aiInspectViewEl = document.createElement('div');
-    aiInspectViewEl.className = 'lc-modal-backdrop';
-    const panel = document.createElement('div');
-    panel.className = 'lc-modal-panel';
-    panel.innerHTML = `
-      <div class="lc-modal-header">
-        <strong>AI Helper — behind the scenes (Dev Mode, read only)</strong>
-        <button class="lc-btn lc-btn-small" id="lc-ai-inspect-close">✕ Close</button>
-      </div>
-      <div class="lc-inspect-ai-body" id="lc-ai-inspect-body"></div>
-    `;
-    aiInspectViewEl.appendChild(panel);
-    document.body.appendChild(aiInspectViewEl);
+    if(aiInspectViewEl){ aiInspectViewEl._modalClose(); return; }
+    const handle = openModal({
+      id: 'ai-inspect',
+      title: 'AI Helper — behind the scenes (Dev Mode, read only)',
+      bodyHtml: '<div class="lc-inspect-ai-body" id="lc-ai-inspect-body"></div>',
+      onMount(panel){
+        const body = panel.querySelector('#lc-ai-inspect-body');
 
-    const body = panel.querySelector('#lc-ai-inspect-body');
+        function section(title){
+          const el = document.createElement('div');
+          el.className = 'lc-inspect-ai-section-title';
+          el.textContent = title;
+          body.appendChild(el);
+        }
+        function code(text){
+          const el = document.createElement('pre');
+          el.className = 'lc-inspect-ai-code';
+          el.textContent = text;
+          body.appendChild(el);
+        }
+        function note(text){
+          const el = document.createElement('div');
+          el.className = 'lc-inspect-ai-note';
+          el.textContent = text;
+          body.appendChild(el);
+        }
+        function kv(label, value){
+          const el = document.createElement('div');
+          el.className = 'lc-inspect-ai-kv';
+          el.innerHTML = '<b>' + label + ':</b> ' + value;
+          body.appendChild(el);
+        }
 
-    function section(title){
-      const el = document.createElement('div');
-      el.className = 'lc-inspect-ai-section-title';
-      el.textContent = title;
-      body.appendChild(el);
-    }
-    function code(text){
-      const el = document.createElement('pre');
-      el.className = 'lc-inspect-ai-code';
-      el.textContent = text;
-      body.appendChild(el);
-    }
-    function note(text){
-      const el = document.createElement('div');
-      el.className = 'lc-inspect-ai-note';
-      el.textContent = text;
-      body.appendChild(el);
-    }
-    function kv(label, value){
-      const el = document.createElement('div');
-      el.className = 'lc-inspect-ai-kv';
-      el.innerHTML = '<b>' + label + ':</b> ' + value;
-      body.appendChild(el);
-    }
+        section('Connector');
+        kv('Endpoint', 'POST https://lessoncanvas.jtraini.workers.dev/api/ask');
+        kv('Request body', '{ question: string, context: string }');
+        kv('Response body', '{ answer: string }');
+        kv('Backend model', 'Llama 3.1 8B, served by a Cloudflare Worker built in a separate session — not part of this repo');
 
-    section('Connector');
-    kv('Endpoint', 'POST https://lessoncanvas.jtraini.workers.dev/api/ask');
-    kv('Request body', '{ question: string, context: string }');
-    kv('Response body', '{ answer: string }');
-    kv('Backend model', 'Llama 3.1 8B, served by a Cloudflare Worker built in a separate session — not part of this repo');
+        section('DOM elements used');
+        code([
+          'button#lc-ai-toggle          — header button that opens this panel',
+          'div.lc-modal-backdrop        — the panel itself',
+          'div.lc-ai-messages           — message thread',
+          'textarea#lc-ai-input         — question input',
+          'button#lc-ai-send            — send button',
+          'button#lc-ai-close           — close button',
+          'button#lc-ai-inspect-toggle  — this inspector, Dev Mode only'
+        ].join('\n'));
 
-    section('DOM elements used');
-    code([
-      'button#lc-ai-toggle          — header button that opens this panel',
-      'div.lc-modal-backdrop        — the panel itself',
-      'div.lc-ai-messages           — message thread',
-      'textarea#lc-ai-input         — question input',
-      'button#lc-ai-send            — send button',
-      'button#lc-ai-close           — close button',
-      'button#lc-ai-inspect-toggle  — this inspector, Dev Mode only'
-    ].join('\n'));
+        section('Tone/style wrap (prepended to every request\'s context — live value)');
+        code(AI_HELPER_STYLE_WRAP);
+        note('This is the one lever available client-side to steer tone, since the Worker itself is a separate deployment with its own system prompt this file can\'t edit.');
 
-    section('Tone/style wrap (prepended to every request\'s context — live value)');
-    code(AI_HELPER_STYLE_WRAP);
-    note('This is the one lever available client-side to steer tone, since the Worker itself is a separate deployment with its own system prompt this file can\'t edit.');
+        section('Client-side code (live — this is the actual running source)');
+        code('function getCurrentSlideContext(){\n' + getCurrentSlideContext.toString().replace(/^function[^{]*\{/, '').replace(/\}$/, '').trim() + '\n}');
+        code('function buildAiHelperContext(){\n' + buildAiHelperContext.toString().replace(/^function[^{]*\{/, '').replace(/\}$/, '').trim() + '\n}');
+        code('async function sendAiHelperQuestion(){\n' + sendAiHelperQuestion.toString().replace(/^async function[^{]*\{/, '').replace(/\}$/, '').trim() + '\n}');
 
-    section('Client-side code (live — this is the actual running source)');
-    code('function getCurrentSlideContext(){\n' + getCurrentSlideContext.toString().replace(/^function[^{]*\{/, '').replace(/\}$/, '').trim() + '\n}');
-    code('function buildAiHelperContext(){\n' + buildAiHelperContext.toString().replace(/^function[^{]*\{/, '').replace(/\}$/, '').trim() + '\n}');
-    code('async function sendAiHelperQuestion(){\n' + sendAiHelperQuestion.toString().replace(/^async function[^{]*\{/, '').replace(/\}$/, '').trim() + '\n}');
-
-    section('.md / guardrails file');
-    note('There is no client-side guardrails.md for the AI Helper — a static HTML file has nowhere to hide one from a determined user anyway (view-source always works), so nothing is pretending to be hidden here. Any system prompt or behavior rules for the Llama model live server-side inside the Worker\'s own code, which was built separately and isn\'t visible from this file or this session.');
-
-    panel.querySelector('#lc-ai-inspect-close').addEventListener('click', toggleAiHelperInspectView);
-    aiInspectViewEl.addEventListener('mousedown', (e)=>{ if(e.target === aiInspectViewEl) toggleAiHelperInspectView(); });
+        section('.md / guardrails file');
+        note('There is no client-side guardrails.md for the AI Helper — a static HTML file has nowhere to hide one from a determined user anyway (view-source always works), so nothing is pretending to be hidden here. Any system prompt or behavior rules for the Llama model live server-side inside the Worker\'s own code, which was built separately and isn\'t visible from this file or this session.');
+      },
+      onClose(){ aiInspectViewEl = null; }
+    });
+    aiInspectViewEl = handle.el;
   }
 
   // ---- dev JSON paste panel ----

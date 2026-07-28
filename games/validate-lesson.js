@@ -201,13 +201,26 @@ function validateGradedBlock(block, label, errors){
   }
 }
 
-// Cross-checks verification.expected_result against correct_answer only -- it does
-// not re-evaluate check_expression (that would mean shipping an expression
-// evaluator here, and this file is meant to stay dependency-free). A self-consistent
+// Cross-checks verification.expected_result against correct_answer -- it does not
+// re-evaluate check_expression (that would mean shipping an expression evaluator
+// here, and this file is meant to stay dependency-free). A self-consistent
 // check_expression/expected_result pair is worthless if expected_result has simply
 // drifted from the actual answer key, so this is the check that actually matters.
+//
+// expected_result can only be inferred from correct_answer for number_input, where
+// both describe the same arithmetic value. For multiple_choice, correct_answer is
+// an option INDEX -- a categorically different value -- so a missing expected_result
+// there is an authoring error, not something to default (mirrors verifyBlock() in
+// lessoncanvas.html).
 function checkVerificationAgreement(block, label, errors){
   const expected = block.verification.expected_result;
+  if(expected === undefined){
+    if(block.type !== 'number_input'){
+      errors.push(label + ' verification.check_expression is present but expected_result is missing -- required for ' +
+        block.type + ' blocks, since correct_answer here is not the arithmetic result check_expression is supposed to produce.');
+    }
+    return; // number_input infers it from correct_answer at runtime; nothing to cross-check here
+  }
   if(block.type === 'number_input' && typeof expected === 'number' && typeof block.correct_answer === 'number'){
     if(Math.abs(expected - block.correct_answer) >= 1e-6){
       errors.push(label + ' verification.expected_result (' + expected + ') disagrees with correct_answer (' + block.correct_answer + ') -- these describe the same value and must match.');
