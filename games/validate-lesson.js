@@ -12,6 +12,17 @@
  * warnings are printed but do not fail the run.
  *
  * Plain Node, no dependencies -- this must stay runnable with nothing but `node`.
+ *
+ * ---- Out of scope ----
+ * check_expression is never evaluated here -- only cross-checked against
+ * expected_result/correct_answer where both are declared numbers. Shipping an
+ * expression evaluator would break the no-dependencies rule above, so a
+ * check_expression that is simply *wrong* (e.g. "4*t" where it should be "4/t")
+ * passes this validator cleanly as long as expected_result and correct_answer
+ * still agree with each other. That specific case is only ever caught at runtime,
+ * in the browser console, by lessoncanvas.html's own verifyBlock(). A lesson
+ * passing this validator can still have a wrong answer key if the expression
+ * itself -- not just its stated result -- is bad.
  */
 
 'use strict';
@@ -113,13 +124,19 @@ function validateLesson(lesson, errors, warnings){
     // ids visible to reveal_block/reveal_hint/on_threshold targets on this slide --
     // recurses into `reveal` blocks' own nested `content` array, matching the fix to
     // computeTargetedIds() in lessoncanvas.html (a target can live inside a reveal).
+    // No `errors` passed here -- a malformed entry is reported once, by the main
+    // pass below, not twice.
     const idsOnThisSlide = new Set();
     walkBlocks(slide.blocks, b => { if(b.id) idsOnThisSlide.add(b.id); });
 
     walkBlocks(slide.blocks, (block, path) => {
       const label = slideLabel + ' > ' + path;
 
-      if(!block || typeof block !== 'object' || typeof block.type !== 'string'){
+      // walkBlocks() already filtered out null/non-object entries (reporting them
+      // itself, since `errors` is passed below), so `block` is guaranteed a real
+      // object here -- this only needs to check the one field walkBlocks can't know
+      // is required.
+      if(typeof block.type !== 'string'){
         errors.push(label + ' is missing a "type".');
         return;
       }
@@ -152,28 +169,71 @@ function validateLesson(lesson, errors, warnings){
       if(block.type === 'custom' && (!block.html || !String(block.html).trim())){
         warnings.push(label + ' (custom) has empty "html".');
       }
-      if(block.type === 'text' && typeof block.text === 'string'){
-        checkCitations(block.text, label, sourceCount, errors);
+      // Every field that lessoncanvas.html actually pipes through renderMiniMarkdown()
+      // can contain a live [text](cite:N) link, not just `text` blocks -- the rule is
+      // "renders through the markdown path", not a hardcoded pair of cases.
+      const markdownField = MARKDOWN_FIELDS_BY_TYPE[block.type];
+      if(markdownField && typeof block[markdownField] === 'string'){
+        checkCitations(block[markdownField], label, sourceCount, errors);
       }
-    });
+      // reveal.content is markdown only when it's a string; when it's an array it's
+      // a nested block list instead, already covered by walkBlocks()'s own recursion.
+      if(block.type === 'reveal' && typeof block.content === 'string'){
+        checkCitations(block.content, label, sourceCount, errors);
+      }
+    }, undefined, errors);
   });
 
   idCounts.forEach((count, id) => {
     if(count > 1) errors.push('Block id "' + id + '" is used ' + count + ' times across this lesson (ids must be unique).');
   });
 
+  // Slide ids matter just as much as block ids: go_to_slide resolves via
+  // lesson.slides.findIndex(s => s.id === target) in lessoncanvas.html, so two
+  // slides sharing an id silently collapse -- every go_to_slide aimed at it reaches
+  // only whichever slide comes first, and nothing before this said so.
+  const slideIdCounts = new Map();
+  lesson.slides.forEach((s, i) => {
+    if(s && s.id) slideIdCounts.set(s.id, (slideIdCounts.get(s.id) || []).concat(i));
+  });
+  slideIdCounts.forEach((indices, id) => {
+    if(indices.length > 1){
+      errors.push('Slide id "' + id + '" is used by slides at index ' + indices.join(', ') +
+        ' -- go_to_slide targeting it will only ever reach slide[' + indices[0] + '].');
+    }
+  });
+
   checkThemeContrast(lesson.theme, warnings);
 }
+
+// Fields that render through lessoncanvas.html's renderMiniMarkdown() and can
+// therefore contain a live [text](cite:N) citation link. Keep in sync by hand:
+// grep lessoncanvas.html for `renderMiniMarkdown(` and check what each caller passes.
+const MARKDOWN_FIELDS_BY_TYPE = {
+  text: 'text',
+  multiple_choice: 'explanation',
+  end_confetti: 'message',
+  end_plain: 'message'
+};
 
 // Visits every block in `blocks`, recursing into a `reveal` block's own nested
 // `content` array (when content is a block array rather than a markdown string) --
 // the same scope reveal_block/on_threshold targets can reach in lessoncanvas.html.
-function walkBlocks(blocks, visit, pathPrefix){
+// A null/non-object entry is skipped rather than handed to `visit` (which can
+// therefore assume a real object) -- reported once, here, if `errors` is given;
+// callers that don't need it to be reported (e.g. a preliminary id-collection
+// pass) can omit `errors` and get a silent skip instead of a duplicate report.
+function walkBlocks(blocks, visit, pathPrefix, errors){
   (blocks || []).forEach((block, i) => {
-    const path = (pathPrefix || 'blocks') + '[' + i + ']' + (block && block.type ? ' (' + block.type + ')' : '');
+    const isObj = block && typeof block === 'object';
+    const path = (pathPrefix || 'blocks') + '[' + i + ']' + (isObj && block.type ? ' (' + block.type + ')' : '');
+    if(!isObj){
+      if(errors) errors.push(path + ' is not an object.');
+      return;
+    }
     visit(block, path);
-    if(block && block.type === 'reveal' && Array.isArray(block.content)){
-      walkBlocks(block.content, visit, path + '.content');
+    if(block.type === 'reveal' && Array.isArray(block.content)){
+      walkBlocks(block.content, visit, path + '.content', errors);
     }
   });
 }
