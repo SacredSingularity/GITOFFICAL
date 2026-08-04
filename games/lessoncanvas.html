@@ -2599,8 +2599,13 @@ window.addEventListener('load', function(){
     body.scrollTop = body.scrollHeight;
   }
 
-  const AI_HELPER_MAX_HISTORY = 20; // matches the Worker's own MAX_MESSAGES cap -- sending more
-                                     // than it will ever look at just wastes bandwidth on a school connection
+  // The Worker slices payload.messages to MAX_MESSAGES=20 and then appends the current
+  // question as the final user turn on top of that -- so sending 20 prior messages here
+  // would carry 21 upstream, one over the Worker's own cap, with the oldest one quietly
+  // dropped by its slice. Capping prior messages at MAX_MESSAGES-1 instead means the
+  // total (prior messages + this question) lands exactly on 20. Counts MESSAGES, not
+  // exchanges -- 19 messages is roughly nine or ten back-and-forths, not nineteen.
+  const AI_HELPER_MAX_HISTORY_MESSAGES = 20; // must match the Worker's own MAX_MESSAGES
   async function sendAiHelperQuestion(){
     const input = document.getElementById('lc-ai-input');
     const question = input.value.trim();
@@ -2614,7 +2619,7 @@ window.addEventListener('load', function(){
     // to [] on every loadLesson()/undoLastLoad(), so history never leaks across lessons.
     const history = aiHelperMessages
       .filter(m => m.role === 'user' || m.role === 'bot')
-      .slice(-AI_HELPER_MAX_HISTORY)
+      .slice(-(AI_HELPER_MAX_HISTORY_MESSAGES - 1))
       .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
     aiHelperMessages.push({role:'user', text:question});
     const sendBtn = document.getElementById('lc-ai-send');
@@ -2731,8 +2736,8 @@ window.addEventListener('load', function(){
         section('Connector');
         kv('Endpoint', 'POST https://lessoncanvas.jtraini.workers.dev/api/ask');
         kv('Request body', '{ question: string, context: string, messages: {role, content}[] }');
-        note('messages carries prior turns (up to '+AI_HELPER_MAX_HISTORY+') so a follow-up like "say that again more simply" has something to refer back to. It resets to empty whenever a new lesson loads — aiHelperMessages, which it\'s built from, is cleared in loadLesson()/undoLastLoad(), so conversation never leaks from one lesson into another.');
-        note('Caveat, checked directly: the client sends this field correctly (verified by inspecting the actual outgoing request), but the currently live Llama Worker does not appear to read it — a follow-up question got a response with no visible awareness of the prior turn, even though that turn was demonstrably in the request. lessoncanvas-helper-proxy.js (the alternative Worker above) does read and use messages; the live deployment may not.');
+        note('messages carries up to '+(AI_HELPER_MAX_HISTORY_MESSAGES-1)+' prior messages (roughly nine or ten back-and-forths) so a follow-up like "say that again more simply" has something to refer back to -- capped so the total sent upstream, including this question, lands exactly on the Worker\'s own '+AI_HELPER_MAX_HISTORY_MESSAGES+'-message limit. Resets to empty whenever a new lesson loads — aiHelperMessages, which it\'s built from, is cleared in loadLesson()/undoLastLoad(), so conversation never leaks from one lesson into another.');
+        note('Caveat, inferred from behavior, not read from source: the client sends this field correctly (verified by inspecting the actual outgoing request each time), but the currently live Llama Worker does not appear to use it. Tested across 3 separate trials, each with a question that could only be answered correctly by referring back to a specific prior turn — all 3 times the model explicitly denied any prior conversation existed ("this conversation just started", "there is no previous message from you"), despite that prior turn being demonstrably present and correct in the outgoing request every time. Consistent 3-for-3, but still a live-behavior inference about a Worker whose source isn\'t in this repo, not a fact read from code — see the header comment above. lessoncanvas-helper-proxy.js (the alternative Worker above) does read and use messages; the live deployment does not appear to.');
         kv('Response body', '{ answer: string }');
         kv('Backend model', 'Llama 3.1 8B, served by a Cloudflare Worker built in a separate session — not part of this repo');
         note('An alternative Claude-based Worker (lessoncanvas-helper-proxy.js, in this repo) matches this exact request/response contract if you\'d rather self-host the helper on Claude with your own Anthropic API key instead of the Llama deployment above. It is not what\'s currently live at the endpoint listed here.');
