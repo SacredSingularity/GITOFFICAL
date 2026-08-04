@@ -4,6 +4,18 @@
 - `graphcalc.html` — standalone Desmos-style graphing calculator. Also self-contained, and also embeddable via `createGraphCalc(container, options)`.
 - `validate-lesson.js` — offline validator for lesson JSON files: `node validate-lesson.js my-lesson.json`. Run this before shipping a lesson to a student; it catches things the app itself only ever reports as a `console.warn`.
 
+## Before studying from a new lesson
+
+1. Run `node validate-lesson.js <lesson>.json` and fix every **error** it reports. Warnings are
+   advisory (worth a look, not blocking); errors mean something is genuinely wrong.
+2. The validator can't check everything. It doesn't run `check_expression`s (those only execute
+   live, in the browser console) and it has no way to judge whether the lesson content is factually
+   correct — that's still on you.
+3. Open the lesson once with the browser console visible and click through it before working
+   through it for real. Watch for amber verification banners on graded blocks and any
+   `console.warn` output — both mean something needs fixing before the lesson is trustworthy to
+   study from.
+
 ## Re-embedding GraphCalc into LessonCanvas
 
 `lessoncanvas.html` embeds the *entire contents* of `graphcalc.html` as a base64 string (`GRAPHCALC_HTML_B64`), decoded at runtime into the Calculator modal's iframe. This is what lets a lesson file work standalone no matter where it's copied to — it never depends on `graphcalc.html` being present alongside it.
