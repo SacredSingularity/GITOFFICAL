@@ -98,7 +98,31 @@
       const signedInHere = gameId ? (!!session && !isOptedOut(gameId)) : !!session;
       const signedInElsewhereOnly = gameId && !!session && isOptedOut(gameId);
 
-      if (signedInHere) {
+      // 'setpw' must win even though verifyOtp() already created a real session —
+      // otherwise a freshly-verified sign-up jumps straight to "signed in" and the
+      // account is left with no password ever set.
+      if (mode === 'setpw') {
+        b.innerHTML = `<div class="cloudSyncStack">
+          <span class="cloudSyncMsg">email verified &mdash; set a password</span>
+          <div class="cloudSyncRow">
+            <input id="${boxId}_pw1" type="password" placeholder="password" style="width:110px">
+            <input id="${boxId}_pw2" type="password" placeholder="confirm" style="width:100px">
+            <button id="${boxId}_setpw">Save</button>
+          </div>
+          ${errorMsg ? `<span class="cloudSyncMsg">${errorMsg}</span>` : ''}
+        </div>`;
+        document.getElementById(boxId + '_setpw').onclick = async () => {
+          const p1 = val(boxId + '_pw1'), p2 = val(boxId + '_pw2');
+          if (p1.length < 6) { errorMsg = 'Password must be at least 6 characters.'; render(); return; }
+          if (p1 !== p2) { errorMsg = "Passwords don't match."; render(); return; }
+          errorMsg = 'Saving…'; render();
+          const { error } = await sb.auth.updateUser({ password: p1 });
+          if (error) { errorMsg = error.message; render(); return; }
+          resetTransient();
+          render();
+          if (gameId && !isOptedOut(gameId)) syncFromCloud();
+        };
+      } else if (signedInHere) {
         b.innerHTML = `<button id="${boxId}_signout">Sign out</button>`;
         document.getElementById(boxId + '_signout').onclick = () => {
           if (gameId) {
@@ -139,26 +163,6 @@
           render();
         };
         document.getElementById(boxId + '_back').onclick = () => { resetTransient(); render(); };
-      } else if (mode === 'setpw') {
-        b.innerHTML = `<div class="cloudSyncStack">
-          <span class="cloudSyncMsg">email verified &mdash; set a password</span>
-          <div class="cloudSyncRow">
-            <input id="${boxId}_pw1" type="password" placeholder="password" style="width:110px">
-            <input id="${boxId}_pw2" type="password" placeholder="confirm" style="width:100px">
-            <button id="${boxId}_setpw">Save</button>
-          </div>
-          ${errorMsg ? `<span class="cloudSyncMsg">${errorMsg}</span>` : ''}
-        </div>`;
-        document.getElementById(boxId + '_setpw').onclick = async () => {
-          const p1 = val(boxId + '_pw1'), p2 = val(boxId + '_pw2');
-          if (p1.length < 6) { errorMsg = 'Password must be at least 6 characters.'; render(); return; }
-          if (p1 !== p2) { errorMsg = "Passwords don't match."; render(); return; }
-          errorMsg = 'Saving…'; render();
-          const { error } = await sb.auth.updateUser({ password: p1 });
-          if (error) { errorMsg = error.message; render(); return; }
-          resetTransient();
-          render(); // onAuthStateChange also fires; render() here avoids a blank flash
-        };
       } else if (mode === 'signup') {
         b.innerHTML = `<div class="cloudSyncStack">
           <div class="cloudSyncRow">
@@ -220,9 +224,11 @@
     listeners.push((s) => {
       const justSignedIn = !hadSession && !!s;
       hadSession = !!s;
-      resetTransient();
+      // don't stomp on the password-setup step just because verifyOtp() already
+      // created a session — that step ends itself (resetTransient) once done
+      if (mode !== 'setpw') resetTransient();
       render();
-      if (justSignedIn && gameId && !isOptedOut(gameId)) syncFromCloud();
+      if (justSignedIn && mode !== 'setpw' && gameId && !isOptedOut(gameId)) syncFromCloud();
     });
     if (ready) render();
   }
