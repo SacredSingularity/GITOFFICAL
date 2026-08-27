@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "topics": [
+    {
+      "id": "mszrh0h87nerl9",
+      "name": "Vectors",
+      "subject": "Maths",
+      "rating": "red",
+      "lastStudied": null,
+      "sheet": ""
+    }
+  ],
+  "sessions": [
+    {
+      "id": "mszrh0h8cvwejw",
+      "date": "2026-08-19",
+      "topic": "Vectors",
+      "plannedMinutes": 25,
+      "actualMinutes": 25,
+      "status": "done",
+      "whatHappened": "",
+      "timerStartedAt": null,
+      "timerAccumulatedMs": 1500000
+    }
+  ],
+  "assignments": [],
+  "settings": {
+    "weeklyTargets": {}
+  }
+}

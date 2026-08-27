@@ -1,0 +1,2284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pitwall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --carbon:#14161A;      /* darkest tone -- header bg, dark text on bright rating chips */
+    --graphite:#B0B9C6;    /* secondary text on dark surfaces */
+    --paper:#0F1419;       /* page background (dark charcoal) */
+    --card:#1A1F27;        /* card/surface background */
+    --rule:#2D3440;        /* hairlines, borders */
+    --muted:#B0B9C6;       /* labels, timestamps, secondary copy */
+    --text:#FFFFFF;        /* primary text on dark surfaces */
+    --accent:#C0C0C0;      /* silver -- CTAs, focus, active tab, hover brighten */
+    --accent-light:#E8E8E8;/* brightened silver for hover/active states */
+    --purple:#B24BF3;
+    --green:#00D26A;
+    --yellow:#FFD93D;
+    --red:#E8112D;
+
+    --font-display:"Saira Condensed",Impact,"Arial Narrow",sans-serif;
+    --font-body:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-mono:"JetBrains Mono",ui-monospace,Consolas,"SF Mono",monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--paper);color:var(--text);font-family:var(--font-body);}
+  body{-webkit-font-smoothing:antialiased;}
+  @media (prefers-reduced-motion:reduce){ *{animation-duration:0.001ms !important;transition-duration:0.001ms !important;} }
+
+  .pw-app{display:flex;flex-direction:column;min-height:100vh;}
+
+  /* ---- header ---- */
+  .pw-header{
+    background:var(--carbon);color:var(--text);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:10px 16px;flex-wrap:wrap;
+  }
+  /* Purely decorative livery accent -- deliberately kept off any data-bearing
+     element (see the sector-colour rule) so it can never read as a rating or an
+     overdue signal, only as banner styling. */
+  .pw-header-stripes{
+    height:5px;flex-shrink:0;
+    background:repeating-linear-gradient(to bottom, var(--red) 0, var(--red) 1px, var(--carbon) 1px, var(--carbon) 3px);
+  }
+  .pw-header-cell{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .pw-header-cell.pw-header-center{align-items:center;text-align:center;flex:1 1 auto;}
+  .pw-header-cell.pw-header-right{align-items:flex-end;text-align:right;}
+  .pw-eyebrow{
+    font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9BA0A8;font-weight:500;
+  }
+  .pw-header-value{font-family:var(--font-mono);font-size:15px;font-weight:500;color:var(--text);}
+  .pw-countdown-what{font-family:var(--font-body);font-size:11px;color:#9BA0A8;}
+  .pw-target-edit{
+    background:none;border:1px dashed #4A4F58;color:#9BA0A8;font-family:var(--font-mono);
+    font-size:10px;border-radius:4px;padding:1px 5px;cursor:pointer;margin-top:2px;
+  }
+  .pw-target-edit:hover, .pw-target-edit:focus-visible{color:var(--accent);border-color:var(--accent);}
+
+  /* ---- tabs ---- */
+  .pw-tabbar{
+    display:flex;background:var(--card);border-bottom:1px solid var(--rule);
+    position:sticky;top:0;z-index:2;
+  }
+  .pw-tab{
+    flex:1 1 0;padding:11px 8px;background:none;border:none;border-bottom:3px solid transparent;
+    font-family:var(--font-display);font-weight:600;font-size:15px;letter-spacing:.02em;
+    color:var(--muted);cursor:pointer;
+  }
+  .pw-tab:hover{color:var(--accent);}
+  .pw-tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);}
+  .pw-tab:focus-visible, button:focus-visible, [tabindex]:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible{
+    outline:2px solid var(--accent);outline-offset:2px;
+  }
+
+  /* ---- panels ---- */
+  .pw-main{flex:1;padding:16px;max-width:820px;width:100%;margin:0 auto;}
+  .pw-panel{display:none;}
+  .pw-panel.pw-panel-active{display:block;}
+  .pw-stub{
+    background:var(--card);border:1px solid var(--rule);border-radius:10px;
+    padding:32px 20px;text-align:center;color:var(--muted);font-size:14px;
+  }
+  .pw-stub b{display:block;font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--text);margin-bottom:6px;}
+
+  /* ---- Today tab ---- */
+  .pw-section{margin-bottom:22px;}
+  .pw-section-title{
+    font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:500;
+    margin:0 0 8px 2px;
+  }
+  .pw-card{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:4px;}
+  .pw-row{
+    display:flex;align-items:center;gap:10px;padding:10px 10px;border-bottom:1px solid var(--rule);
+  }
+  .pw-row:last-child{border-bottom:none;}
+  .pw-row-topic{flex:1 1 auto;font-size:14px;min-width:0;overflow-wrap:break-word;}
+  .pw-row-topic.pw-row-done{color:var(--muted);text-decoration:line-through;}
+  .pw-row-minutes{font-family:var(--font-mono);font-size:13px;color:var(--muted);white-space:nowrap;}
+  .pw-row-actions{display:flex;align-items:center;gap:6px;}
+  .pw-btn{
+    font-family:var(--font-body);font-size:12px;font-weight:500;border-radius:6px;padding:6px 10px;
+    border:1px solid var(--rule);background:var(--card);color:var(--muted);cursor:pointer;
+    white-space:nowrap;flex-shrink:0;
+  }
+  .pw-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .pw-btn-primary{background:var(--accent);color:var(--carbon);border-color:var(--accent);}
+  .pw-btn-primary:hover{background:var(--accent-light);border-color:var(--accent-light);}
+  .pw-timer-elapsed{font-family:var(--font-mono);font-size:13px;color:var(--text);min-width:52px;text-align:right;}
+  .pw-empty{padding:18px 12px;text-align:center;color:var(--muted);font-size:13px;}
+
+  .pw-add-form{display:flex;flex-wrap:wrap;gap:8px;padding:10px;}
+  .pw-add-form input[type=text]{
+    flex:1 1 160px;min-width:0;font-family:var(--font-body);font-size:14px;
+    border:1px solid var(--rule);border-radius:6px;padding:8px 10px;background:var(--paper);color:var(--text);
+  }
+  .pw-add-form input[type=number]{
+    width:84px;font-family:var(--font-mono);font-size:14px;
+    border:1px solid var(--rule);border-radius:6px;padding:8px 10px;background:var(--paper);color:var(--text);
+  }
+
+  .pw-log-delta{font-family:var(--font-mono);font-size:12px;color:var(--muted);white-space:nowrap;}
+  .pw-log-what{flex-basis:100%;font-size:13px;color:var(--graphite);margin-top:2px;}
+
+  .pw-whathappened-form{padding:10px;border-top:1px solid var(--rule);background:var(--paper);}
+  .pw-whathappened-form textarea{
+    width:100%;font-family:var(--font-body);font-size:13px;border:1px solid var(--rule);border-radius:6px;
+    padding:8px 10px;background:var(--card);color:var(--text);resize:vertical;min-height:44px;
+  }
+  .pw-whathappened-form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;}
+
+  /* ---- Topics tab ---- */
+  .pw-topics-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+  .pw-topics-toolbar label{font-size:12px;color:var(--muted);}
+  .pw-select{
+    font-family:var(--font-body);font-size:13px;border:1px solid var(--rule);border-radius:6px;
+    padding:6px 8px;background:var(--card);color:var(--text);
+  }
+  .pw-topic-row{border-bottom:1px solid var(--rule);}
+  .pw-topic-row:last-child{border-bottom:none;}
+  .pw-topic-row-main{display:flex;align-items:center;gap:10px;padding:10px;flex-wrap:wrap;}
+  .pw-topic-titleblock{flex:1 1 140px;min-width:0;display:flex;flex-direction:column;align-items:flex-start;}
+  .pw-topic-name{
+    font-family:var(--font-display);font-size:16px;font-weight:600;
+    overflow-wrap:break-word;background:none;border:none;text-align:left;cursor:pointer;color:var(--text);
+    padding:0;
+  }
+  .pw-topic-name:hover{text-decoration:underline;}
+  .pw-topic-subject{
+    font-family:var(--font-body);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
+    background:none;border:none;padding:0;cursor:pointer;margin-top:2px;
+  }
+  .pw-topic-subject:hover{color:var(--accent);text-decoration:underline;}
+  .pw-rating-chip{
+    font-family:var(--font-display);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
+    border:none;border-radius:5px;padding:5px 9px;cursor:pointer;color:var(--carbon);flex-shrink:0;
+  }
+  .pw-rating-chip:hover{filter:brightness(0.95);}
+  .pw-rating-red{background:var(--red);color:#fff;}
+  .pw-rating-yellow{background:var(--yellow);color:var(--carbon);}
+  .pw-rating-green{background:var(--green);color:var(--carbon);}
+  .pw-rating-purple{background:var(--purple);color:#fff;}
+  .pw-topic-meta{font-family:var(--font-mono);font-size:12px;color:var(--muted);white-space:nowrap;}
+  .pw-topic-expand-btn{
+    background:none;border:1px solid var(--rule);border-radius:6px;width:28px;height:28px;cursor:pointer;
+    color:var(--muted);flex-shrink:0;font-size:13px;
+  }
+  .pw-topic-expand-btn:hover{color:var(--accent);border-color:var(--accent);}
+  .pw-topic-sheet{padding:0 10px 14px 10px;font-size:13px;color:var(--graphite);}
+  .pw-topic-sheet-empty{font-style:italic;color:var(--muted);}
+  .pw-topic-sheet-view p{margin:0 0 8px 0;}
+  .pw-topic-sheet-view p:last-child{margin-bottom:0;}
+  .pw-topic-sheet-view ul{margin:0 0 8px 0;padding-left:20px;}
+  .pw-topic-sheet-edit-btn{
+    background:none;border:1px solid var(--rule);border-radius:6px;font-family:var(--font-body);
+    font-size:12px;color:var(--muted);padding:4px 9px;cursor:pointer;margin-top:4px;
+  }
+  .pw-topic-sheet-edit-btn:hover{color:var(--accent);border-color:var(--accent);}
+  .pw-topic-delete-btn{display:block;width:fit-content;margin-top:8px;}
+  .pw-topic-sheet-textarea{
+    width:100%;font-family:var(--font-body);font-size:13px;border:1px solid var(--rule);border-radius:6px;
+    padding:8px 10px;background:var(--card);color:var(--text);resize:vertical;min-height:100px;
+  }
+  .pw-topic-sheet-edit-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;}
+
+  .pw-add-topic-form{display:flex;gap:8px;padding:10px;}
+  .pw-add-topic-form input[type=text]{
+    flex:1 1 auto;min-width:0;font-family:var(--font-body);font-size:14px;
+    border:1px solid var(--rule);border-radius:6px;padding:8px 10px;background:var(--paper);color:var(--text);
+  }
+
+  /* ---- Assignments tab ---- */
+  .pw-assign-row{border-bottom:1px solid var(--rule);border-left:3px solid transparent;}
+  .pw-assign-row:last-child{border-bottom:none;}
+  .pw-assign-row.pw-overdue{border-left-color:var(--red);}
+  .pw-assign-row-main{display:flex;align-items:flex-start;gap:10px;padding:10px;flex-wrap:wrap;cursor:pointer;}
+  .pw-assign-titleblock{flex:1 1 160px;min-width:0;}
+  .pw-assign-title{
+    font-family:var(--font-display);font-size:16px;font-weight:600;color:var(--text);
+    overflow-wrap:break-word;
+  }
+  .pw-assign-title.pw-assign-done{color:var(--muted);text-decoration:line-through;}
+  .pw-assign-subject{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+  .pw-assign-due{font-family:var(--font-mono);font-size:13px;color:var(--muted);white-space:nowrap;}
+  .pw-assign-due.pw-overdue-text{color:var(--red);font-weight:700;}
+  .pw-assign-due.pw-due-soon{color:var(--text);font-weight:700;}
+  .pw-assign-final-note{font-family:var(--font-mono);font-size:11px;color:var(--muted);white-space:nowrap;}
+  .pw-priority-badge{
+    font-family:var(--font-display);font-size:11px;text-transform:uppercase;letter-spacing:.03em;
+    border:1px solid var(--rule);border-radius:5px;padding:3px 7px;color:var(--muted);white-space:nowrap;
+  }
+  .pw-priority-high{font-weight:700;color:var(--accent);border-color:var(--accent);}
+  .pw-assign-status-select{
+    font-family:var(--font-body);font-size:12px;border:1px solid var(--rule);border-radius:6px;
+    padding:4px 6px;background:var(--card);color:var(--text);
+  }
+  .pw-assign-body{padding:0 10px 14px 10px;}
+  .pw-assign-body-meta{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:8px;}
+  .pw-assign-body-link a{color:var(--accent);}
+  .pw-assign-edit-btn{
+    background:none;border:1px solid var(--rule);border-radius:6px;font-family:var(--font-body);
+    font-size:12px;color:var(--muted);padding:4px 9px;cursor:pointer;margin-top:6px;
+  }
+  .pw-assign-edit-btn:hover{color:var(--accent);border-color:var(--accent);}
+
+  .pw-assign-form{padding:12px;display:flex;flex-direction:column;gap:8px;}
+  .pw-assign-form-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .pw-assign-form input[type=text], .pw-assign-form input[type=date], .pw-assign-form input[type=number],
+  .pw-assign-form select, .pw-assign-form textarea{
+    font-family:var(--font-body);font-size:14px;border:1px solid var(--rule);border-radius:6px;
+    padding:8px 10px;background:var(--paper);color:var(--text);flex:1 1 140px;min-width:0;
+  }
+  .pw-assign-form textarea{flex-basis:100%;min-height:70px;resize:vertical;font-size:13px;}
+  .pw-assign-form-actions{display:flex;justify-content:flex-end;gap:8px;}
+
+  .pw-completed-toggle{
+    width:100%;text-align:left;background:var(--paper);border:1px solid var(--rule);border-radius:8px;
+    padding:10px 12px;font-family:var(--font-body);font-size:13px;color:var(--muted);cursor:pointer;margin-top:14px;
+  }
+  .pw-completed-toggle:hover{color:var(--accent);}
+
+  /* Divider between the Assignments and Exams areas -- reads as a "footer" break
+     between the two dedicated sections, not a data-bearing element. */
+  .pw-assess-divider{
+    height:1px;background:var(--rule);margin:22px 0;position:relative;
+  }
+  .pw-assess-divider::after{
+    content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:6px;height:6px;border-radius:50%;background:var(--rule);
+  }
+
+  .pw-type-tag{
+    font-family:var(--font-display);font-size:10px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);border:1px solid var(--rule);border-radius:4px;padding:2px 6px;white-space:nowrap;
+  }
+  .pw-exam-study-time{font-family:var(--font-mono);font-size:12px;color:var(--muted);white-space:nowrap;}
+
+  .pw-topic-picker{
+    max-height:440px;overflow-y:auto;border:1px solid var(--rule);border-radius:8px;background:var(--paper);
+  }
+  .pw-topic-picker-row{
+    display:flex;align-items:center;gap:10px;padding:13px 14px;border-bottom:1px solid var(--rule);font-size:14px;
+  }
+  .pw-topic-picker-row:last-child{border-bottom:none;}
+  .pw-topic-picker-row input[type=checkbox]{width:18px;height:18px;flex-shrink:0;accent-color:var(--accent);}
+  .pw-topic-picker-row label{flex:1 1 auto;min-width:0;overflow-wrap:break-word;cursor:pointer;}
+  .pw-topic-picker-hours{font-family:var(--font-mono);font-size:13px;color:var(--muted);white-space:nowrap;}
+  .pw-topic-picker-empty{padding:16px;font-size:14px;color:var(--muted);font-style:italic;}
+
+  /* ---- Log tab ---- */
+  .pw-log-summary{padding:12px;}
+  .pw-log-summary-row{
+    display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13px;color:var(--graphite);
+    border-bottom:1px solid var(--rule);
+  }
+  .pw-log-summary-row:last-child{border-bottom:none;}
+  .pw-log-summary-row span:last-child{font-family:var(--font-mono);color:var(--text);white-space:nowrap;}
+  .pw-log-summary-total{border-top:1px solid var(--rule);margin-top:4px;padding-top:9px;}
+  .pw-log-summary-total span{font-weight:700;}
+  .pw-log-summary-total span:last-child{font-size:14px;}
+  .pw-log-entry{padding:10px;border-bottom:1px solid var(--rule);display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;}
+  .pw-log-entry:last-child{border-bottom:none;}
+  .pw-log-entry-date{font-family:var(--font-mono);font-size:12px;color:var(--muted);white-space:nowrap;}
+  .pw-log-entry-topic{font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--text);flex:1 1 auto;min-width:0;}
+  .pw-log-entry-subject{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+
+  /* ---- data bar (export/import) ---- */
+  .pw-databar{
+    display:flex;justify-content:center;gap:16px;padding:6px;background:var(--card);
+    border-bottom:1px solid var(--rule);
+  }
+  .pw-databar-btn{
+    background:none;border:none;font-family:var(--font-body);font-size:12px;color:var(--muted);
+    cursor:pointer;padding:4px 6px;text-decoration:underline;
+  }
+  .pw-databar-btn:hover{color:var(--accent);}
+
+  /* ---- import confirmation modal ---- */
+  .pw-modal-backdrop{
+    position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;
+    z-index:10;padding:16px;
+  }
+  .pw-modal{
+    background:var(--card);border-radius:12px;max-width:420px;width:100%;padding:20px;
+    max-height:80vh;overflow-y:auto;border:1px solid var(--rule);
+  }
+  .pw-assess-modal{max-width:560px;}
+  .pw-assess-modal .pw-assign-form{padding:0;}
+  .pw-modal-title{font-family:var(--font-display);font-size:20px;font-weight:700;margin:0 0 12px 0;color:var(--text);}
+  .pw-modal-body{font-size:13px;color:var(--graphite);line-height:1.5;}
+  .pw-modal-body p{margin:0 0 8px 0;}
+  .pw-modal-body strong{color:var(--text);}
+  .pw-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+
+  @media (max-width:520px){
+    .pw-header{flex-direction:column;align-items:stretch;}
+    .pw-header-cell.pw-header-center, .pw-header-cell.pw-header-right{align-items:flex-start;text-align:left;}
+  }
+</style>
+</head>
+<body>
+<div class="pw-app">
+
+  <header class="pw-header" id="pw-header">
+    <div class="pw-header-cell">
+      <span class="pw-eyebrow">Today</span>
+      <span class="pw-header-value" id="pw-today-date">--</span>
+    </div>
+    <div class="pw-header-cell pw-header-center">
+      <span class="pw-eyebrow" id="pw-countdown-label">Next deadline</span>
+      <span class="pw-header-value" id="pw-countdown-days">--</span>
+      <span class="pw-countdown-what" id="pw-countdown-what">No deadlines yet</span>
+    </div>
+    <div class="pw-header-cell pw-header-right">
+      <span class="pw-eyebrow">This week</span>
+      <span class="pw-header-value" id="pw-week-delta">--</span>
+      <button type="button" class="pw-target-edit" id="pw-target-edit-btn">edit target</button>
+    </div>
+  </header>
+  <div class="pw-header-stripes" aria-hidden="true"></div>
+
+  <nav class="pw-tabbar" role="tablist" aria-label="Sections">
+    <button class="pw-tab" role="tab" id="pw-tab-btn-today" aria-selected="true" aria-controls="pw-panel-today">Today</button>
+    <button class="pw-tab" role="tab" id="pw-tab-btn-topics" aria-selected="false" aria-controls="pw-panel-topics">Topics</button>
+    <button class="pw-tab" role="tab" id="pw-tab-btn-assignments" aria-selected="false" aria-controls="pw-panel-assignments">Assessments</button>
+    <button class="pw-tab" role="tab" id="pw-tab-btn-log" aria-selected="false" aria-controls="pw-panel-log">Log</button>
+  </nav>
+
+  <div class="pw-databar">
+    <button type="button" class="pw-databar-btn" id="pw-export-btn">Export data</button>
+    <button type="button" class="pw-databar-btn" id="pw-import-btn">Import data</button>
+    <input type="file" id="pw-import-file-input" accept="application/json" style="display:none;">
+  </div>
+
+  <main class="pw-main">
+    <section class="pw-panel pw-panel-active" id="pw-panel-today" role="tabpanel" aria-labelledby="pw-tab-btn-today">
+
+      <div class="pw-section">
+        <h2 class="pw-section-title">Today's plan</h2>
+        <div class="pw-card" id="pw-plan-list"></div>
+        <form class="pw-add-form" id="pw-plan-add-form">
+          <input type="text" id="pw-plan-topic-input" list="pw-topic-datalist" placeholder="Topic" aria-label="Topic" autocomplete="off" required>
+          <datalist id="pw-topic-datalist"></datalist>
+          <input type="number" id="pw-plan-minutes-input" placeholder="Mins" aria-label="Target minutes" min="1" step="1" required>
+          <button type="submit" class="pw-btn pw-btn-primary">Add</button>
+        </form>
+      </div>
+
+      <div class="pw-section">
+        <h2 class="pw-section-title">Today's log</h2>
+        <div class="pw-card" id="pw-today-log-list"></div>
+      </div>
+
+    </section>
+    <section class="pw-panel" id="pw-panel-topics" role="tabpanel" aria-labelledby="pw-tab-btn-topics">
+
+      <div class="pw-topics-toolbar">
+        <label for="pw-topics-sort">Sort</label>
+        <select class="pw-select" id="pw-topics-sort">
+          <option value="longest">Longest since studied</option>
+          <option value="weakest">Weakest first</option>
+          <option value="entered">As entered</option>
+        </select>
+      </div>
+
+      <div class="pw-card" id="pw-topics-list"></div>
+
+      <form class="pw-add-topic-form" id="pw-topic-add-form">
+        <input type="text" id="pw-topic-name-input" placeholder="New topic name" aria-label="New topic name" autocomplete="off" required>
+        <input type="text" id="pw-topic-subject-input" list="pw-subject-datalist" placeholder="Subject (optional)" aria-label="Subject" autocomplete="off">
+        <button type="submit" class="pw-btn pw-btn-primary">Add topic</button>
+      </form>
+
+    </section>
+    <section class="pw-panel" id="pw-panel-assignments" role="tabpanel" aria-labelledby="pw-tab-btn-assignments">
+
+      <div class="pw-topics-toolbar">
+        <label for="pw-assign-filter">Show</label>
+        <select class="pw-select" id="pw-assign-filter">
+          <option value="all">All</option>
+          <option value="assignment">Assignments only</option>
+          <option value="exam">Exams only</option>
+        </select>
+        <label for="pw-assign-sort">Sort</label>
+        <select class="pw-select" id="pw-assign-sort">
+          <option value="due">By due date</option>
+          <option value="subject">By subject</option>
+          <option value="priority">By priority</option>
+        </select>
+      </div>
+
+      <datalist id="pw-subject-datalist"></datalist>
+
+      <div class="pw-section" id="pw-assess-section-assignments">
+        <h2 class="pw-section-title">Assignments</h2>
+        <div class="pw-card" id="pw-assign-list"></div>
+        <div id="pw-assign-add-slot" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="pw-assess-divider" id="pw-assess-divider" aria-hidden="true"></div>
+
+      <div class="pw-section" id="pw-assess-section-exams">
+        <h2 class="pw-section-title">Exams</h2>
+        <div class="pw-card" id="pw-exam-list"></div>
+        <div id="pw-exam-add-slot" style="margin-top:10px;"></div>
+      </div>
+
+      <button type="button" class="pw-completed-toggle" id="pw-assign-completed-toggle"></button>
+      <div class="pw-card" id="pw-assign-completed-list" style="display:none;"></div>
+
+    </section>
+    <section class="pw-panel" id="pw-panel-log" role="tabpanel" aria-labelledby="pw-tab-btn-log">
+
+      <div class="pw-section">
+        <h2 class="pw-section-title">This week</h2>
+        <div class="pw-card" id="pw-log-weekly-summary"></div>
+      </div>
+
+      <div class="pw-topics-toolbar">
+        <label for="pw-log-subject-filter">Subject</label>
+        <select class="pw-select" id="pw-log-subject-filter"><option value="">All</option></select>
+        <label for="pw-log-topic-filter">Topic</label>
+        <select class="pw-select" id="pw-log-topic-filter"><option value="">All</option></select>
+      </div>
+
+      <div class="pw-card" id="pw-log-list"></div>
+
+    </section>
+  </main>
+
+</div>
+
+<div class="pw-modal-backdrop" id="pw-import-modal" style="display:none;">
+  <div class="pw-modal" role="dialog" aria-modal="true" aria-labelledby="pw-import-modal-title">
+    <h2 class="pw-modal-title" id="pw-import-modal-title">Replace all data?</h2>
+    <div class="pw-modal-body" id="pw-import-modal-body"></div>
+    <div class="pw-modal-actions">
+      <button type="button" class="pw-btn" id="pw-import-cancel-btn">Cancel</button>
+      <button type="button" class="pw-btn pw-btn-primary" id="pw-import-confirm-btn">Replace my data</button>
+    </div>
+  </div>
+</div>
+
+<div class="pw-modal-backdrop" id="pw-assess-modal" style="display:none;">
+  <div class="pw-modal pw-assess-modal" role="dialog" aria-modal="true" aria-labelledby="pw-assess-modal-title">
+    <h2 class="pw-modal-title" id="pw-assess-modal-title"></h2>
+    <div id="pw-assess-modal-body"></div>
+  </div>
+</div>
+
+<script>
+  var PW_EMPTY_SHEET_TEXT = "No sheet yet -- write one as you revise.";
+  var PW_EMPTY_ASSIGN_BODY = "Nothing written yet.";
+
+  var PW_STORAGE_KEY = "pitwall_state_v1";
+
+  // Default shape for a fresh install. Per-topic/assignment/session data is entered
+  // by Jasmine -- nothing here is study content.
+  function pwDefaultState(){
+    return {
+      version: 1,
+      topics: [],
+      sessions: [],
+      assignments: [],
+      settings: {
+        weeklyTargets: {}   // { "2026-08-17": 8 } keyed by Monday of that week, hours
+      }
+    };
+  }
+
+  var pwState = pwLoadState();
+
+  // Exams only ever offer "not started"/"done" -- fold any leftover "in progress"
+  // value (from data saved before that restriction, or an import) back to
+  // "not started" rather than leaving it pointing at a status with no matching
+  // option in the exam form. Assignments keep all three statuses untouched.
+  function pwNormalizeStatuses(state){
+    if(state && Array.isArray(state.assignments)){
+      state.assignments.forEach(function(a){
+        if(a.type === "exam" && a.status === "in-progress") a.status = "not-started";
+      });
+    }
+    return state;
+  }
+
+  function pwLoadState(){
+    try{
+      var raw = localStorage.getItem(PW_STORAGE_KEY);
+      if(!raw) return pwDefaultState();
+      var parsed = JSON.parse(raw);
+      if(!parsed || typeof parsed !== "object" || !parsed.version) return pwDefaultState();
+      return pwNormalizeStatuses(parsed);
+    }catch(e){
+      pwShowStorageWarning();
+      return pwDefaultState();
+    }
+  }
+
+  function pwSaveState(){
+    try{
+      localStorage.setItem(PW_STORAGE_KEY, JSON.stringify(pwState));
+    }catch(e){
+      pwShowStorageWarning();
+    }
+  }
+
+  function pwShowStorageWarning(){
+    if(document.getElementById("pw-storage-warning")) return;
+    var bar = document.createElement("div");
+    bar.id = "pw-storage-warning";
+    bar.style.cssText = "background:var(--carbon);color:var(--text);font-size:12px;text-align:center;padding:6px;";
+    bar.textContent = "Storage unavailable -- working in memory only, nothing will be saved.";
+    document.body.insertBefore(bar, document.body.firstChild);
+  }
+
+  // ---- header: date, countdown, weekly hours delta ----
+
+  function pwMondayKey(d){
+    var date = new Date(d);
+    var day = date.getDay();
+    var diff = (day === 0 ? -6 : 1) - day; // shift Sunday(0) back to previous Monday
+    date.setDate(date.getDate() + diff);
+    date.setHours(0,0,0,0);
+    return date.toISOString().slice(0,10);
+  }
+
+  function pwFormatDate(d){
+    return d.toLocaleDateString(undefined, { weekday:"short", day:"numeric", month:"short" });
+  }
+
+  function pwFormatDelta(minutes){
+    var sign = minutes < 0 ? "−" : "+";
+    var abs = Math.abs(minutes);
+    var h = Math.floor(abs / 60);
+    var m = abs % 60;
+    return sign + h + ":" + (m < 10 ? "0" : "") + m;
+  }
+
+  function pwWeekLoggedMinutes(weekKey){
+    var start = new Date(weekKey);
+    var end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    var total = 0;
+    for(var i = 0; i < pwState.sessions.length; i++){
+      var s = pwState.sessions[i];
+      var d = new Date(s.date);
+      if(d >= start && d < end) total += (s.actualMinutes || 0);
+    }
+    return total;
+  }
+
+  function pwRenderHeader(){
+    var now = new Date();
+    document.getElementById("pw-today-date").textContent = pwFormatDate(now);
+
+    var wk = pwMondayKey(now);
+    var targetHours = pwState.settings.weeklyTargets[wk];
+    var loggedMinutes = pwWeekLoggedMinutes(wk);
+    var deltaEl = document.getElementById("pw-week-delta");
+    if(typeof targetHours === "number"){
+      var deltaMinutes = loggedMinutes - (targetHours * 60);
+      deltaEl.textContent = pwFormatDelta(deltaMinutes);
+    } else {
+      deltaEl.textContent = "no target set";
+    }
+    deltaEl.className = "pw-header-value";
+
+    // Countdown across every assignment's active due date (its draft date while
+    // that's still upcoming, otherwise its final date).
+    pwPruneExpiredDrafts();
+    var next = null;
+    var nextDate = null;
+    for(var i = 0; i < pwState.assignments.length; i++){
+      var a = pwState.assignments[i];
+      if(a.status === "done") continue;
+      var activeDate = pwAssignActiveDate(a);
+      if(!next || new Date(activeDate) < new Date(nextDate)){ next = a; nextDate = activeDate; }
+    }
+    if(next){
+      var days = pwDaysUntil(nextDate);
+      document.getElementById("pw-countdown-days").textContent = days < 0 ?
+        "overdue " + Math.abs(days) + "d" : days + (days === 1 ? " day" : " days");
+      document.getElementById("pw-countdown-what").textContent = next.title;
+      document.getElementById("pw-countdown-label").textContent = next.type === "exam" ? "Next Exam" : "Next deadline";
+    } else {
+      document.getElementById("pw-countdown-days").textContent = "--";
+      document.getElementById("pw-countdown-what").textContent = "No deadlines yet";
+      document.getElementById("pw-countdown-label").textContent = "Next deadline";
+    }
+  }
+
+  document.getElementById("pw-target-edit-btn").addEventListener("click", function(){
+    var wk = pwMondayKey(new Date());
+    var current = pwState.settings.weeklyTargets[wk];
+    var input = window.prompt("Target hours for the week of " + wk + ":", current != null ? String(current) : "");
+    if(input === null) return;
+    var hours = parseFloat(input);
+    if(isNaN(hours) || hours < 0) return;
+    pwState.settings.weeklyTargets[wk] = hours;
+    pwSaveState();
+    pwRenderHeader();
+  });
+
+  // ---- tabs ----
+
+  var pwTabIds = ["today", "topics", "assignments", "log"];
+
+  function pwSelectTab(id){
+    pwTabIds.forEach(function(t){
+      var isActive = t === id;
+      document.getElementById("pw-tab-btn-" + t).setAttribute("aria-selected", String(isActive));
+      document.getElementById("pw-panel-" + t).classList.toggle("pw-panel-active", isActive);
+    });
+  }
+
+  pwTabIds.forEach(function(t){
+    document.getElementById("pw-tab-btn-" + t).addEventListener("click", function(){ pwSelectTab(t); });
+  });
+
+  // ---- shared helpers ----
+
+  function pwUid(){
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function pwTodayKey(){
+    var d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0,10);
+  }
+
+  // Looks up a topic by name (case-insensitive); creates a stub topic if none
+  // matches yet, so typing a new topic into Today's plan is enough to make it
+  // show up in the Topics tab -- Jasmine fills in rating/sheet there later.
+  function pwFindOrCreateTopic(name){
+    var trimmed = name.trim();
+    for(var i = 0; i < pwState.topics.length; i++){
+      if(pwState.topics[i].name.toLowerCase() === trimmed.toLowerCase()) return pwState.topics[i];
+    }
+    var topic = { id: pwUid(), name: trimmed, subject: "", rating: "red", lastStudied: null, sheet: "" };
+    pwState.topics.push(topic);
+    return topic;
+  }
+
+  function pwMarkTopicStudied(topicName, dateStr){
+    var topic = pwFindOrCreateTopic(topicName);
+    if(!topic.lastStudied || dateStr > topic.lastStudied) topic.lastStudied = dateStr;
+  }
+
+  function pwRefreshTopicDatalist(){
+    var list = document.getElementById("pw-topic-datalist");
+    list.innerHTML = "";
+    pwState.topics.forEach(function(t){
+      var opt = document.createElement("option");
+      opt.value = t.name;
+      list.appendChild(opt);
+    });
+  }
+
+  // ---- Today tab: plan, timer, log ----
+
+  var pwActiveTimerSessionId = null; // which session (if any) has a running/paused timer
+  var pwTimerTickHandle = null;
+  var pwPendingWhatHappenedId = null; // session awaiting its "what happened" note after Stop
+
+  function pwTodaySessions(){
+    var key = pwTodayKey();
+    return pwState.sessions.filter(function(s){ return s.date === key; });
+  }
+
+  function pwElapsedMs(session){
+    var base = session.timerAccumulatedMs || 0;
+    if(session.timerStartedAt) base += (Date.now() - session.timerStartedAt);
+    return base;
+  }
+
+  function pwFormatClock(ms){
+    var totalSeconds = Math.floor(ms / 1000);
+    var h = Math.floor(totalSeconds / 3600);
+    var m = Math.floor((totalSeconds % 3600) / 60);
+    var s = totalSeconds % 60;
+    var pad = function(n){ return (n < 10 ? "0" : "") + n; };
+    return (h > 0 ? h + ":" + pad(m) : m) + ":" + pad(s);
+  }
+
+  function pwStartTimer(session){
+    if(pwActiveTimerSessionId && pwActiveTimerSessionId !== session.id) return; // one at a time
+    session.timerStartedAt = Date.now();
+    pwActiveTimerSessionId = session.id;
+    pwSaveState();
+    pwEnsureTicking();
+    pwRenderToday();
+  }
+
+  function pwPauseTimer(session){
+    session.timerAccumulatedMs = pwElapsedMs(session);
+    session.timerStartedAt = null;
+    pwSaveState();
+    pwRenderToday();
+  }
+
+  function pwStopTimer(session){
+    session.timerAccumulatedMs = pwElapsedMs(session);
+    session.timerStartedAt = null;
+    session.actualMinutes = Math.max(1, Math.round(session.timerAccumulatedMs / 60000));
+    session.status = "done";
+    pwActiveTimerSessionId = null;
+    pwPendingWhatHappenedId = session.id;
+    pwMarkTopicStudied(session.topic, session.date);
+    pwSaveState();
+    pwRenderToday();
+    pwRenderHeader();
+    pwRenderTopics();
+    pwRenderLog();
+  }
+
+  function pwEnsureTicking(){
+    if(pwTimerTickHandle) return;
+    pwTimerTickHandle = setInterval(function(){
+      if(!pwActiveTimerSessionId) { clearInterval(pwTimerTickHandle); pwTimerTickHandle = null; return; }
+      var el = document.querySelector('.pw-timer-elapsed[data-session-id="' + pwActiveTimerSessionId + '"]');
+      var session = pwState.sessions.filter(function(s){ return s.id === pwActiveTimerSessionId; })[0];
+      if(el && session) el.textContent = pwFormatClock(pwElapsedMs(session));
+    }, 1000);
+  }
+
+  function pwRenderToday(){
+    var planItems = pwTodaySessions().filter(function(s){ return s.status === "planned"; });
+    var doneItems = pwTodaySessions().filter(function(s){ return s.status === "done"; });
+
+    var planList = document.getElementById("pw-plan-list");
+    planList.innerHTML = "";
+    if(planItems.length === 0){
+      planList.innerHTML = '<div class="pw-empty">Nothing planned yet -- add a session below.</div>';
+    } else {
+      planItems.forEach(function(session){
+        var row = document.createElement("div");
+        row.className = "pw-row";
+
+        var topicSpan = document.createElement("span");
+        topicSpan.className = "pw-row-topic";
+        topicSpan.textContent = session.topic;
+        row.appendChild(topicSpan);
+
+        var minutesSpan = document.createElement("span");
+        minutesSpan.className = "pw-row-minutes";
+        minutesSpan.textContent = session.plannedMinutes + " min";
+        row.appendChild(minutesSpan);
+
+        var actions = document.createElement("div");
+        actions.className = "pw-row-actions";
+
+        var isActive = pwActiveTimerSessionId === session.id;
+        var isRunning = isActive && !!session.timerStartedAt;
+        var isPaused = isActive && !session.timerStartedAt && (session.timerAccumulatedMs || 0) > 0;
+
+        if(isActive){
+          var clock = document.createElement("span");
+          clock.className = "pw-timer-elapsed";
+          clock.setAttribute("data-session-id", session.id);
+          clock.textContent = pwFormatClock(pwElapsedMs(session));
+          actions.appendChild(clock);
+        }
+
+        if(!isActive){
+          var startBtn = document.createElement("button");
+          startBtn.type = "button";
+          startBtn.className = "pw-btn";
+          startBtn.textContent = "Start";
+          startBtn.disabled = !!pwActiveTimerSessionId;
+          startBtn.addEventListener("click", function(){ pwStartTimer(session); });
+          actions.appendChild(startBtn);
+        } else if(isRunning){
+          var pauseBtn = document.createElement("button");
+          pauseBtn.type = "button";
+          pauseBtn.className = "pw-btn";
+          pauseBtn.textContent = "Pause";
+          pauseBtn.addEventListener("click", function(){ pwPauseTimer(session); });
+          actions.appendChild(pauseBtn);
+
+          var stopBtn1 = document.createElement("button");
+          stopBtn1.type = "button";
+          stopBtn1.className = "pw-btn pw-btn-primary";
+          stopBtn1.textContent = "Stop";
+          stopBtn1.addEventListener("click", function(){ pwStopTimer(session); });
+          actions.appendChild(stopBtn1);
+        } else if(isPaused){
+          var resumeBtn = document.createElement("button");
+          resumeBtn.type = "button";
+          resumeBtn.className = "pw-btn";
+          resumeBtn.textContent = "Resume";
+          resumeBtn.addEventListener("click", function(){ pwStartTimer(session); });
+          actions.appendChild(resumeBtn);
+
+          var stopBtn2 = document.createElement("button");
+          stopBtn2.type = "button";
+          stopBtn2.className = "pw-btn pw-btn-primary";
+          stopBtn2.textContent = "Stop";
+          stopBtn2.addEventListener("click", function(){ pwStopTimer(session); });
+          actions.appendChild(stopBtn2);
+        }
+
+        row.appendChild(actions);
+        planList.appendChild(row);
+
+        if(pwPendingWhatHappenedId === session.id){
+          planList.appendChild(pwBuildWhatHappenedForm(session));
+        }
+      });
+    }
+
+    var logList = document.getElementById("pw-today-log-list");
+    logList.innerHTML = "";
+    if(doneItems.length === 0){
+      logList.innerHTML = '<div class="pw-empty">Nothing completed yet today.</div>';
+    } else {
+      doneItems.slice().reverse().forEach(function(session){
+        if(pwPendingWhatHappenedId === session.id){
+          logList.appendChild(pwBuildWhatHappenedForm(session));
+          return;
+        }
+        var row = document.createElement("div");
+        row.className = "pw-row";
+
+        var topicSpan = document.createElement("span");
+        topicSpan.className = "pw-row-topic pw-row-done";
+        topicSpan.textContent = session.topic;
+        row.appendChild(topicSpan);
+
+        var delta = (session.actualMinutes || 0) - session.plannedMinutes;
+        var deltaSpan = document.createElement("span");
+        deltaSpan.className = "pw-log-delta";
+        deltaSpan.textContent = session.actualMinutes + "m actual (planned " + session.plannedMinutes + "m, " +
+          (delta >= 0 ? "+" : "") + delta + "m)";
+        row.appendChild(deltaSpan);
+
+        if(session.whatHappened){
+          var whatP = document.createElement("div");
+          whatP.className = "pw-log-what";
+          whatP.textContent = session.whatHappened;
+          row.appendChild(whatP);
+        }
+
+        var retryBtn = document.createElement("button");
+        retryBtn.type = "button";
+        retryBtn.className = "pw-btn";
+        retryBtn.textContent = "Retry";
+        retryBtn.setAttribute("aria-label", "Retry " + session.topic + " -- undo this stop and put it back in today's plan");
+        retryBtn.addEventListener("click", function(){ pwRetrySession(session); });
+        row.appendChild(retryBtn);
+
+        logList.appendChild(row);
+      });
+    }
+  }
+
+  // Undoes an accidental Stop: clears the logged result and puts the session
+  // back in today's plan so it can be timed again -- this week's hours drop
+  // by whatever it had counted, since weekly totals are computed live from
+  // done sessions rather than stored separately.
+  function pwRetrySession(session){
+    session.status = "planned";
+    session.actualMinutes = null;
+    session.whatHappened = "";
+    session.timerStartedAt = null;
+    session.timerAccumulatedMs = 0;
+    if(pwPendingWhatHappenedId === session.id) pwPendingWhatHappenedId = null;
+    pwSaveState();
+    pwRenderToday();
+    pwRenderHeader();
+    pwRenderTopics();
+    pwRenderLog();
+  }
+
+  function pwBuildWhatHappenedForm(session){
+    var wrap = document.createElement("div");
+    wrap.className = "pw-whathappened-form";
+
+    var label = document.createElement("label");
+    label.className = "pw-section-title";
+    label.style.margin = "0 0 6px 0";
+    label.setAttribute("for", "pw-what-" + session.id);
+    label.textContent = "What happened -- " + session.topic;
+    wrap.appendChild(label);
+
+    var textarea = document.createElement("textarea");
+    textarea.id = "pw-what-" + session.id;
+    textarea.placeholder = "Breakthrough / stuck on / nothing to report...";
+    textarea.value = session.whatHappened || "";
+    wrap.appendChild(textarea);
+
+    var actionsRow = document.createElement("div");
+    actionsRow.className = "pw-whathappened-form-actions";
+
+    var saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "pw-btn pw-btn-primary";
+    saveBtn.textContent = "Save";
+    saveBtn.addEventListener("click", function(){
+      session.whatHappened = textarea.value;
+      pwPendingWhatHappenedId = null;
+      pwSaveState();
+      pwRenderToday();
+      pwRenderLog();
+    });
+    actionsRow.appendChild(saveBtn);
+
+    wrap.appendChild(actionsRow);
+    return wrap;
+  }
+
+  document.getElementById("pw-plan-add-form").addEventListener("submit", function(e){
+    e.preventDefault();
+    var topicInput = document.getElementById("pw-plan-topic-input");
+    var minutesInput = document.getElementById("pw-plan-minutes-input");
+    var topicName = topicInput.value.trim();
+    var minutes = parseInt(minutesInput.value, 10);
+    if(!topicName || !minutes || minutes < 1) return;
+
+    pwFindOrCreateTopic(topicName);
+    pwState.sessions.push({
+      id: pwUid(),
+      date: pwTodayKey(),
+      topic: topicName,
+      plannedMinutes: minutes,
+      actualMinutes: null,
+      status: "planned",
+      whatHappened: "",
+      timerStartedAt: null,
+      timerAccumulatedMs: 0
+    });
+    pwSaveState();
+    pwRefreshTopicDatalist();
+    pwRenderToday();
+    pwRenderTopics();
+
+    topicInput.value = "";
+    minutesInput.value = "";
+    topicInput.focus();
+  });
+
+  // ---- Topics tab: timing tower ----
+
+  var pwTopicsSortMode = "longest"; // default per spec: the thing you forget to do
+  var pwExpandedTopicIds = {};
+  var pwEditingSheetIds = {};
+
+  // Reused from games/lessoncanvas.html's renderMiniMarkdown (bold/italic/lists only --
+  // the LessonCanvas version's inline-citation feature is dropped, it has no meaning
+  // here without a lesson.sources list to point at).
+  function pwRenderMiniMarkdown(text){
+    var lines = String(text || "").split("\n");
+    var html = "";
+    var inList = false;
+    var paraLines = [];
+
+    function flushParagraph(){
+      if(paraLines.length){
+        html += "<p>" + pwInlineFormat(paraLines.join(" ")) + "</p>";
+        paraLines = [];
+      }
+    }
+
+    lines.forEach(function(line){
+      var trimmed = line.trim();
+      if(/^[-*]\s+/.test(trimmed)){
+        flushParagraph();
+        if(!inList){ html += "<ul>"; inList = true; }
+        html += "<li>" + pwInlineFormat(trimmed.replace(/^[-*]\s+/, "")) + "</li>";
+      } else {
+        if(inList){ html += "</ul>"; inList = false; }
+        if(trimmed === ""){ flushParagraph(); }
+        else paraLines.push(trimmed);
+      }
+    });
+    flushParagraph();
+    if(inList) html += "</ul>";
+    return html;
+  }
+
+  function pwInlineFormat(s){
+    return s
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>");
+  }
+
+  var pwRatingOrder = ["red", "yellow", "green", "purple"];
+  var pwRatingLabel = { red:"Weak", yellow:"Shaky", green:"Solid", purple:"Ready" };
+
+  function pwNextRating(rating){
+    var idx = pwRatingOrder.indexOf(rating);
+    return pwRatingOrder[(idx + 1) % pwRatingOrder.length];
+  }
+
+  function pwTopicMinutesMap(){
+    var map = {};
+    pwState.sessions.forEach(function(s){
+      if(s.status !== "done") return;
+      var key = s.topic.toLowerCase();
+      map[key] = (map[key] || 0) + (s.actualMinutes || 0);
+    });
+    return map;
+  }
+
+  function pwDaysSince(dateStr){
+    if(!dateStr) return null;
+    var start = new Date(dateStr);
+    var now = new Date(pwTodayKey());
+    return Math.round((now - start) / 86400000);
+  }
+
+  function pwSortedTopics(){
+    var list = pwState.topics.slice();
+    if(pwTopicsSortMode === "weakest"){
+      list.sort(function(a, b){ return pwRatingOrder.indexOf(a.rating) - pwRatingOrder.indexOf(b.rating); });
+    } else if(pwTopicsSortMode === "longest"){
+      list.sort(function(a, b){
+        var da = pwDaysSince(a.lastStudied);
+        var db = pwDaysSince(b.lastStudied);
+        if(da === null && db === null) return 0;
+        if(da === null) return -1;
+        if(db === null) return 1;
+        return db - da;
+      });
+    }
+    // "entered" falls through: keep pwState.topics insertion order
+    return list;
+  }
+
+  function pwBuildSheetSection(topic){
+    var section = document.createElement("div");
+    section.className = "pw-topic-sheet";
+
+    if(pwEditingSheetIds[topic.id]){
+      var textarea = document.createElement("textarea");
+      textarea.className = "pw-topic-sheet-textarea";
+      textarea.value = topic.sheet || "";
+      textarea.setAttribute("aria-label", "Study sheet for " + topic.name);
+      section.appendChild(textarea);
+
+      var actions = document.createElement("div");
+      actions.className = "pw-topic-sheet-edit-actions";
+
+      var cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "pw-btn";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.addEventListener("click", function(){
+        pwEditingSheetIds[topic.id] = false;
+        pwRenderTopics();
+      });
+      actions.appendChild(cancelBtn);
+
+      var saveBtn = document.createElement("button");
+      saveBtn.type = "button";
+      saveBtn.className = "pw-btn pw-btn-primary";
+      saveBtn.textContent = "Save";
+      saveBtn.addEventListener("click", function(){
+        topic.sheet = textarea.value;
+        pwEditingSheetIds[topic.id] = false;
+        pwSaveState();
+        pwRenderTopics();
+      });
+      actions.appendChild(saveBtn);
+
+      section.appendChild(actions);
+      return section;
+    }
+
+    if(!topic.sheet){
+      var empty = document.createElement("div");
+      empty.className = "pw-topic-sheet-empty";
+      empty.textContent = PW_EMPTY_SHEET_TEXT;
+      section.appendChild(empty);
+    } else {
+      var view = document.createElement("div");
+      view.className = "pw-topic-sheet-view";
+      view.innerHTML = pwRenderMiniMarkdown(topic.sheet);
+      section.appendChild(view);
+    }
+
+    var editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "pw-topic-sheet-edit-btn";
+    editBtn.textContent = topic.sheet ? "Edit sheet" : "Write sheet";
+    editBtn.addEventListener("click", function(){
+      pwEditingSheetIds[topic.id] = true;
+      pwRenderTopics();
+    });
+    section.appendChild(editBtn);
+
+    var deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "pw-topic-sheet-edit-btn pw-topic-delete-btn";
+    deleteBtn.textContent = "Delete topic";
+    deleteBtn.addEventListener("click", function(){
+      var confirmed = window.confirm(
+        "Delete \"" + topic.name + "\"? This removes the topic and its study sheet. " +
+        "Sessions already logged against it stay in the Log, but it'll drop off the Topics list. This can't be undone."
+      );
+      if(!confirmed) return;
+      pwDeleteTopic(topic);
+    });
+    section.appendChild(deleteBtn);
+
+    return section;
+  }
+
+  function pwDeleteTopic(topic){
+    pwState.topics = pwState.topics.filter(function(t){ return t.id !== topic.id; });
+    // Exams reference topics by id -- strip the dangling reference so a
+    // deleted topic doesn't linger invisibly in an exam's topic list.
+    pwState.assignments.forEach(function(a){
+      if(a.type === "exam" && Array.isArray(a.topicIds)){
+        a.topicIds = a.topicIds.filter(function(id){ return id !== topic.id; });
+      }
+    });
+    delete pwExpandedTopicIds[topic.id];
+    delete pwEditingSheetIds[topic.id];
+    pwSaveState();
+    pwRefreshTopicDatalist();
+    pwRenderTopics();
+    pwRenderHeader();
+  }
+
+  function pwRenderTopics(){
+    var list = document.getElementById("pw-topics-list");
+    list.innerHTML = "";
+
+    var topics = pwSortedTopics();
+    if(topics.length === 0){
+      list.innerHTML = '<div class="pw-empty">No topics yet -- add one below.</div>';
+      return;
+    }
+
+    var minutesMap = pwTopicMinutesMap();
+
+    topics.forEach(function(topic){
+      var wrap = document.createElement("div");
+      wrap.className = "pw-topic-row";
+
+      var main = document.createElement("div");
+      main.className = "pw-topic-row-main";
+
+      var titleBlock = document.createElement("div");
+      titleBlock.className = "pw-topic-titleblock";
+
+      var nameBtn = document.createElement("button");
+      nameBtn.type = "button";
+      nameBtn.className = "pw-topic-name";
+      nameBtn.textContent = topic.name;
+      nameBtn.setAttribute("aria-expanded", String(!!pwExpandedTopicIds[topic.id]));
+      nameBtn.addEventListener("click", function(){
+        pwExpandedTopicIds[topic.id] = !pwExpandedTopicIds[topic.id];
+        pwRenderTopics();
+      });
+      titleBlock.appendChild(nameBtn);
+
+      var subjectBtn = document.createElement("button");
+      subjectBtn.type = "button";
+      subjectBtn.className = "pw-topic-subject";
+      subjectBtn.textContent = topic.subject || "set subject";
+      subjectBtn.setAttribute("aria-label", "Edit subject for " + topic.name);
+      subjectBtn.addEventListener("click", function(){
+        var input = window.prompt("Subject for " + topic.name + ":", topic.subject || "");
+        if(input === null) return;
+        topic.subject = input.trim();
+        pwSaveState();
+        pwRefreshSubjectDatalist();
+        pwRenderTopics();
+        pwRenderLog();
+      });
+      titleBlock.appendChild(subjectBtn);
+
+      main.appendChild(titleBlock);
+
+      var ratingBtn = document.createElement("button");
+      ratingBtn.type = "button";
+      ratingBtn.className = "pw-rating-chip pw-rating-" + topic.rating;
+      ratingBtn.textContent = pwRatingLabel[topic.rating];
+      ratingBtn.setAttribute("aria-label", topic.name + " rating: " + pwRatingLabel[topic.rating] + ", click to change");
+      ratingBtn.addEventListener("click", function(){
+        topic.rating = pwNextRating(topic.rating);
+        pwSaveState();
+        pwRenderTopics();
+      });
+      main.appendChild(ratingBtn);
+
+      var days = pwDaysSince(topic.lastStudied);
+      var meta = document.createElement("span");
+      meta.className = "pw-topic-meta";
+      meta.textContent = days === null ? "never studied" : (days === 0 ? "today" : days + "d ago");
+      main.appendChild(meta);
+
+      var hours = document.createElement("span");
+      hours.className = "pw-topic-meta";
+      hours.textContent = ((minutesMap[topic.name.toLowerCase()] || 0) / 60).toFixed(1) + "h";
+      main.appendChild(hours);
+
+      var expandBtn = document.createElement("button");
+      expandBtn.type = "button";
+      expandBtn.className = "pw-topic-expand-btn";
+      expandBtn.textContent = pwExpandedTopicIds[topic.id] ? "−" : "+";
+      expandBtn.setAttribute("aria-label", "Toggle study sheet for " + topic.name);
+      expandBtn.addEventListener("click", function(){
+        pwExpandedTopicIds[topic.id] = !pwExpandedTopicIds[topic.id];
+        pwRenderTopics();
+      });
+      main.appendChild(expandBtn);
+
+      wrap.appendChild(main);
+
+      if(pwExpandedTopicIds[topic.id]){
+        wrap.appendChild(pwBuildSheetSection(topic));
+      }
+
+      list.appendChild(wrap);
+    });
+  }
+
+  document.getElementById("pw-topics-sort").addEventListener("change", function(e){
+    pwTopicsSortMode = e.target.value;
+    pwRenderTopics();
+  });
+
+  document.getElementById("pw-topic-add-form").addEventListener("submit", function(e){
+    e.preventDefault();
+    var input = document.getElementById("pw-topic-name-input");
+    var subjectInput = document.getElementById("pw-topic-subject-input");
+    var name = input.value.trim();
+    if(!name) return;
+    var topic = pwFindOrCreateTopic(name);
+    if(subjectInput.value.trim()) topic.subject = subjectInput.value.trim();
+    pwSaveState();
+    pwRefreshTopicDatalist();
+    pwRefreshSubjectDatalist();
+    pwRenderTopics();
+    input.value = "";
+    subjectInput.value = "";
+    input.focus();
+  });
+
+  // ---- Assignments tab: general board, must not hardcode any subject/exam ----
+
+  var pwAssignSortMode = "due";
+  var pwAssignFilterMode = "all"; // "all" | "assignment" | "exam"
+  var pwExpandedAssignIds = {};
+  // null = form hidden, "new-assignment"/"new-exam" = adding that type, else an existing item's id
+  var pwAssignFormEditingId = null;
+  var pwShowCompletedAssignments = false;
+
+  function pwExamStudyMinutes(exam){
+    var minutesMap = pwTopicMinutesMap();
+    return (exam.topicIds || []).reduce(function(total, topicId){
+      var topic = pwState.topics.filter(function(t){ return t.id === topicId; })[0];
+      if(!topic) return total;
+      return total + (minutesMap[topic.name.toLowerCase()] || 0);
+    }, 0);
+  }
+
+  function pwDeleteAssessment(a){
+    pwState.assignments = pwState.assignments.filter(function(x){ return x.id !== a.id; });
+    delete pwExpandedAssignIds[a.id];
+    if(pwAssignFormEditingId === a.id) pwCloseAssessModal();
+    pwSaveState();
+    pwRenderAssignments();
+    pwRenderHeader();
+  }
+
+  var pwPriorityOrder = ["high", "medium", "low"];
+  var pwPriorityLabel = { high:"High", medium:"Medium", low:"Low" };
+  var pwStatusLabel = { "not-started":"Not started", "in-progress":"In progress", "done":"Done" };
+  var pwAssignStatusOptions = ["not-started", "in-progress", "done"];
+  var pwExamStatusOptions = ["not-started", "done"];
+
+  function pwRefreshSubjectDatalist(){
+    var list = document.getElementById("pw-subject-datalist");
+    list.innerHTML = "";
+    var seen = {};
+    pwState.assignments.forEach(function(a){
+      var key = a.subject.toLowerCase();
+      if(seen[key]) return;
+      seen[key] = true;
+      var opt = document.createElement("option");
+      opt.value = a.subject;
+      list.appendChild(opt);
+    });
+  }
+
+  function pwDaysUntil(dateStr){
+    var due = new Date(dateStr);
+    var now = new Date(pwTodayKey());
+    return Math.round((due - now) / 86400000);
+  }
+
+  // An assignment's "active" date is its draft date while that's still upcoming,
+  // otherwise its final date. pwPruneExpiredDrafts() clears a.draftDate once it's
+  // passed, so by the time anything reads it here, a truthy draftDate is always
+  // still in the future -- no need to re-check its own days-until at each call site.
+  function pwAssignActiveDate(a){
+    return a.draftDate || a.dueDate;
+  }
+
+  function pwPruneExpiredDrafts(){
+    var changed = false;
+    pwState.assignments.forEach(function(a){
+      if(a.draftDate && pwDaysUntil(a.draftDate) < 0){
+        a.draftDate = null;
+        changed = true;
+      }
+    });
+    if(changed) pwSaveState();
+  }
+
+  function pwSortedAssignments(list){
+    var sorted = list.slice();
+    if(pwAssignSortMode === "due"){
+      sorted.sort(function(a, b){ return new Date(pwAssignActiveDate(a)) - new Date(pwAssignActiveDate(b)); });
+    } else if(pwAssignSortMode === "subject"){
+      sorted.sort(function(a, b){ return a.subject.localeCompare(b.subject) || new Date(pwAssignActiveDate(a)) - new Date(pwAssignActiveDate(b)); });
+    } else if(pwAssignSortMode === "priority"){
+      sorted.sort(function(a, b){
+        return pwPriorityOrder.indexOf(a.priority) - pwPriorityOrder.indexOf(b.priority) ||
+          new Date(pwAssignActiveDate(a)) - new Date(pwAssignActiveDate(b));
+      });
+    }
+    return sorted;
+  }
+
+  function pwBuildAssignRow(a, showTypeTag){
+    var isExam = a.type === "exam";
+    var isDraft = a.status !== "done" && !!a.draftDate; // pruned by the time we get here, so always still upcoming
+    var activeDate = pwAssignActiveDate(a);
+    var days = pwDaysUntil(activeDate);
+    var isOverdue = a.status !== "done" && days < 0;
+    var isDueSoon = a.status !== "done" && days >= 0 && days <= 3;
+
+    var wrap = document.createElement("div");
+    wrap.className = "pw-assign-row" + (isOverdue ? " pw-overdue" : "");
+
+    var main = document.createElement("div");
+    main.className = "pw-assign-row-main";
+    main.setAttribute("role", "button");
+    main.setAttribute("tabindex", "0");
+    main.setAttribute("aria-expanded", String(!!pwExpandedAssignIds[a.id]));
+    main.setAttribute("aria-label", "Toggle details for " + a.title);
+    function toggleExpand(){
+      pwExpandedAssignIds[a.id] = !pwExpandedAssignIds[a.id];
+      pwRenderAssignments();
+    }
+    main.addEventListener("click", toggleExpand);
+    main.addEventListener("keydown", function(e){
+      if(e.target !== main) return; // don't hijack Enter/Space inside the status <select>
+      if(e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        toggleExpand();
+      }
+    });
+
+    var titleBlock = document.createElement("div");
+    titleBlock.className = "pw-assign-titleblock";
+    var title = document.createElement("div");
+    title.className = "pw-assign-title" + (a.status === "done" ? " pw-assign-done" : "");
+    title.textContent = a.title;
+    titleBlock.appendChild(title);
+    var subject = document.createElement("div");
+    subject.className = "pw-assign-subject";
+    subject.textContent = a.subject;
+    titleBlock.appendChild(subject);
+    main.appendChild(titleBlock);
+
+    if(showTypeTag){
+      var typeTag = document.createElement("span");
+      typeTag.className = "pw-type-tag";
+      typeTag.textContent = isExam ? "Exam" : "Assignment";
+      main.appendChild(typeTag);
+    }
+
+    var duePrefix = isDraft ? "draft " : "";
+    var due = document.createElement("span");
+    due.className = "pw-assign-due" + (isOverdue ? " pw-overdue-text" : (isDueSoon ? " pw-due-soon" : ""));
+    if(a.status === "done"){
+      due.textContent = "due " + a.dueDate;
+    } else if(isOverdue){
+      due.textContent = duePrefix + "overdue " + Math.abs(days) + "d";
+    } else if(days === 0){
+      due.textContent = duePrefix + "due today";
+    } else {
+      due.textContent = duePrefix + "due in " + days + "d";
+    }
+    main.appendChild(due);
+
+    if(isDraft){
+      var finalNote = document.createElement("span");
+      finalNote.className = "pw-assign-final-note";
+      finalNote.textContent = "final " + a.dueDate;
+      main.appendChild(finalNote);
+    }
+
+    var priority = document.createElement("span");
+    priority.className = "pw-priority-badge" + (a.priority === "high" ? " pw-priority-high" : "");
+    priority.textContent = pwPriorityLabel[a.priority];
+    main.appendChild(priority);
+
+    if(isExam){
+      var studyTime = document.createElement("span");
+      studyTime.className = "pw-exam-study-time";
+      studyTime.textContent = (pwExamStudyMinutes(a) / 60).toFixed(1) + "h studied";
+      main.appendChild(studyTime);
+    }
+
+    var statusSelect = document.createElement("select");
+    statusSelect.className = "pw-assign-status-select";
+    statusSelect.setAttribute("aria-label", "Status for " + a.title);
+    (isExam ? pwExamStatusOptions : pwAssignStatusOptions).forEach(function(s){
+      var opt = document.createElement("option");
+      opt.value = s;
+      opt.textContent = pwStatusLabel[s];
+      if(a.status === s) opt.selected = true;
+      statusSelect.appendChild(opt);
+    });
+    statusSelect.addEventListener("click", function(e){ e.stopPropagation(); });
+    statusSelect.addEventListener("change", function(){
+      a.status = statusSelect.value;
+      pwSaveState();
+      pwRenderAssignments();
+      pwRenderHeader();
+    });
+    main.appendChild(statusSelect);
+
+    wrap.appendChild(main);
+
+    if(pwExpandedAssignIds[a.id]){
+      var body = document.createElement("div");
+      body.className = "pw-assign-body";
+
+      var metaBits = [];
+      if(isExam){
+        metaBits.push("exam on " + a.dueDate);
+      } else {
+        if(a.draftDate) metaBits.push("draft due " + a.draftDate);
+        metaBits.push("final due " + a.dueDate);
+      }
+      if(a.estimatedHours != null) metaBits.push(a.estimatedHours + "h estimated");
+      if(metaBits.length){
+        var meta = document.createElement("div");
+        meta.className = "pw-assign-body-meta";
+        meta.textContent = metaBits.join(" -- ");
+        body.appendChild(meta);
+      }
+
+      if(isExam){
+        var minutesMap = pwTopicMinutesMap();
+        var topics = (a.topicIds || []).map(function(id){
+          return pwState.topics.filter(function(t){ return t.id === id; })[0];
+        }).filter(Boolean);
+        var topicsDiv = document.createElement("div");
+        topicsDiv.className = "pw-assign-body-meta";
+        if(topics.length === 0){
+          topicsDiv.textContent = "No topics linked yet.";
+        } else {
+          topicsDiv.textContent = "Topics: " + topics.map(function(t){
+            return t.name + " (" + ((minutesMap[t.name.toLowerCase()] || 0) / 60).toFixed(1) + "h)";
+          }).join(", ");
+        }
+        body.appendChild(topicsDiv);
+      }
+
+      if(a.link){
+        var linkDiv = document.createElement("div");
+        linkDiv.className = "pw-assign-body-link";
+        var linkA = document.createElement("a");
+        linkA.href = a.link;
+        linkA.target = "_blank";
+        linkA.rel = "noopener";
+        linkA.textContent = a.link;
+        linkDiv.appendChild(linkA);
+        body.appendChild(linkDiv);
+      }
+
+      var whatDiv = document.createElement("div");
+      if(a.whatToDo){
+        whatDiv.className = "pw-topic-sheet-view";
+        whatDiv.innerHTML = pwRenderMiniMarkdown(a.whatToDo);
+      } else {
+        whatDiv.className = "pw-topic-sheet-empty";
+        whatDiv.textContent = PW_EMPTY_ASSIGN_BODY;
+      }
+      body.appendChild(whatDiv);
+
+      var editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "pw-assign-edit-btn";
+      editBtn.textContent = "Edit";
+      editBtn.addEventListener("click", function(e){
+        e.stopPropagation();
+        pwOpenAssessModal(a.type, a);
+      });
+      body.appendChild(editBtn);
+
+      var deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "pw-assign-edit-btn pw-topic-delete-btn";
+      deleteBtn.textContent = isExam ? "Delete exam" : "Delete assignment";
+      deleteBtn.addEventListener("click", function(e){
+        e.stopPropagation();
+        var confirmed = window.confirm(
+          "Delete \"" + a.title + "\"? This can't be undone."
+        );
+        if(!confirmed) return;
+        pwDeleteAssessment(a);
+      });
+      body.appendChild(deleteBtn);
+
+      wrap.appendChild(body);
+    }
+
+    return wrap;
+  }
+
+  function pwBuildAssignForm(existing){
+    var form = document.createElement("form");
+    form.className = "pw-card pw-assign-form";
+
+    function field(labelText, el){
+      var l = document.createElement("label");
+      l.className = "pw-section-title";
+      l.style.margin = "0";
+      l.style.flexBasis = "100%";
+      l.textContent = labelText;
+      var row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.flexDirection = "column";
+      row.style.gap = "3px";
+      row.style.flex = "1 1 140px";
+      row.appendChild(l);
+      row.appendChild(el);
+      return row;
+    }
+
+    var subjectInput = document.createElement("input");
+    subjectInput.type = "text";
+    subjectInput.setAttribute("list", "pw-subject-datalist");
+    subjectInput.required = true;
+    subjectInput.value = existing ? existing.subject : "";
+
+    var titleInput = document.createElement("input");
+    titleInput.type = "text";
+    titleInput.required = true;
+    titleInput.value = existing ? existing.title : "";
+
+    var dueInput = document.createElement("input");
+    dueInput.type = "date";
+    dueInput.required = true;
+    dueInput.value = existing ? existing.dueDate : "";
+
+    var draftInput = document.createElement("input");
+    draftInput.type = "date";
+    draftInput.value = existing && existing.draftDate ? existing.draftDate : "";
+
+    var prioritySelect = document.createElement("select");
+    pwPriorityOrder.forEach(function(p){
+      var opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = pwPriorityLabel[p];
+      if(existing ? existing.priority === p : p === "medium") opt.selected = true;
+      prioritySelect.appendChild(opt);
+    });
+
+    var statusSelect = document.createElement("select");
+    pwAssignStatusOptions.forEach(function(s){
+      var opt = document.createElement("option");
+      opt.value = s;
+      opt.textContent = pwStatusLabel[s];
+      if(existing ? existing.status === s : s === "not-started") opt.selected = true;
+      statusSelect.appendChild(opt);
+    });
+
+    var hoursInput = document.createElement("input");
+    hoursInput.type = "number";
+    hoursInput.min = "0";
+    hoursInput.step = "0.5";
+    hoursInput.placeholder = "Estimated hours (optional)";
+    if(existing && existing.estimatedHours != null) hoursInput.value = existing.estimatedHours;
+
+    var linkInput = document.createElement("input");
+    linkInput.type = "text";
+    linkInput.placeholder = "Link or file reference (optional)";
+    linkInput.value = existing && existing.link ? existing.link : "";
+
+    var whatTextarea = document.createElement("textarea");
+    whatTextarea.placeholder = "What actually has to be done...";
+    whatTextarea.value = existing ? (existing.whatToDo || "") : "";
+
+    var row1 = document.createElement("div");
+    row1.className = "pw-assign-form-row";
+    row1.appendChild(field("Subject", subjectInput));
+    row1.appendChild(field("Title", titleInput));
+    form.appendChild(row1);
+
+    var row2 = document.createElement("div");
+    row2.className = "pw-assign-form-row";
+    row2.appendChild(field("Final due date", dueInput));
+    row2.appendChild(field("Draft due date (optional)", draftInput));
+    form.appendChild(row2);
+
+    var row2b = document.createElement("div");
+    row2b.className = "pw-assign-form-row";
+    row2b.appendChild(field("Priority", prioritySelect));
+    row2b.appendChild(field("Status", statusSelect));
+    form.appendChild(row2b);
+
+    var row3 = document.createElement("div");
+    row3.className = "pw-assign-form-row";
+    row3.appendChild(field("Estimated hours", hoursInput));
+    row3.appendChild(field("Link / file reference", linkInput));
+    form.appendChild(row3);
+
+    form.appendChild(field("What actually has to be done", whatTextarea));
+
+    var actions = document.createElement("div");
+    actions.className = "pw-assign-form-actions";
+
+    var cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "pw-btn";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", function(){
+      pwCloseAssessModal();
+    });
+    actions.appendChild(cancelBtn);
+
+    var saveBtn = document.createElement("button");
+    saveBtn.type = "submit";
+    saveBtn.className = "pw-btn pw-btn-primary";
+    saveBtn.textContent = existing ? "Save" : "Add assignment";
+    actions.appendChild(saveBtn);
+
+    form.appendChild(actions);
+
+    form.addEventListener("submit", function(e){
+      e.preventDefault();
+      if(!subjectInput.value.trim() || !titleInput.value.trim() || !dueInput.value) return;
+      var target = existing || { id: pwUid(), type: "assignment" };
+      target.subject = subjectInput.value.trim();
+      target.title = titleInput.value.trim();
+      target.dueDate = dueInput.value;
+      target.draftDate = draftInput.value || null;
+      target.priority = prioritySelect.value;
+      target.status = statusSelect.value;
+      target.estimatedHours = hoursInput.value === "" ? null : parseFloat(hoursInput.value);
+      target.link = linkInput.value.trim();
+      target.whatToDo = whatTextarea.value;
+      if(!existing) pwState.assignments.push(target);
+      pwCloseAssessModal();
+      pwSaveState();
+      pwRefreshSubjectDatalist();
+      pwRenderAssignments();
+      pwRenderHeader();
+    });
+
+    return form;
+  }
+
+  // Checklist of every topic with hours studied so far, used when linking topics
+  // to an exam -- lets Jasmine see prep investment while deciding what to link.
+  function pwBuildTopicPicker(selectedIds){
+    var picker = document.createElement("div");
+    picker.className = "pw-topic-picker";
+    if(pwState.topics.length === 0){
+      var empty = document.createElement("div");
+      empty.className = "pw-topic-picker-empty";
+      empty.textContent = "No topics yet -- add some in the Topics tab first.";
+      picker.appendChild(empty);
+      return picker;
+    }
+    var minutesMap = pwTopicMinutesMap();
+    pwState.topics.forEach(function(t){
+      var row = document.createElement("div");
+      row.className = "pw-topic-picker-row";
+
+      var checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.id = "pw-topic-pick-" + t.id;
+      checkbox.checked = selectedIds.indexOf(t.id) !== -1;
+      checkbox.value = t.id;
+      row.appendChild(checkbox);
+
+      var label = document.createElement("label");
+      label.setAttribute("for", "pw-topic-pick-" + t.id);
+      label.textContent = t.name;
+      row.appendChild(label);
+
+      var hours = document.createElement("span");
+      hours.className = "pw-topic-picker-hours";
+      hours.textContent = ((minutesMap[t.name.toLowerCase()] || 0) / 60).toFixed(1) + "h studied";
+      row.appendChild(hours);
+
+      picker.appendChild(row);
+    });
+    return picker;
+  }
+
+  function pwBuildExamForm(existing){
+    var form = document.createElement("form");
+    form.className = "pw-card pw-assign-form";
+
+    function field(labelText, el){
+      var l = document.createElement("label");
+      l.className = "pw-section-title";
+      l.style.margin = "0";
+      l.style.flexBasis = "100%";
+      l.textContent = labelText;
+      var row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.flexDirection = "column";
+      row.style.gap = "3px";
+      row.style.flex = "1 1 140px";
+      row.appendChild(l);
+      row.appendChild(el);
+      return row;
+    }
+
+    var subjectInput = document.createElement("input");
+    subjectInput.type = "text";
+    subjectInput.setAttribute("list", "pw-subject-datalist");
+    subjectInput.required = true;
+    subjectInput.value = existing ? existing.subject : "";
+
+    var titleInput = document.createElement("input");
+    titleInput.type = "text";
+    titleInput.required = true;
+    titleInput.value = existing ? existing.title : "";
+
+    var dateInput = document.createElement("input");
+    dateInput.type = "date";
+    dateInput.required = true;
+    dateInput.value = existing ? existing.dueDate : "";
+
+    var prioritySelect = document.createElement("select");
+    pwPriorityOrder.forEach(function(p){
+      var opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = pwPriorityLabel[p];
+      if(existing ? existing.priority === p : p === "medium") opt.selected = true;
+      prioritySelect.appendChild(opt);
+    });
+
+    var statusSelect = document.createElement("select");
+    pwExamStatusOptions.forEach(function(s){
+      var opt = document.createElement("option");
+      opt.value = s;
+      opt.textContent = pwStatusLabel[s];
+      if(existing ? existing.status === s : s === "not-started") opt.selected = true;
+      statusSelect.appendChild(opt);
+    });
+
+    var hoursInput = document.createElement("input");
+    hoursInput.type = "number";
+    hoursInput.min = "0";
+    hoursInput.step = "0.5";
+    hoursInput.placeholder = "Estimated prep hours (optional)";
+    if(existing && existing.estimatedHours != null) hoursInput.value = existing.estimatedHours;
+
+    var linkInput = document.createElement("input");
+    linkInput.type = "text";
+    linkInput.placeholder = "Link or file reference (optional)";
+    linkInput.value = existing && existing.link ? existing.link : "";
+
+    var whatTextarea = document.createElement("textarea");
+    whatTextarea.placeholder = "Notes -- format, materials allowed, anything to remember...";
+    whatTextarea.value = existing ? (existing.whatToDo || "") : "";
+
+    var selectedTopicIds = existing && existing.topicIds ? existing.topicIds.slice() : [];
+    var topicPicker = pwBuildTopicPicker(selectedTopicIds);
+    topicPicker.addEventListener("change", function(e){
+      if(e.target.type !== "checkbox") return;
+      var idx = selectedTopicIds.indexOf(e.target.value);
+      if(e.target.checked && idx === -1) selectedTopicIds.push(e.target.value);
+      else if(!e.target.checked && idx !== -1) selectedTopicIds.splice(idx, 1);
+    });
+
+    var row1 = document.createElement("div");
+    row1.className = "pw-assign-form-row";
+    row1.appendChild(field("Subject", subjectInput));
+    row1.appendChild(field("Title", titleInput));
+    form.appendChild(row1);
+
+    var row2 = document.createElement("div");
+    row2.className = "pw-assign-form-row";
+    row2.appendChild(field("Exam date", dateInput));
+    row2.appendChild(field("Priority", prioritySelect));
+    row2.appendChild(field("Status", statusSelect));
+    form.appendChild(row2);
+
+    var row3 = document.createElement("div");
+    row3.className = "pw-assign-form-row";
+    row3.appendChild(field("Estimated prep hours", hoursInput));
+    row3.appendChild(field("Link / file reference", linkInput));
+    form.appendChild(row3);
+
+    form.appendChild(field("Notes", whatTextarea));
+    form.appendChild(field("Topics covered", topicPicker));
+
+    var actions = document.createElement("div");
+    actions.className = "pw-assign-form-actions";
+
+    var cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "pw-btn";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", function(){
+      pwCloseAssessModal();
+    });
+    actions.appendChild(cancelBtn);
+
+    var saveBtn = document.createElement("button");
+    saveBtn.type = "submit";
+    saveBtn.className = "pw-btn pw-btn-primary";
+    saveBtn.textContent = existing ? "Save" : "Add exam";
+    actions.appendChild(saveBtn);
+
+    form.appendChild(actions);
+
+    form.addEventListener("submit", function(e){
+      e.preventDefault();
+      if(!subjectInput.value.trim() || !titleInput.value.trim() || !dateInput.value) return;
+      var target = existing || { id: pwUid(), type: "exam" };
+      target.subject = subjectInput.value.trim();
+      target.title = titleInput.value.trim();
+      target.dueDate = dateInput.value;
+      target.draftDate = null;
+      target.priority = prioritySelect.value;
+      target.status = statusSelect.value;
+      target.estimatedHours = hoursInput.value === "" ? null : parseFloat(hoursInput.value);
+      target.link = linkInput.value.trim();
+      target.whatToDo = whatTextarea.value;
+      target.topicIds = selectedTopicIds.slice();
+      if(!existing) pwState.assignments.push(target);
+      pwCloseAssessModal();
+      pwSaveState();
+      pwRefreshSubjectDatalist();
+      pwRenderAssignments();
+      pwRenderHeader();
+    });
+
+    return form;
+  }
+
+  // Which type the currently-open add/edit form belongs to, from either the
+  // "new-<type>" sentinel or the existing item being edited.
+  // Add/edit happens in a popup modal rather than an inline panel -- the inline
+  // version could render far enough down the page (or under the sticky tab bar)
+  // that clicking Edit looked like it did nothing.
+  var pwAssessModalTitles = {
+    "new-assignment": "Add assignment", "new-exam": "Add exam",
+    "assignment": "Edit assignment", "exam": "Edit exam"
+  };
+
+  function pwOpenAssessModal(type, existing){
+    pwAssignFormEditingId = existing ? existing.id : ("new-" + type);
+    document.getElementById("pw-assess-modal-title").textContent =
+      pwAssessModalTitles[existing ? type : ("new-" + type)];
+    var body = document.getElementById("pw-assess-modal-body");
+    body.innerHTML = "";
+    body.appendChild(type === "exam" ? pwBuildExamForm(existing) : pwBuildAssignForm(existing));
+    document.getElementById("pw-assess-modal").style.display = "flex";
+  }
+
+  function pwCloseAssessModal(){
+    pwAssignFormEditingId = null;
+    document.getElementById("pw-assess-modal").style.display = "none";
+    document.getElementById("pw-assess-modal-body").innerHTML = "";
+  }
+
+  function pwRenderAddButton(slotId, type, addLabel){
+    var slot = document.getElementById(slotId);
+    slot.innerHTML = "";
+    var addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "pw-btn pw-btn-primary";
+    addBtn.textContent = addLabel;
+    addBtn.addEventListener("click", function(){ pwOpenAssessModal(type, null); });
+    slot.appendChild(addBtn);
+  }
+
+  function pwRenderAssignments(){
+    pwPruneExpiredDrafts();
+
+    var showAssignments = pwAssignFilterMode !== "exam";
+    var showExams = pwAssignFilterMode !== "assignment";
+    document.getElementById("pw-assess-section-assignments").style.display = showAssignments ? "" : "none";
+    document.getElementById("pw-assess-section-exams").style.display = showExams ? "" : "none";
+    document.getElementById("pw-assess-divider").style.display = (showAssignments && showExams) ? "" : "none";
+
+    var isExam = function(a){ return a.type === "exam"; };
+    var allActive = pwState.assignments.filter(function(a){ return a.status !== "done"; });
+    var allCompleted = pwState.assignments.filter(function(a){ return a.status === "done"; });
+
+    if(showAssignments){
+      var assignActive = allActive.filter(function(a){ return !isExam(a); });
+      var list = document.getElementById("pw-assign-list");
+      list.innerHTML = "";
+      if(assignActive.length === 0){
+        list.innerHTML = '<div class="pw-empty">No assignments yet -- add one below.</div>';
+      } else {
+        pwSortedAssignments(assignActive).forEach(function(a){ list.appendChild(pwBuildAssignRow(a)); });
+      }
+      pwRenderAddButton("pw-assign-add-slot", "assignment", "+ Add assignment");
+    }
+
+    if(showExams){
+      var examActive = allActive.filter(isExam);
+      var examList = document.getElementById("pw-exam-list");
+      examList.innerHTML = "";
+      if(examActive.length === 0){
+        examList.innerHTML = '<div class="pw-empty">No exams yet -- add one below.</div>';
+      } else {
+        pwSortedAssignments(examActive).forEach(function(a){ examList.appendChild(pwBuildAssignRow(a)); });
+      }
+      pwRenderAddButton("pw-exam-add-slot", "exam", "+ Add exam");
+    }
+
+    var completed = allCompleted.filter(function(a){
+      if(pwAssignFilterMode === "assignment") return !isExam(a);
+      if(pwAssignFilterMode === "exam") return isExam(a);
+      return true;
+    });
+
+    var toggle = document.getElementById("pw-assign-completed-toggle");
+    toggle.textContent = (pwShowCompletedAssignments ? "− " : "+ ") + "Completed (" + completed.length + ")";
+    toggle.onclick = function(){
+      pwShowCompletedAssignments = !pwShowCompletedAssignments;
+      pwRenderAssignments();
+    };
+
+    var completedList = document.getElementById("pw-assign-completed-list");
+    if(pwShowCompletedAssignments){
+      completedList.style.display = "";
+      completedList.innerHTML = "";
+      if(completed.length === 0){
+        completedList.innerHTML = '<div class="pw-empty">Nothing completed yet.</div>';
+      } else {
+        pwSortedAssignments(completed).forEach(function(a){ completedList.appendChild(pwBuildAssignRow(a, true)); });
+      }
+    } else {
+      completedList.style.display = "none";
+    }
+  }
+
+  document.getElementById("pw-assign-filter").addEventListener("change", function(e){
+    pwAssignFilterMode = e.target.value;
+    pwRenderAssignments();
+  });
+
+  document.getElementById("pw-assign-sort").addEventListener("change", function(e){
+    pwAssignSortMode = e.target.value;
+    pwRenderAssignments();
+  });
+
+  // ---- Log tab: full record + weekly summary ----
+
+  var pwLogSubjectFilter = "";
+  var pwLogTopicFilter = "";
+
+  function pwTopicByName(name){
+    return pwState.topics.filter(function(t){ return t.name.toLowerCase() === name.toLowerCase(); })[0];
+  }
+
+  function pwSessionSubject(session){
+    var topic = pwTopicByName(session.topic);
+    return topic ? (topic.subject || "") : "";
+  }
+
+  function pwRenderLogWeeklySummary(){
+    var wk = pwMondayKey(new Date());
+    var start = new Date(wk);
+    var end = new Date(start);
+    end.setDate(end.getDate() + 7);
+
+    var weekSessions = pwState.sessions.filter(function(s){
+      if(s.status !== "done") return false;
+      var d = new Date(s.date);
+      return d >= start && d < end;
+    });
+
+    var hoursByTopic = {};
+    var totalActual = 0, totalPlanned = 0;
+    weekSessions.forEach(function(s){
+      hoursByTopic[s.topic] = (hoursByTopic[s.topic] || 0) + (s.actualMinutes || 0);
+      totalActual += (s.actualMinutes || 0);
+      totalPlanned += s.plannedMinutes;
+    });
+
+    var box = document.getElementById("pw-log-weekly-summary");
+    box.innerHTML = "";
+    box.className = "pw-card pw-log-summary";
+
+    if(weekSessions.length === 0){
+      box.innerHTML = '<div class="pw-empty">No sessions completed this week yet.</div>';
+      return;
+    }
+
+    var topicNames = Object.keys(hoursByTopic);
+    topicNames.forEach(function(name){
+      var row = document.createElement("div");
+      row.className = "pw-log-summary-row";
+      row.innerHTML = "<span></span><span></span>";
+      row.children[0].textContent = name;
+      row.children[1].textContent = (hoursByTopic[name] / 60).toFixed(1) + "h";
+      box.appendChild(row);
+    });
+
+    var sessionsRow = document.createElement("div");
+    sessionsRow.className = "pw-log-summary-row";
+    sessionsRow.innerHTML = "<span>Sessions completed</span><span></span>";
+    sessionsRow.children[1].textContent = String(weekSessions.length);
+    box.appendChild(sessionsRow);
+
+    var deltaRow = document.createElement("div");
+    deltaRow.className = "pw-log-summary-row";
+    deltaRow.innerHTML = "<span>Planned vs actual</span><span></span>";
+    deltaRow.children[1].textContent = pwFormatDelta(totalActual - totalPlanned);
+    box.appendChild(deltaRow);
+
+    var totalRow = document.createElement("div");
+    totalRow.className = "pw-log-summary-row pw-log-summary-total";
+    totalRow.innerHTML = "<span>Total study time</span><span></span>";
+    totalRow.children[1].textContent = (totalActual / 60).toFixed(1) + "h";
+    box.appendChild(totalRow);
+  }
+
+  function pwRefreshLogFilters(){
+    var subjectSelect = document.getElementById("pw-log-subject-filter");
+    var topicSelect = document.getElementById("pw-log-topic-filter");
+
+    var subjects = {};
+    pwState.topics.forEach(function(t){ if(t.subject) subjects[t.subject] = true; });
+
+    var prevSubject = pwLogSubjectFilter;
+    subjectSelect.innerHTML = '<option value="">All</option>';
+    Object.keys(subjects).sort().forEach(function(s){
+      var opt = document.createElement("option");
+      opt.value = s;
+      opt.textContent = s;
+      if(s === prevSubject) opt.selected = true;
+      subjectSelect.appendChild(opt);
+    });
+
+    var prevTopic = pwLogTopicFilter;
+    var topicsForFilter = pwState.topics.filter(function(t){
+      return !pwLogSubjectFilter || t.subject === pwLogSubjectFilter;
+    });
+    topicSelect.innerHTML = '<option value="">All</option>';
+    topicsForFilter.forEach(function(t){
+      var opt = document.createElement("option");
+      opt.value = t.name;
+      opt.textContent = t.name;
+      if(t.name === prevTopic) opt.selected = true;
+      topicSelect.appendChild(opt);
+    });
+  }
+
+  function pwRenderLog(){
+    pwRenderLogWeeklySummary();
+    pwRefreshLogFilters();
+
+    var entries = pwState.sessions.filter(function(s){ return s.status === "done"; });
+    if(pwLogTopicFilter){
+      entries = entries.filter(function(s){ return s.topic.toLowerCase() === pwLogTopicFilter.toLowerCase(); });
+    } else if(pwLogSubjectFilter){
+      entries = entries.filter(function(s){ return pwSessionSubject(s) === pwLogSubjectFilter; });
+    }
+    entries = entries.slice().sort(function(a, b){ return b.date.localeCompare(a.date); });
+
+    var list = document.getElementById("pw-log-list");
+    list.innerHTML = "";
+    if(entries.length === 0){
+      list.innerHTML = '<div class="pw-empty">Nothing logged yet.</div>';
+      return;
+    }
+
+    entries.forEach(function(s){
+      var row = document.createElement("div");
+      row.className = "pw-log-entry";
+
+      var dateSpan = document.createElement("span");
+      dateSpan.className = "pw-log-entry-date";
+      dateSpan.textContent = s.date;
+      row.appendChild(dateSpan);
+
+      var topicSpan = document.createElement("span");
+      topicSpan.className = "pw-log-entry-topic";
+      topicSpan.textContent = s.topic;
+      row.appendChild(topicSpan);
+
+      var subject = pwSessionSubject(s);
+      if(subject){
+        var subjectSpan = document.createElement("span");
+        subjectSpan.className = "pw-log-entry-subject";
+        subjectSpan.textContent = subject;
+        row.appendChild(subjectSpan);
+      }
+
+      var delta = (s.actualMinutes || 0) - s.plannedMinutes;
+      var deltaSpan = document.createElement("span");
+      deltaSpan.className = "pw-log-delta";
+      deltaSpan.textContent = s.actualMinutes + "m actual (planned " + s.plannedMinutes + "m, " +
+        (delta >= 0 ? "+" : "") + delta + "m)";
+      row.appendChild(deltaSpan);
+
+      if(s.whatHappened){
+        var whatDiv = document.createElement("div");
+        whatDiv.className = "pw-log-what";
+        whatDiv.textContent = s.whatHappened;
+        row.appendChild(whatDiv);
+      }
+
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById("pw-log-subject-filter").addEventListener("change", function(e){
+    pwLogSubjectFilter = e.target.value;
+    pwLogTopicFilter = "";
+    pwRenderLog();
+  });
+
+  document.getElementById("pw-log-topic-filter").addEventListener("change", function(e){
+    pwLogTopicFilter = e.target.value;
+    pwRenderLog();
+  });
+
+  // ---- export / import ----
+
+  function pwExportData(){
+    var blob = new Blob([JSON.stringify(pwState, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "pitwall-backup-" + pwTodayKey() + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Sector colours (red/yellow/green/purple) are reserved for topic ratings and
+  // overdue assignments per the design rules -- this banner stays neutral text,
+  // just bolder, even for an error message.
+  function pwShowDatabarMessage(text){
+    var existing = document.getElementById("pw-databar-message");
+    if(existing) existing.remove();
+    var msg = document.createElement("div");
+    msg.id = "pw-databar-message";
+    msg.style.cssText = "text-align:center;font-size:12px;font-weight:700;color:var(--text);padding:4px 6px;";
+    msg.textContent = text;
+    document.querySelector(".pw-databar").appendChild(msg);
+    setTimeout(function(){ if(msg.parentNode) msg.remove(); }, 5000);
+  }
+
+  var pwPendingImportState = null;
+
+  function pwHandleImportFile(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var parsed;
+      try{
+        parsed = JSON.parse(reader.result);
+      }catch(e){
+        pwShowDatabarMessage("That file isn't valid JSON.");
+        return;
+      }
+      var looksValid = parsed && typeof parsed === "object" &&
+        Array.isArray(parsed.topics) && Array.isArray(parsed.sessions) && Array.isArray(parsed.assignments);
+      if(!looksValid){
+        pwShowDatabarMessage("That file doesn't look like a Pitwall backup.");
+        return;
+      }
+      pwPendingImportState = pwNormalizeStatuses({
+        version: parsed.version || 1,
+        topics: parsed.topics,
+        sessions: parsed.sessions,
+        assignments: parsed.assignments,
+        settings: Object.assign({ weeklyTargets: {} }, parsed.settings || {})
+      });
+
+      var body = document.getElementById("pw-import-modal-body");
+      body.innerHTML =
+        "<p>This file has <strong>" + pwPendingImportState.topics.length + "</strong> topics, " +
+        "<strong>" + pwPendingImportState.sessions.length + "</strong> logged sessions, and " +
+        "<strong>" + pwPendingImportState.assignments.length + "</strong> assignments.</p>" +
+        "<p>Importing will <strong>replace</strong> your current data -- " +
+        pwState.topics.length + " topics, " + pwState.sessions.length + " sessions, " +
+        pwState.assignments.length + " assignments -- entirely. This can't be undone.</p>";
+      document.getElementById("pw-import-modal").style.display = "flex";
+    };
+    reader.readAsText(file);
+  }
+
+  function pwRenderAll(){
+    pwRefreshTopicDatalist();
+    pwRefreshSubjectDatalist();
+    pwRenderHeader();
+    pwRenderToday();
+    pwRenderTopics();
+    pwRenderAssignments();
+    pwRenderLog();
+  }
+
+  document.getElementById("pw-export-btn").addEventListener("click", pwExportData);
+
+  document.getElementById("pw-import-btn").addEventListener("click", function(){
+    document.getElementById("pw-import-file-input").click();
+  });
+
+  document.getElementById("pw-import-file-input").addEventListener("change", function(e){
+    if(e.target.files && e.target.files[0]) pwHandleImportFile(e.target.files[0]);
+    e.target.value = ""; // allow re-selecting the same file later
+  });
+
+  document.getElementById("pw-import-cancel-btn").addEventListener("click", function(){
+    pwPendingImportState = null;
+    document.getElementById("pw-import-modal").style.display = "none";
+  });
+
+  document.getElementById("pw-import-confirm-btn").addEventListener("click", function(){
+    if(!pwPendingImportState) return;
+    pwState = pwPendingImportState;
+    pwPendingImportState = null;
+    document.getElementById("pw-import-modal").style.display = "none";
+
+    // Transient UI state (expanders, in-progress edits, active timer) may reference
+    // ids from the data we just replaced -- reset it rather than risk a stale reference.
+    pwExpandedTopicIds = {};
+    pwEditingSheetIds = {};
+    pwExpandedAssignIds = {};
+    pwCloseAssessModal();
+    pwShowCompletedAssignments = false;
+    pwActiveTimerSessionId = null;
+    pwPendingWhatHappenedId = null;
+    pwLogSubjectFilter = "";
+    pwLogTopicFilter = "";
+    if(pwTimerTickHandle){ clearInterval(pwTimerTickHandle); pwTimerTickHandle = null; }
+
+    pwSaveState();
+    pwRenderAll();
+    pwShowDatabarMessage("Import complete.");
+  });
+
+  pwRenderAll();
+  if(pwState.sessions.some(function(s){ return !!s.timerStartedAt; })){
+    pwActiveTimerSessionId = pwState.sessions.filter(function(s){ return !!s.timerStartedAt; })[0].id;
+    pwEnsureTicking();
+    pwRenderToday();
+  }
+</script>
+</body>
+</html>
