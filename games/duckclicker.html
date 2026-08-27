@@ -1417,11 +1417,12 @@ dcAuthBar.innerHTML = `
 document.body.appendChild(dcAuthBar);
 
 let dcPendingEmail = null;
+let dcShowEmailForm = false;
 
 function dcRenderAuthBox() {
   const box = document.getElementById('dcAuthBox');
   if (dcSession) {
-    box.innerHTML = `<span class="dcMsg">&#9729; ${dcSession.user.email}</span><button id="dcSignOut">Sign out</button>`;
+    box.innerHTML = `<button id="dcSignOut">Sign out</button>`;
     document.getElementById('dcSignOut').onclick = () => dcSupabase.auth.signOut();
   } else if (dcPendingEmail) {
     box.innerHTML = `<span class="dcMsg">code sent to ${dcPendingEmail}</span>
@@ -1435,13 +1436,13 @@ function dcRenderAuthBox() {
       const { error } = await dcSupabase.auth.verifyOtp({ email: dcPendingEmail, token, type: 'email' });
       if (error) {
         box.innerHTML = `<span class="dcMsg">${error.message}</span>`;
-        setTimeout(() => { dcPendingEmail = null; dcRenderAuthBox(); }, 2500);
+        setTimeout(() => { dcPendingEmail = null; dcShowEmailForm = false; dcRenderAuthBox(); }, 2500);
       }
       // on success, onAuthStateChange fires and re-renders as signed in
     };
-    document.getElementById('dcCancel').onclick = () => { dcPendingEmail = null; dcRenderAuthBox(); };
-  } else {
-    box.innerHTML = `<input id="dcEmail" type="email" placeholder="email for cloud save"><button id="dcSignIn">Sign in</button>`;
+    document.getElementById('dcCancel').onclick = () => { dcPendingEmail = null; dcShowEmailForm = false; dcRenderAuthBox(); };
+  } else if (dcShowEmailForm) {
+    box.innerHTML = `<input id="dcEmail" type="email" placeholder="email for cloud save"><button id="dcSignIn">Send code</button>`;
     document.getElementById('dcSignIn').onclick = async () => {
       const email = document.getElementById('dcEmail').value.trim();
       if (!email) return;
@@ -1449,11 +1450,15 @@ function dcRenderAuthBox() {
       const { error } = await dcSupabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
       if (error) {
         box.innerHTML = `<span class="dcMsg">${error.message}</span>`;
+        setTimeout(() => { dcShowEmailForm = false; dcRenderAuthBox(); }, 2500);
       } else {
         dcPendingEmail = email;
         dcRenderAuthBox();
       }
     };
+  } else {
+    box.innerHTML = `<button id="dcOpenSignIn">Sign in</button>`;
+    document.getElementById('dcOpenSignIn').onclick = () => { dcShowEmailForm = true; dcRenderAuthBox(); };
   }
 }
 dcRenderAuthBox();
