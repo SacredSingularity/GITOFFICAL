@@ -4,11 +4,16 @@
 //  creates one real session, visible to every page on this origin via
 //  Supabase's own localStorage-backed session.
 //
+//  Auth is email + password. First-time users go through a one-time
+//  email code to prove they own the address, then set a password —
+//  after that, every sign-in (anywhere) is just email + password, no
+//  more codes.
+//
 //  Per-game "sign out" is intentionally NOT a real sign-out: it just
-//  flips a per-game opt-out flag, so leaving Duck Clicker signed out
-//  does not touch Bookworm, Pitwall, or the menu. The menu's sign-out
-//  (see index.html) is the only one that ends the real session
-//  everywhere, via CloudSync.signOutEverywhere().
+//  flips a per-game opt-out flag (and wipes that game's local data),
+//  so leaving Duck Clicker signed out does not touch Bookworm,
+//  Pitwall, or the menu. The menu's sign-out is the only one that
+//  ends the real session everywhere, via CloudSync.signOutEverywhere().
 // -------------------------------------------------------------------
 (function (global) {
   const SUPABASE_URL = 'https://jfdpliogytcysqwaeted.supabase.co';
@@ -42,22 +47,198 @@
   sb.auth.getSession().then(({ data }) => { session = data.session; ready = true; notify(); });
   sb.auth.onAuthStateChange((_event, s) => { session = s; ready = true; notify(); });
 
+  // one shared stylesheet for the bits every widget's markup uses, so each
+  // page only has to theme its own container/input/button colors
+  const sharedStyle = document.createElement('style');
+  sharedStyle.textContent = `
+    .cloudSyncMsg { opacity: 0.8; font-size: 11px; }
+    .cloudSyncLink { background: transparent; border: none !important; padding: 0 !important;
+      font-size: 11px; font-weight: 400 !important; text-decoration: underline; cursor: pointer;
+      color: inherit; opacity: 0.75; }
+    .cloudSyncLink:hover { opacity: 1; }
+    .cloudSyncRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .cloudSyncStack { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+  `;
+  document.head.appendChild(sharedStyle);
+
+  // -------------------------------------------------------------------
+  //  mountAuthWidget — builds and owns the entire sign-in UI for one box.
+  //  boxId: id of an existing empty container element, already CSS-themed
+  //  by the page (colors/fonts/border) via `#<boxId> input`, `#<boxId>
+  //  button` selectors. gameId: null for the menu (real sign-in/out,
+  //  no per-game opt-out or local-data wipe); a string for a game (its
+  //  "sign out" only opts that game out + wipes its local data).
+  //  hooks: { resetLocalState(), syncFromCloud() } — only meaningful
+  //  (and only called) when gameId is set.
+  // -------------------------------------------------------------------
+  function mountAuthWidget(boxId, gameId, hooks) {
+    hooks = hooks || {};
+    const resetLocalState = hooks.resetLocalState || function () {};
+    const syncFromCloud = hooks.syncFromCloud || function () {};
+
+    let mode = 'closed'; // 'closed' | 'signin' | 'signup' | 'code' | 'setpw'
+    let pendingEmail = '';
+    let errorMsg = '';
+
+    function box() { return document.getElementById(boxId); }
+    function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+    function resetTransient() { mode = 'closed'; pendingEmail = ''; errorMsg = ''; }
+
+    function render() {
+      const b = box();
+      if (!b) return;
+
+      if (isWidgetHidden(gameId || 'menu')) {
+        b.innerHTML = `<button id="${boxId}_show" title="show account">&#9729;</button>`;
+        document.getElementById(boxId + '_show').onclick = () => { setWidgetHidden(gameId || 'menu', false); render(); };
+        return;
+      }
+
+      const signedInHere = gameId ? (!!session && !isOptedOut(gameId)) : !!session;
+      const signedInElsewhereOnly = gameId && !!session && isOptedOut(gameId);
+
+      if (signedInHere) {
+        b.innerHTML = `<button id="${boxId}_signout">Sign out</button>`;
+        document.getElementById(boxId + '_signout').onclick = () => {
+          if (gameId) {
+            setOptOut(gameId, true);
+            resetLocalState();
+          } else {
+            sb.auth.signOut();
+          }
+          render();
+        };
+      } else if (signedInElsewhereOnly) {
+        b.innerHTML = `<button id="${boxId}_reactivate">Sign in</button>`;
+        document.getElementById(boxId + '_reactivate').onclick = async () => {
+          setOptOut(gameId, false);
+          render();
+          await syncFromCloud();
+        };
+      } else if (mode === 'closed') {
+        b.innerHTML = `<button id="${boxId}_open">Sign in</button>`;
+        document.getElementById(boxId + '_open').onclick = () => { mode = 'signin'; render(); };
+      } else if (mode === 'code') {
+        b.innerHTML = `<div class="cloudSyncStack">
+          <span class="cloudSyncMsg">code sent to ${pendingEmail}</span>
+          <div class="cloudSyncRow">
+            <input id="${boxId}_code" type="text" inputmode="numeric" placeholder="6-digit code" style="width:90px">
+            <button id="${boxId}_verify">Verify</button>
+            <button id="${boxId}_back" class="cloudSyncLink">&times;</button>
+          </div>
+          ${errorMsg ? `<span class="cloudSyncMsg">${errorMsg}</span>` : ''}
+        </div>`;
+        document.getElementById(boxId + '_verify').onclick = async () => {
+          const token = val(boxId + '_code');
+          if (!token) return;
+          errorMsg = 'Verifying…'; render();
+          const { error } = await sb.auth.verifyOtp({ email: pendingEmail, token, type: 'email' });
+          if (error) { errorMsg = error.message; render(); return; }
+          mode = 'setpw';
+          render();
+        };
+        document.getElementById(boxId + '_back').onclick = () => { resetTransient(); render(); };
+      } else if (mode === 'setpw') {
+        b.innerHTML = `<div class="cloudSyncStack">
+          <span class="cloudSyncMsg">email verified &mdash; set a password</span>
+          <div class="cloudSyncRow">
+            <input id="${boxId}_pw1" type="password" placeholder="password" style="width:110px">
+            <input id="${boxId}_pw2" type="password" placeholder="confirm" style="width:100px">
+            <button id="${boxId}_setpw">Save</button>
+          </div>
+          ${errorMsg ? `<span class="cloudSyncMsg">${errorMsg}</span>` : ''}
+        </div>`;
+        document.getElementById(boxId + '_setpw').onclick = async () => {
+          const p1 = val(boxId + '_pw1'), p2 = val(boxId + '_pw2');
+          if (p1.length < 6) { errorMsg = 'Password must be at least 6 characters.'; render(); return; }
+          if (p1 !== p2) { errorMsg = "Passwords don't match."; render(); return; }
+          errorMsg = 'Saving…'; render();
+          const { error } = await sb.auth.updateUser({ password: p1 });
+          if (error) { errorMsg = error.message; render(); return; }
+          resetTransient();
+          render(); // onAuthStateChange also fires; render() here avoids a blank flash
+        };
+      } else if (mode === 'signup') {
+        b.innerHTML = `<div class="cloudSyncStack">
+          <div class="cloudSyncRow">
+            <input id="${boxId}_email" type="email" placeholder="email" value="${pendingEmail}" style="width:140px">
+            <button id="${boxId}_dosignup">Sign up</button>
+          </div>
+          <div class="cloudSyncRow">
+            <button id="${boxId}_toSignin" class="cloudSyncLink">have an account? sign in</button>
+            <button id="${boxId}_close" class="cloudSyncLink">&times;</button>
+          </div>
+          ${errorMsg ? `<span class="cloudSyncMsg">${errorMsg}</span>` : ''}
+        </div>`;
+        document.getElementById(boxId + '_dosignup').onclick = async () => {
+          const email = val(boxId + '_email');
+          if (!email) return;
+          errorMsg = 'Sending code…'; render();
+          const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+          if (error) { errorMsg = error.message; render(); return; }
+          pendingEmail = email;
+          mode = 'code';
+          render();
+        };
+        document.getElementById(boxId + '_toSignin').onclick = () => { pendingEmail = ''; errorMsg = ''; mode = 'signin'; render(); };
+        document.getElementById(boxId + '_close').onclick = () => { resetTransient(); render(); };
+      } else {
+        // mode === 'signin'
+        b.innerHTML = `<div class="cloudSyncStack">
+          <div class="cloudSyncRow">
+            <input id="${boxId}_email" type="email" placeholder="email" value="${pendingEmail}" style="width:120px">
+            <input id="${boxId}_pw" type="password" placeholder="password" style="width:100px">
+            <button id="${boxId}_dosignin">Sign in</button>
+          </div>
+          <div class="cloudSyncRow">
+            <button id="${boxId}_toSignup" class="cloudSyncLink">new here? sign up</button>
+            <button id="${boxId}_close" class="cloudSyncLink">&times;</button>
+          </div>
+          ${errorMsg ? `<span class="cloudSyncMsg">${errorMsg}</span>` : ''}
+        </div>`;
+        document.getElementById(boxId + '_dosignin').onclick = async () => {
+          const email = val(boxId + '_email');
+          const password = val(boxId + '_pw');
+          if (!email || !password) return;
+          errorMsg = 'Signing in…'; render();
+          const { error } = await sb.auth.signInWithPassword({ email, password });
+          if (error) { errorMsg = error.message; render(); return; }
+          resetTransient();
+        };
+        document.getElementById(boxId + '_toSignup').onclick = () => { pendingEmail = val(boxId + '_email'); mode = 'signup'; errorMsg = ''; render(); };
+        document.getElementById(boxId + '_close').onclick = () => { resetTransient(); render(); };
+      }
+
+      if (!isWidgetHidden(gameId || 'menu')) {
+        b.insertAdjacentHTML('beforeend', `<button id="${boxId}_hide" class="cloudSyncLink" title="hide" style="margin-left:2px;">&times;</button>`);
+        document.getElementById(boxId + '_hide').onclick = () => { setWidgetHidden(gameId || 'menu', true); render(); };
+      }
+    }
+
+    let hadSession = false;
+    listeners.push((s) => {
+      const justSignedIn = !hadSession && !!s;
+      hadSession = !!s;
+      resetTransient();
+      render();
+      if (justSignedIn && gameId && !isOptedOut(gameId)) syncFromCloud();
+    });
+    if (ready) render();
+  }
+
   global.CloudSync = {
-    // fn is called immediately with the current session (or null) once known, then again on every change
     subscribe(fn) { listeners.push(fn); if (ready) fn(session); },
     getSession() { return session; },
-    requestCode(email) {
-      return sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
-    },
-    verifyCode(email, token) { return sb.auth.verifyOtp({ email, token, type: 'email' }); },
     signOutEverywhere() { return sb.auth.signOut(); },
 
     isOptedOut,
     setOptOut,
     isWidgetHidden,
     setWidgetHidden,
-    // true if there's a real session AND this specific game hasn't been locally opted out
     isGameActive(gameId) { return !!session && !isOptedOut(gameId); },
+
+    mountAuthWidget,
 
     async pushSave(gameId, data) {
       if (!this.isGameActive(gameId)) return;

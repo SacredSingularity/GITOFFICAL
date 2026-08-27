@@ -2654,83 +2654,13 @@
     '#bwAuthBox button{border:1px solid var(--accent-cognac);border-radius:6px;padding:5px 10px;font-size:12px;' +
     'font-weight:600;cursor:pointer;background:var(--accent-cognac);color:var(--bg-primary);font-family:var(--font-body);}' +
     '#bwAuthBox button:hover{background:var(--accent-cognac-hover);}' +
-    '#bwAuthBox .bwMsg{color:var(--text-secondary);}' +
-    '#bwHideBtn{background:transparent !important;color:var(--text-secondary) !important;padding:2px 4px !important;' +
-    'font-size:11px !important;font-weight:400 !important;border-color:transparent !important;margin-left:2px;}' +
-    '#bwShowTab{opacity:0.55;padding:4px 8px !important;font-size:13px !important;}' +
-    '#bwShowTab:hover{opacity:1;}' +
     '</style><div id="bwAuthBox"></div>';
   document.body.appendChild(bwAuthBar);
 
-  var bwPendingEmail = null;
-  var bwShowEmailForm = false;
-
-  function bwRenderAuthBox(){
-    var box = document.getElementById("bwAuthBox");
-    var session = CloudSync.getSession();
-
-    if(CloudSync.isWidgetHidden(BW_GAME_ID)){
-      box.innerHTML = '<button id="bwShowTab" title="show cloud save">&#9729;</button>';
-      document.getElementById("bwShowTab").onclick = function(){ CloudSync.setWidgetHidden(BW_GAME_ID, false); bwRenderAuthBox(); };
-      return;
-    }
-
-    if(session && CloudSync.isGameActive(BW_GAME_ID)){
-      box.innerHTML = '<button id="bwSignOut">Sign out</button>';
-      document.getElementById("bwSignOut").onclick = function(){
-        CloudSync.setOptOut(BW_GAME_ID, true);
-        bwState = bwDefaultState();
-        bwSaveState();
-        bwRenderAll();
-        bwRenderAuthBox();
-      };
-    } else if(session){
-      box.innerHTML = '<button id="bwReactivate">Sign in</button>';
-      document.getElementById("bwReactivate").onclick = function(){
-        CloudSync.setOptOut(BW_GAME_ID, false);
-        bwRenderAuthBox();
-        bwSyncFromCloud();
-      };
-    } else if(bwPendingEmail){
-      box.innerHTML = '<span class="bwMsg">code sent to ' + bwPendingEmail + '</span>' +
-        '<input id="bwCode" type="text" inputmode="numeric" placeholder="6-digit code" style="width:90px">' +
-        '<button id="bwVerify">Verify</button>' +
-        '<button id="bwCancel" style="background:transparent;color:var(--text-secondary);">&times;</button>';
-      document.getElementById("bwVerify").onclick = function(){
-        var token = document.getElementById("bwCode").value.trim();
-        if(!token) return;
-        box.querySelector(".bwMsg").textContent = "Verifying…";
-        CloudSync.verifyCode(bwPendingEmail, token).then(function(res){
-          if(res.error){
-            box.innerHTML = '<span class="bwMsg">' + res.error.message + '</span>';
-            setTimeout(function(){ bwPendingEmail = null; bwShowEmailForm = false; bwRenderAuthBox(); }, 2500);
-          }
-        });
-      };
-      document.getElementById("bwCancel").onclick = function(){ bwPendingEmail = null; bwShowEmailForm = false; bwRenderAuthBox(); };
-    } else if(bwShowEmailForm){
-      box.innerHTML = '<input id="bwEmail" type="email" placeholder="email for cloud save"><button id="bwSignIn">Send code</button>';
-      document.getElementById("bwSignIn").onclick = function(){
-        var email = document.getElementById("bwEmail").value.trim();
-        if(!email) return;
-        box.innerHTML = '<span class="bwMsg">Sending code…</span>';
-        CloudSync.requestCode(email).then(function(res){
-          if(res.error){
-            box.innerHTML = '<span class="bwMsg">' + res.error.message + '</span>';
-            setTimeout(function(){ bwShowEmailForm = false; bwRenderAuthBox(); }, 2500);
-          } else {
-            bwPendingEmail = email;
-            bwRenderAuthBox();
-          }
-        });
-      };
-    } else {
-      box.innerHTML = '<button id="bwOpenSignIn">Sign in</button>';
-      document.getElementById("bwOpenSignIn").onclick = function(){ bwShowEmailForm = true; bwRenderAuthBox(); };
-    }
-
-    box.insertAdjacentHTML("beforeend", '<button id="bwHideBtn" title="hide">&times;</button>');
-    document.getElementById("bwHideBtn").onclick = function(){ CloudSync.setWidgetHidden(BW_GAME_ID, true); bwRenderAuthBox(); };
+  function bwResetLocalState(){
+    bwState = bwDefaultState();
+    bwSaveState();
+    bwRenderAll();
   }
 
   function bwSyncFromCloud(){
@@ -2743,14 +2673,9 @@
     });
   }
 
-  var bwHadSession = false;
-  CloudSync.subscribe(function(session){
-    var justSignedIn = !bwHadSession && !!session;
-    bwHadSession = !!session;
-    bwPendingEmail = null;
-    bwShowEmailForm = false;
-    bwRenderAuthBox();
-    if(justSignedIn && CloudSync.isGameActive(BW_GAME_ID)) bwSyncFromCloud();
+  CloudSync.mountAuthWidget("bwAuthBox", BW_GAME_ID, {
+    resetLocalState: bwResetLocalState,
+    syncFromCloud: bwSyncFromCloud,
   });
 </script>
 </body></html>

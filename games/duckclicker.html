@@ -1408,85 +1408,10 @@ dcAuthBar.innerHTML = `
     #dcAuthBox button { border: none; border-radius: 6px; padding: 5px 10px; font-size: 12px;
       font-weight: 600; cursor: pointer; background: #ffb347; color: #4a2e08; }
     #dcAuthBox button:hover { background: #ffc26b; }
-    #dcAuthBox .dcMsg { color: #3a4a3e; }
-    #dcHideBtn { background: transparent !important; color: #8a7a5a !important; padding: 2px 4px !important;
-      font-size: 11px !important; font-weight: 400 !important; margin-left: 2px; }
-    #dcShowTab { opacity: 0.55; padding: 4px 8px !important; font-size: 13px !important; }
-    #dcShowTab:hover { opacity: 1; }
   </style>
   <div id="dcAuthBox"></div>
 `;
 document.body.appendChild(dcAuthBar);
-
-let dcPendingEmail = null;
-let dcShowEmailForm = false;
-
-function dcRenderAuthBox() {
-  const box = document.getElementById('dcAuthBox');
-  const session = CloudSync.getSession();
-
-  if (CloudSync.isWidgetHidden(DC_GAME_ID)) {
-    box.innerHTML = `<button id="dcShowTab" title="show cloud save">&#9729;</button>`;
-    document.getElementById('dcShowTab').onclick = () => { CloudSync.setWidgetHidden(DC_GAME_ID, false); dcRenderAuthBox(); };
-    return;
-  }
-
-  if (session && CloudSync.isGameActive(DC_GAME_ID)) {
-    // signed in and active for this game
-    box.innerHTML = `<button id="dcSignOut">Sign out</button>`;
-    document.getElementById('dcSignOut').onclick = () => {
-      CloudSync.setOptOut(DC_GAME_ID, true); // only opts this game out, session elsewhere untouched
-      dcResetLocalState(); // clear this account's data locally so it doesn't linger while "signed out"
-      dcRenderAuthBox();
-    };
-  } else if (session) {
-    // signed in globally, but this game was locally opted out — one click re-activates, no email needed
-    box.innerHTML = `<button id="dcReactivate">Sign in</button>`;
-    document.getElementById('dcReactivate').onclick = async () => {
-      CloudSync.setOptOut(DC_GAME_ID, false);
-      dcRenderAuthBox();
-      await dcSyncFromCloud();
-    };
-  } else if (dcPendingEmail) {
-    box.innerHTML = `<span class="dcMsg">code sent to ${dcPendingEmail}</span>
-      <input id="dcCode" type="text" inputmode="numeric" placeholder="6-digit code" style="width:90px">
-      <button id="dcVerify">Verify</button>
-      <button id="dcCancel" style="background:transparent;color:#3a4a3e;">&times;</button>`;
-    document.getElementById('dcVerify').onclick = async () => {
-      const token = document.getElementById('dcCode').value.trim();
-      if (!token) return;
-      box.querySelector('.dcMsg').textContent = 'Verifying…';
-      const { error } = await CloudSync.verifyCode(dcPendingEmail, token);
-      if (error) {
-        box.innerHTML = `<span class="dcMsg">${error.message}</span>`;
-        setTimeout(() => { dcPendingEmail = null; dcShowEmailForm = false; dcRenderAuthBox(); }, 2500);
-      }
-      // on success, CloudSync's subscribe callback fires and re-renders as signed in
-    };
-    document.getElementById('dcCancel').onclick = () => { dcPendingEmail = null; dcShowEmailForm = false; dcRenderAuthBox(); };
-  } else if (dcShowEmailForm) {
-    box.innerHTML = `<input id="dcEmail" type="email" placeholder="email for cloud save"><button id="dcSignIn">Send code</button>`;
-    document.getElementById('dcSignIn').onclick = async () => {
-      const email = document.getElementById('dcEmail').value.trim();
-      if (!email) return;
-      box.innerHTML = '<span class="dcMsg">Sending code&hellip;</span>';
-      const { error } = await CloudSync.requestCode(email);
-      if (error) {
-        box.innerHTML = `<span class="dcMsg">${error.message}</span>`;
-        setTimeout(() => { dcShowEmailForm = false; dcRenderAuthBox(); }, 2500);
-      } else {
-        dcPendingEmail = email;
-        dcRenderAuthBox();
-      }
-    };
-  } else {
-    box.innerHTML = `<button id="dcOpenSignIn">Sign in</button>`;
-    document.getElementById('dcOpenSignIn').onclick = () => { dcShowEmailForm = true; dcRenderAuthBox(); };
-  }
-
-  box.insertAdjacentHTML('beforeend', '<button id="dcHideBtn" title="hide">&times;</button>');
-  document.getElementById('dcHideBtn').onclick = () => { CloudSync.setWidgetHidden(DC_GAME_ID, true); dcRenderAuthBox(); };
-}
 
 function dcResetLocalState() {
   breadcrumbs = 0;
@@ -1531,14 +1456,9 @@ function dcPushCloudSave(payload) {
   CloudSync.pushSave(DC_GAME_ID, payload);
 }
 
-let dcHadSession = false;
-CloudSync.subscribe((session) => {
-  const justSignedIn = !dcHadSession && !!session;
-  dcHadSession = !!session;
-  dcPendingEmail = null;
-  dcShowEmailForm = false;
-  dcRenderAuthBox();
-  if (justSignedIn && CloudSync.isGameActive(DC_GAME_ID)) dcSyncFromCloud();
+CloudSync.mountAuthWidget('dcAuthBox', DC_GAME_ID, {
+  resetLocalState: dcResetLocalState,
+  syncFromCloud: dcSyncFromCloud,
 });
 </script>
 </body>
