@@ -184,6 +184,7 @@ body {
 .cosmetic-toggle-btn.unequip { background: rgba(255,255,255,0.6); border-color: rgba(90,106,94,0.35); color: #4a5a4e; }
 .cosmetic-toggle-btn.unequip:hover { background: rgba(255,255,255,0.8); }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div id="app">
@@ -649,9 +650,11 @@ function loadSave() {
   }
 }
 function writeSave() {
+  const payload = { breadcrumbs, upgradeLevels, totalClicks, claimedAchievements, activeSkinId, cosmeticsOwned, cosmeticsEquipped };
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ breadcrumbs, upgradeLevels, totalClicks, claimedAchievements, activeSkinId, cosmeticsOwned, cosmeticsEquipped }));
+    localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
   } catch (e) { /* localStorage unavailable (private mode, quota, etc.) — silently skip */ }
+  if (typeof dcPushCloudSave === 'function') dcPushCloudSave(payload);
 }
 setInterval(writeSave, 8000);
 window.addEventListener('beforeunload', writeSave);
@@ -1382,6 +1385,104 @@ renderShop();
 renderAchievements();
 renderDucksTab();
 renderCosmeticsTab();
+
+// -------------------------------------------------------------------
+//  CLOUD SYNC — optional Supabase account so progress follows you
+//  across devices. Fully opt-in: with no session, the game behaves
+//  exactly as before (localStorage only). Signing in pulls the cloud
+//  save down (if one exists) and writeSave() pushes to it from then on.
+// -------------------------------------------------------------------
+const dcSupabase = window.supabase.createClient(
+  'https://jfdpliongytcysqwaeted.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmZHBsaW9neXRjeXNxd2FldGVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4MTAxODYsImV4cCI6MjEwMzM4NjE4Nn0.xGJdKDDsWK-92bvFSXDQnQXVWehkHd2mgAiB5Gv_HIE'
+);
+let dcSession = null;
+
+const dcAuthBar = document.createElement('div');
+dcAuthBar.innerHTML = `
+  <style>
+    #dcAuthBox { position: fixed; top: 10px; right: 10px; z-index: 999;
+      font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px;
+      background: rgba(255,255,255,0.9); border: 1px solid rgba(0,0,0,0.15);
+      border-radius: 10px; padding: 8px 10px; display: flex; align-items: center;
+      gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    #dcAuthBox input { border: 1px solid #ccc; border-radius: 6px; padding: 4px 6px; font-size: 12px; width: 160px; }
+    #dcAuthBox button { border: none; border-radius: 6px; padding: 5px 10px; font-size: 12px;
+      font-weight: 600; cursor: pointer; background: #ffb347; color: #4a2e08; }
+    #dcAuthBox button:hover { background: #ffc26b; }
+    #dcAuthBox .dcMsg { color: #3a4a3e; }
+  </style>
+  <div id="dcAuthBox"></div>
+`;
+document.body.appendChild(dcAuthBar);
+
+function dcRenderAuthBox() {
+  const box = document.getElementById('dcAuthBox');
+  if (dcSession) {
+    box.innerHTML = `<span class="dcMsg">&#9729; ${dcSession.user.email}</span><button id="dcSignOut">Sign out</button>`;
+    document.getElementById('dcSignOut').onclick = () => dcSupabase.auth.signOut();
+  } else {
+    box.innerHTML = `<input id="dcEmail" type="email" placeholder="email for cloud save"><button id="dcSignIn">Sign in</button>`;
+    document.getElementById('dcSignIn').onclick = async () => {
+      const email = document.getElementById('dcEmail').value.trim();
+      if (!email) return;
+      box.innerHTML = '<span class="dcMsg">Sending link&hellip;</span>';
+      const { error } = await dcSupabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+      box.innerHTML = error ? `<span class="dcMsg">${error.message}</span>` : '<span class="dcMsg">Check your email!</span>';
+    };
+  }
+}
+dcRenderAuthBox();
+
+function dcApplyCloudSave(data) {
+  breadcrumbs = data.breadcrumbs || 0;
+  Object.assign(upgradeLevels, data.upgradeLevels || {});
+  totalClicks = data.totalClicks || 0;
+  Object.assign(claimedAchievements, data.claimedAchievements || {});
+  if (DUCK_SKINS.some(s => s.id === data.activeSkinId)) activeSkinId = data.activeSkinId;
+  Object.assign(cosmeticsOwned, data.cosmeticsOwned || {});
+  Object.assign(cosmeticsEquipped, data.cosmeticsEquipped || {});
+  recomputeClickValue();
+  updateHUD();
+  renderShop();
+  renderAchievements();
+  renderDucksTab();
+  renderCosmeticsTab();
+  writeSave(); // keep localStorage in sync with the cloud version we just adopted
+}
+
+async function dcSyncFromCloud() {
+  const { data } = await dcSupabase
+    .from('game_saves')
+    .select('data')
+    .eq('user_id', dcSession.user.id)
+    .eq('game_id', 'duckclicker')
+    .maybeSingle();
+  if (data) dcApplyCloudSave(data.data);
+}
+
+function dcPushCloudSave(payload) {
+  if (!dcSession) return;
+  dcSupabase.from('game_saves').upsert({
+    user_id: dcSession.user.id,
+    game_id: 'duckclicker',
+    data: payload,
+    updated_at: new Date().toISOString(),
+  }).then(({ error }) => { if (error) console.warn('cloud save failed:', error.message); });
+}
+
+dcSupabase.auth.onAuthStateChange((_event, session) => {
+  const justSignedIn = !dcSession && session;
+  dcSession = session;
+  dcRenderAuthBox();
+  if (justSignedIn) dcSyncFromCloud();
+});
+
+dcSupabase.auth.getSession().then(({ data: { session } }) => {
+  dcSession = session;
+  dcRenderAuthBox();
+  if (session) dcSyncFromCloud();
+});
 </script>
 </body>
 </html>
