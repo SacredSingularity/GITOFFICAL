@@ -1,0 +1,2636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bookworm</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-primary:#faf6f1;
+    --bg-secondary:#fefbf7;
+    --text-primary:#2c2416;
+    --text-secondary:#6b5d4f;
+    --border:#d4ccc0;
+    --accent-cognac:#8b6f47;
+    --accent-cognac-hover:#a0824f;
+    --accent-gold:#d4a574;
+    --accent-green:#2d5016;
+    --accent-ember:#a0654f;
+    --muted-accent:#c9b8a8;
+
+    --font-title:"EB Garamond",Georgia,"Times New Roman",serif;
+    --font-body:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;min-height:100%;background:var(--bg-primary);color:var(--text-primary);font-family:var(--font-body);}
+  body{
+    -webkit-font-smoothing:antialiased;
+    /* Scattered gold sparkles (a subtle constellation motif in the negative
+       space) tiled underneath the paper grain. Cards, header, and tabbar are
+       all opaque, so these only ever show in the gaps between them -- sized
+       and lit accordingly, or they'd never be seen at all. */
+    background-image:
+      radial-gradient(3px 3px at 8% 12%, rgba(212,165,116,0.95), transparent 70%),
+      radial-gradient(2px 2px at 22% 38%, rgba(212,165,116,0.9), transparent 70%),
+      radial-gradient(3.5px 3.5px at 46% 8%, rgba(212,165,116,0.95), transparent 70%),
+      radial-gradient(2px 2px at 68% 30%, rgba(212,165,116,0.9), transparent 70%),
+      radial-gradient(3px 3px at 88% 15%, rgba(212,165,116,0.95), transparent 70%),
+      radial-gradient(2px 2px at 14% 62%, rgba(212,165,116,0.9), transparent 70%),
+      radial-gradient(3.2px 3.2px at 38% 78%, rgba(212,165,116,0.95), transparent 70%),
+      radial-gradient(2px 2px at 60% 92%, rgba(212,165,116,0.9), transparent 70%),
+      radial-gradient(3px 3px at 82% 70%, rgba(212,165,116,0.95), transparent 70%),
+      radial-gradient(2px 2px at 95% 48%, rgba(212,165,116,0.9), transparent 70%),
+      repeating-linear-gradient(0deg, rgba(44,36,22,0.015) 0px, transparent 1px, transparent 2px, rgba(44,36,22,0.015) 3px),
+      repeating-linear-gradient(90deg, rgba(44,36,22,0.012) 0px, transparent 1px, transparent 2px, rgba(44,36,22,0.012) 3px);
+    background-size:
+      340px 340px, 340px 340px, 340px 340px, 340px 340px, 340px 340px,
+      340px 340px, 340px 340px, 340px 340px, 340px 340px, 340px 340px,
+      auto, auto;
+  }
+  @media (prefers-reduced-motion:reduce){ *{animation-duration:0.001ms !important;transition-duration:0.001ms !important;} }
+
+  button, input, select, textarea{font-family:inherit;}
+  button, input, select, textarea, a{transition:all 0.3s ease-in-out;}
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible{
+    outline:2px solid var(--accent-cognac);outline-offset:2px;
+  }
+
+  .bw-app{display:flex;flex-direction:column;min-height:100vh;}
+
+  /* ---- header ---- */
+  .bw-header{
+    background:var(--bg-primary);color:var(--text-primary);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:20px 24px 16px;flex-wrap:wrap;
+    border-bottom:1px solid var(--border);
+  }
+  .bw-header-cell{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  .bw-header-cell.bw-header-center{align-items:center;text-align:center;flex:1 1 auto;}
+  .bw-header-cell.bw-header-right{align-items:flex-end;text-align:right;}
+  .bw-eyebrow{font-family:var(--font-body);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-secondary);font-weight:500;}
+  .bw-header-value{font-family:var(--font-title);font-size:16px;font-weight:500;color:var(--accent-cognac);}
+  #bw-today-date.bw-header-value{font-size:26px;color:var(--text-primary);font-weight:400;}
+  .bw-header-title{font-family:var(--font-title);font-size:22px;font-weight:400;color:var(--text-primary);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .bw-header-sub{font-family:var(--font-title);font-style:italic;font-size:13px;color:var(--accent-cognac);}
+  .bw-target-edit{
+    background:none;border:1px dashed var(--muted-accent);color:var(--text-secondary);font-family:var(--font-body);
+    font-size:10px;border-radius:4px;padding:1px 5px;cursor:pointer;margin-top:2px;
+  }
+  .bw-target-edit:hover{color:var(--accent-cognac);border-color:var(--accent-cognac);}
+
+  /* ---- tabs ---- */
+  .bw-tabbar{
+    display:flex;gap:8px;background:var(--bg-secondary);border-bottom:1px solid var(--border);
+    position:sticky;top:0;z-index:2;padding:0 20px;
+  }
+  .bw-tab{
+    flex:0 0 auto;padding:13px 14px;background:none;border:none;border-bottom:3px solid transparent;
+    font-family:var(--font-title);font-size:16px;font-weight:400;color:var(--text-secondary);cursor:pointer;
+    opacity:.65;
+  }
+  .bw-tab:hover{opacity:1;color:var(--text-primary);}
+  .bw-tab[aria-selected="true"]{color:var(--accent-cognac);border-bottom-color:var(--accent-cognac);font-weight:500;opacity:1;}
+
+  .bw-databar{border-bottom:1px solid var(--border);background:var(--bg-secondary);}
+  .bw-databar-toggle{
+    display:block;margin:0 auto;background:none;border:none;cursor:pointer;
+    font-family:var(--font-title);font-size:11px;text-transform:uppercase;letter-spacing:.1em;
+    color:var(--muted-accent);padding:4px 10px;
+  }
+  .bw-databar-toggle:hover{color:var(--accent-cognac);}
+  .bw-databar-panel{
+    display:flex;gap:14px;justify-content:center;align-items:center;flex-wrap:wrap;
+    padding:0 10px 8px;font-size:11px;color:var(--text-secondary);
+  }
+  .bw-databar-panel[hidden]{display:none;}
+  .bw-databar-btn{background:none;border:none;font-family:var(--font-body);font-size:11px;color:var(--text-secondary);cursor:pointer;text-decoration:underline;padding:2px;}
+  .bw-databar-btn:hover{color:var(--accent-cognac);}
+  .bw-databar-estimate{font-family:var(--font-title);font-style:italic;color:var(--text-secondary);}
+
+  .bw-main{flex:1 1 auto;padding:24px 16px;max-width:640px;margin:0 auto;width:100%;}
+  .bw-panel{display:none;}
+  .bw-panel-active{display:block;}
+  .bw-section{margin-bottom:36px;}
+  .bw-section-title{
+    font-family:var(--font-title);font-size:18px;font-weight:600;letter-spacing:.03em;
+    color:var(--text-primary);margin:0 0 14px;padding-bottom:6px;
+    border-bottom:1px solid var(--border);
+  }
+  .bw-section-title::before{content:"\2726";color:var(--accent-cognac);font-size:13px;font-weight:400;margin-right:9px;}
+  .bw-section-divider{
+    position:relative;text-align:center;height:1px;background:var(--border);margin:32px 0 20px;
+  }
+  .bw-section-divider::after{
+    content:"\2726";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:var(--bg-primary);padding:0 14px;color:var(--accent-cognac);font-size:14px;line-height:1;
+  }
+  .bw-empty{
+    padding:20px;color:var(--text-secondary);font-family:var(--font-title);font-style:italic;font-size:14px;text-align:center;
+    background:
+      radial-gradient(2.5px 2.5px at 15% 30%, rgba(212,165,116,0.9), transparent 70%),
+      radial-gradient(2px 2px at 85% 25%, rgba(212,165,116,0.85), transparent 70%),
+      radial-gradient(2.2px 2.2px at 70% 75%, rgba(212,165,116,0.85), transparent 70%),
+      radial-gradient(2px 2px at 30% 80%, rgba(212,165,116,0.85), transparent 70%),
+      radial-gradient(ellipse at center, rgba(45,80,22,0.04), transparent 70%), var(--bg-secondary);
+    border:1px dashed var(--border);border-radius:8px;
+  }
+
+  /* ---- generic controls ---- */
+  .bw-btn{
+    font-family:var(--font-body);font-size:12px;font-weight:500;border-radius:5px;padding:7px 12px;
+    border:1.5px solid var(--border);background:transparent;color:var(--text-primary);cursor:pointer;
+  }
+  .bw-btn:hover{border-color:var(--accent-cognac);color:var(--accent-cognac);}
+  .bw-btn-primary{background:var(--accent-cognac);color:var(--bg-primary);border-color:var(--accent-cognac);}
+  .bw-btn-primary:hover{background:var(--accent-cognac-hover);border-color:var(--accent-cognac-hover);color:var(--bg-primary);box-shadow:0 2px 8px rgba(139,111,71,0.25);}
+  .bw-btn-danger{color:var(--accent-ember);border-color:var(--accent-ember);}
+  .bw-btn-danger:hover{background:rgba(160,101,79,0.08);border-color:var(--accent-ember);color:var(--accent-ember);}
+  .bw-select, .bw-input, .bw-textarea{
+    font-family:var(--font-body);font-size:13px;border:1px solid var(--border);border-radius:6px;
+    padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary);
+  }
+  .bw-select:focus-visible, .bw-input:focus-visible, .bw-textarea:focus-visible{
+    border-color:var(--accent-cognac);box-shadow:0 0 8px rgba(139,111,71,0.15);outline:none;
+  }
+  .bw-select::placeholder, .bw-input::placeholder, .bw-textarea::placeholder{color:var(--muted-accent);}
+  .bw-textarea{width:100%;min-height:64px;resize:vertical;line-height:1.6;}
+  .bw-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:var(--text-secondary);}
+
+  .bw-add-form{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:20px;box-shadow:0 4px 12px rgba(139,111,71,0.08);}
+  .bw-add-form label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-secondary);flex:1 1 140px;min-width:0;font-family:var(--font-title);font-style:italic;}
+  .bw-add-form label.bw-field-wide{flex-basis:100%;}
+  .bw-add-form .bw-btn-primary{align-self:flex-end;}
+
+  /* ---- today rows ---- */
+  .bw-row{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:var(--bg-secondary);}
+  .bw-row:last-child{border-bottom:none;}
+  .bw-row-book{font-family:var(--font-title);font-weight:600;font-size:16px;flex:1 1 140px;min-width:0;}
+  .bw-row-minutes{font-family:var(--font-title);font-style:italic;font-size:13px;color:var(--text-secondary);white-space:nowrap;}
+  .bw-row-actions{display:flex;gap:6px;margin-left:auto;align-items:center;}
+  .bw-timer-elapsed{font-family:var(--font-title);font-style:italic;font-size:15px;color:var(--accent-cognac);min-width:52px;text-align:right;}
+  .bw-log-delta{font-family:var(--font-title);font-style:italic;font-size:13px;color:var(--text-secondary);white-space:nowrap;}
+  .bw-log-what{width:100%;font-size:13px;color:var(--text-secondary);margin-top:2px;line-height:1.6;}
+  .bw-stop-form{background:var(--bg-secondary);border:1px solid var(--border);border-top:none;padding:16px;display:flex;flex-direction:column;gap:10px;}
+  .bw-stop-form label{font-family:var(--font-title);font-style:italic;font-size:12px;color:var(--text-secondary);display:flex;flex-direction:column;gap:3px;}
+  .bw-stop-form-actions{display:flex;gap:8px;justify-content:flex-end;}
+  .bw-stop-form-error{color:var(--text-primary);font-weight:600;font-size:12px;border-left:2px solid var(--accent-ember);padding-left:8px;}
+
+  .bw-card-list{display:flex;flex-direction:column;gap:14px;}
+
+  /* ---- book card ---- */
+  .bw-card{
+    background:
+      radial-gradient(ellipse at top right, rgba(139,111,71,0.05), transparent 60%),
+      radial-gradient(ellipse at bottom left, rgba(45,80,22,0.04), transparent 55%),
+      var(--bg-secondary);
+    border:1px solid var(--border);border-radius:10px;padding:24px;display:flex;gap:16px;
+    box-shadow:0 4px 12px rgba(139,111,71,0.1);
+  }
+  .bw-card:hover{box-shadow:0 8px 16px rgba(139,111,71,0.14);border-color:var(--accent-cognac);}
+  .bw-card-reading{
+    position:relative;border-radius:12px;padding:32px;gap:28px;overflow:hidden;
+    background:
+      radial-gradient(ellipse 500px 300px at 20% 10%, rgba(139,111,71,0.08), transparent 50%),
+      radial-gradient(ellipse 400px 250px at 80% 90%, rgba(45,80,22,0.06), transparent 60%),
+      var(--bg-secondary);
+    box-shadow:0 6px 20px rgba(139,111,71,0.14);
+  }
+  .bw-card-reading:hover{box-shadow:0 8px 24px rgba(139,111,71,0.18);}
+  .bw-card-reading::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent-gold);
+    box-shadow:2px 0 6px rgba(212,165,116,0.3);
+  }
+  .bw-card-up-next{
+    padding:16px 18px;box-shadow:0 2px 6px rgba(139,111,71,0.07);position:relative;
+    border-left:3px solid var(--accent-gold);border-top-left-radius:4px;border-bottom-left-radius:4px;
+  }
+  .bw-card-cover{width:56px;height:80px;flex-shrink:0;border-radius:3px;overflow:hidden;background:var(--bg-primary);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(139,111,71,0.15);}
+  .bw-card-cover-lg{width:100px;height:150px;border-radius:4px;box-shadow:2px 4px 12px rgba(139,111,71,0.2);}
+  .bw-card-cover img{width:100%;height:100%;object-fit:cover;display:block;}
+  .bw-card-cover-placeholder{font-family:var(--font-title);font-weight:600;font-size:10px;color:var(--text-secondary);text-align:center;padding:3px;line-height:1.2;overflow:hidden;}
+  .bw-card-cover-lg .bw-card-cover-placeholder{font-size:13px;padding:8px;}
+  .bw-card-body{flex:1 1 auto;min-width:0;}
+  .bw-card-title{font-family:var(--font-title);font-weight:600;font-size:19px;color:var(--text-primary);margin:0;letter-spacing:.01em;}
+  .bw-card-author{font-family:var(--font-title);font-style:italic;font-weight:400;font-size:14px;color:var(--text-secondary);margin:2px 0 10px;}
+  .bw-priority-high .bw-card-title{font-weight:700;}
+  .bw-priority-low .bw-card-title{font-weight:500;color:var(--text-secondary);}
+
+  .bw-foreedge{display:flex;flex-direction:column;gap:8px;margin:12px 0;}
+  /* Fine vertical hairlines on both the track and the fill so the bar reads
+     as a stack of individual page edges, not a plain progress meter. */
+  .bw-foreedge-bar{
+    width:100%;height:8px;position:relative;border-radius:4px;overflow:hidden;
+    background:
+      repeating-linear-gradient(90deg, rgba(139,111,71,0.16) 0px, rgba(139,111,71,0.16) 1px, transparent 1px, transparent 3px),
+      var(--border);
+  }
+  .bw-foreedge-read{
+    position:absolute;top:0;left:0;height:100%;border-radius:4px;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.22) 0px, rgba(255,255,255,0.22) 1px, transparent 1px, transparent 3px),
+      linear-gradient(to right, var(--accent-gold), var(--accent-cognac));
+  }
+  .bw-foreedge-pages{font-family:var(--font-title);font-style:italic;font-size:13px;color:var(--text-secondary);white-space:nowrap;}
+  .bw-card-meta{font-family:var(--font-title);font-size:12px;color:var(--accent-cognac);margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;line-height:1.5;}
+  .bw-card-meta span:not(:last-child)::after{content:"\00b7";margin-left:6px;color:var(--muted-accent);}
+
+  .bw-stamp{
+    display:inline-block;font-family:var(--font-title);font-style:italic;font-size:11px;font-weight:500;
+    letter-spacing:.03em;border:1px solid var(--accent-cognac);border-radius:3px;
+    padding:2px 8px;color:var(--accent-cognac);transform:rotate(-1.5deg);margin-top:8px;
+  }
+  .bw-stamp-overdue{border-color:var(--accent-ember);color:var(--accent-ember);}
+
+  .bw-card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  .bw-note-toggle{background:none;border:none;font-family:var(--font-title);font-style:italic;font-size:12px;color:var(--text-secondary);text-decoration:underline;cursor:pointer;padding:4px 0;}
+  .bw-note-toggle:hover{color:var(--accent-cognac);}
+  .bw-note-section{margin-top:8px;padding-top:10px;border-top:1px solid var(--border);}
+  .bw-note-view p{margin:0 0 8px;font-size:14px;line-height:1.7;}
+  .bw-note-view ul{margin:0 0 8px;padding-left:18px;font-size:14px;line-height:1.7;}
+  .bw-note-empty{font-family:var(--font-title);font-style:italic;font-size:13px;color:var(--text-secondary);}
+
+  .bw-completed-toggle{
+    width:100%;text-align:left;background:none;border:1px dashed var(--border);border-radius:6px;
+    padding:12px 14px;font-family:var(--font-title);font-style:italic;font-size:14px;color:var(--text-secondary);cursor:pointer;margin-top:16px;
+  }
+  .bw-completed-toggle:hover{border-color:var(--accent-cognac);color:var(--accent-cognac);}
+  .bw-finished-row{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:var(--bg-secondary);}
+  .bw-finished-row:last-child{border-bottom:none;}
+  .bw-finished-title{font-family:var(--font-title);font-weight:600;font-size:16px;flex:1 1 140px;min-width:0;}
+  .bw-finished-meta{font-family:var(--font-title);font-style:italic;font-size:12px;color:var(--text-secondary);white-space:nowrap;}
+
+  /* ---- log tab ---- */
+  .bw-log-summary-row{display:flex;justify-content:space-between;padding:8px 16px;font-size:14px;border-bottom:1px solid var(--border);}
+  .bw-log-summary-row:last-child{border-bottom:none;}
+  .bw-log-summary-row span:last-child{font-family:var(--font-title);font-style:italic;color:var(--accent-cognac);white-space:nowrap;}
+  .bw-log-entry{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px;background:var(--bg-secondary);}
+  .bw-log-entry:last-child{border-bottom:none;}
+  .bw-log-entry-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;}
+  .bw-log-entry-book{font-family:var(--font-title);font-size:16px;font-weight:600;flex:1 1 auto;min-width:0;}
+  .bw-log-entry-date{font-family:var(--font-title);font-style:italic;font-size:12px;color:var(--text-secondary);white-space:nowrap;}
+
+  /* ---- tracker tab ---- */
+  .bw-chart-card{
+    background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;
+    padding:18px;box-shadow:0 4px 12px rgba(139,111,71,0.1);
+  }
+  .bw-chart-caption{font-size:12px;color:var(--text-secondary);margin:0 0 8px;font-variant-numeric:tabular-nums;}
+  .bw-chart-svg{width:100%;height:auto;display:block;overflow:visible;}
+  .bw-chart-svg text{font-family:var(--font-body);font-size:10px;fill:var(--text-secondary);}
+  .bw-chart-note{font-size:12px;color:var(--text-secondary);margin-top:10px;line-height:1.6;}
+  .bw-chart-note.bw-chart-note-small{font-style:italic;}
+  .bw-stat-value{font-variant-numeric:tabular-nums;}
+  .bw-tracker-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-secondary);margin-top:10px;}
+  .bw-tracker-legend-item{display:flex;align-items:center;gap:6px;}
+  .bw-tracker-legend-swatch{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .bw-tracker-toggle-group{display:flex;gap:6px;}
+  .bw-tracker-toggle{
+    font-family:var(--font-body);font-size:12px;font-weight:500;border-radius:5px;padding:6px 12px;
+    border:1.5px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;
+  }
+  .bw-tracker-toggle:hover{border-color:var(--accent-cognac);color:var(--accent-cognac);}
+  .bw-tracker-toggle[aria-pressed="true"]{background:var(--accent-cognac);color:var(--bg-primary);border-color:var(--accent-cognac);}
+  .bw-tracker-excluded-list{font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.6;}
+
+  /* ---- modal ---- */
+  .bw-modal-backdrop{position:fixed;inset:0;background:rgba(44,36,22,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10;}
+  .bw-modal{background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:420px;width:100%;box-shadow:0 8px 24px rgba(139,111,71,0.22);}
+  .bw-modal-title{font-family:var(--font-title);font-size:21px;font-weight:600;margin:0 0 12px;color:var(--text-primary);}
+  .bw-modal-body{font-size:14px;line-height:1.7;color:var(--text-primary);}
+  .bw-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+
+  @media (max-width:480px){
+    .bw-header{padding:16px 14px;}
+    .bw-header-title{max-width:120px;}
+    .bw-main{padding:18px 12px;}
+  }
+</style>
+</head>
+<body>
+<div class="bw-app">
+
+  <header class="bw-header">
+    <div class="bw-header-cell">
+      <span class="bw-eyebrow">Today</span>
+      <span class="bw-header-value" id="bw-today-date">--</span>
+    </div>
+    <div class="bw-header-cell bw-header-center">
+      <span class="bw-eyebrow">Reading now</span>
+      <span class="bw-header-title" id="bw-now-title">--</span>
+      <span class="bw-header-sub" id="bw-now-progress"></span>
+    </div>
+    <div class="bw-header-cell bw-header-right">
+      <span class="bw-eyebrow">This week</span>
+      <span class="bw-header-value" id="bw-week-delta">--</span>
+      <button type="button" class="bw-target-edit" id="bw-target-edit-btn">edit target</button>
+    </div>
+  </header>
+
+  <nav class="bw-tabbar" role="tablist" aria-label="Sections">
+    <button class="bw-tab" role="tab" id="bw-tab-btn-today" aria-selected="true" aria-controls="bw-panel-today">Today</button>
+    <button class="bw-tab" role="tab" id="bw-tab-btn-library" aria-selected="false" aria-controls="bw-panel-library">Library</button>
+    <button class="bw-tab" role="tab" id="bw-tab-btn-log" aria-selected="false" aria-controls="bw-panel-log">Shelf</button>
+    <button class="bw-tab" role="tab" id="bw-tab-btn-tracker" aria-selected="false" aria-controls="bw-panel-tracker">Tracker</button>
+  </nav>
+
+  <div class="bw-databar">
+    <button type="button" class="bw-databar-toggle" id="bw-databar-toggle" aria-expanded="false" aria-controls="bw-databar-panel">Data</button>
+    <div class="bw-databar-panel" id="bw-databar-panel" hidden>
+      <button type="button" class="bw-databar-btn" id="bw-export-btn">Export data (includes covers -- can be large)</button>
+      <button type="button" class="bw-databar-btn" id="bw-import-btn">Import data</button>
+      <input type="file" id="bw-import-file-input" accept="application/json" style="display:none;">
+      <span class="bw-databar-estimate" id="bw-storage-estimate"></span>
+    </div>
+  </div>
+
+  <main class="bw-main">
+
+    <section class="bw-panel bw-panel-active" id="bw-panel-today" role="tabpanel" aria-labelledby="bw-tab-btn-today">
+      <div class="bw-section">
+        <h2 class="bw-section-title">Today's plan</h2>
+        <div class="bw-card-list" id="bw-plan-list"></div>
+        <form class="bw-add-form" id="bw-plan-add-form">
+          <label>Book
+            <select class="bw-select" id="bw-plan-book-select"></select>
+          </label>
+          <label>Target minutes
+            <input type="number" class="bw-input" id="bw-plan-minutes-input" min="1" step="1" required>
+          </label>
+          <button type="submit" class="bw-btn bw-btn-primary">Add</button>
+        </form>
+      </div>
+
+      <div class="bw-section">
+        <h2 class="bw-section-title">Today's log</h2>
+        <div class="bw-card-list" id="bw-today-log-list"></div>
+      </div>
+    </section>
+
+    <section class="bw-panel" id="bw-panel-library" role="tabpanel" aria-labelledby="bw-tab-btn-library">
+
+      <div class="bw-section">
+        <h2 class="bw-section-title">Currently reading</h2>
+        <div class="bw-card-list" id="bw-reading-list"></div>
+      </div>
+
+      <div class="bw-section-divider" aria-hidden="true"></div>
+
+      <div class="bw-section">
+        <div class="bw-toolbar">
+          <h2 class="bw-section-title" style="margin:0;">Up next</h2>
+          <label for="bw-upnext-sort">Sort</label>
+          <select class="bw-select" id="bw-upnext-sort">
+            <option value="priority">Priority</option>
+            <option value="readby">Read-by date</option>
+            <option value="added">Date added</option>
+          </select>
+        </div>
+        <div class="bw-card-list" id="bw-upnext-list"></div>
+      </div>
+
+      <div class="bw-section">
+        <h2 class="bw-section-title">Add a book</h2>
+        <form class="bw-add-form" id="bw-book-add-form">
+          <label class="bw-field-wide">Title
+            <input type="text" class="bw-input" id="bw-book-title-input" required>
+          </label>
+          <label class="bw-field-wide">Author
+            <input type="text" class="bw-input" id="bw-book-author-input">
+          </label>
+          <label class="bw-field-wide">Cover photo
+            <input type="file" class="bw-input" id="bw-book-cover-input" accept="image/jpeg,image/png,image/webp">
+          </label>
+          <label class="bw-field-wide">Summary / note
+            <textarea class="bw-textarea" id="bw-book-note-input" placeholder="What it is, why you want to read it..."></textarea>
+          </label>
+          <label>Read-by date
+            <input type="date" class="bw-input" id="bw-book-readby-input">
+          </label>
+          <label>Priority
+            <select class="bw-select" id="bw-book-priority-input">
+              <option value="high">High</option>
+              <option value="medium" selected>Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <label>Total pages
+            <input type="number" class="bw-input" id="bw-book-pages-input" min="1" step="1">
+          </label>
+          <label>Current page
+            <input type="number" class="bw-input" id="bw-book-currentpage-input" min="0" step="1" placeholder="0 if just starting">
+          </label>
+          <div class="bw-stop-form-error bw-field-wide" id="bw-book-add-error" style="display:none;"></div>
+          <button type="submit" class="bw-btn bw-btn-primary">Add book</button>
+        </form>
+      </div>
+
+      <button type="button" class="bw-completed-toggle" id="bw-finished-toggle">Show finished books (0)</button>
+      <div class="bw-card-list" id="bw-finished-list" style="display:none;margin-top:8px;"></div>
+
+    </section>
+
+    <section class="bw-panel" id="bw-panel-log" role="tabpanel" aria-labelledby="bw-tab-btn-log">
+      <div class="bw-section">
+        <h2 class="bw-section-title">This week</h2>
+        <div class="bw-card-list" id="bw-log-weekly-summary"></div>
+      </div>
+
+      <div class="bw-toolbar">
+        <label for="bw-log-book-filter">Book</label>
+        <select class="bw-select" id="bw-log-book-filter"><option value="">All</option></select>
+      </div>
+
+      <div class="bw-card-list" id="bw-log-list"></div>
+    </section>
+
+    <section class="bw-panel" id="bw-panel-tracker" role="tabpanel" aria-labelledby="bw-tab-btn-tracker">
+
+      <div class="bw-section">
+        <h2 class="bw-section-title">Reading speed</h2>
+
+        <div class="bw-toolbar">
+          <label for="bw-tracker-book-select">Book</label>
+          <select class="bw-select" id="bw-tracker-book-select"><option value="">All books</option></select>
+          <label for="bw-tracker-range-select">Range</label>
+          <select class="bw-select" id="bw-tracker-range-select">
+            <option value="all">All time</option>
+            <option value="month">This month</option>
+            <option value="week">This week</option>
+          </select>
+        </div>
+
+        <div id="bw-tracker-speed-content"></div>
+      </div>
+
+      <div class="bw-section">
+        <h2 class="bw-section-title">Book lengths &amp; progress</h2>
+
+        <div class="bw-tracker-toggle-group" role="group" aria-label="Show">
+          <button type="button" class="bw-tracker-toggle" id="bw-tracker-lengthmode-total" aria-pressed="true">Total length</button>
+          <button type="button" class="bw-tracker-toggle" id="bw-tracker-lengthmode-read" aria-pressed="false">Pages read</button>
+        </div>
+
+        <div id="bw-tracker-length-content"></div>
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<div class="bw-modal-backdrop" id="bw-import-modal" style="display:none;">
+  <div class="bw-modal" role="dialog" aria-modal="true" aria-labelledby="bw-import-modal-title">
+    <h2 class="bw-modal-title" id="bw-import-modal-title">Replace all data?</h2>
+    <div class="bw-modal-body" id="bw-import-modal-body"></div>
+    <div class="bw-modal-actions">
+      <button type="button" class="bw-btn" id="bw-import-cancel-btn">Cancel</button>
+      <button type="button" class="bw-btn bw-btn-primary" id="bw-import-confirm-btn">Replace my data</button>
+    </div>
+  </div>
+</div>
+
+<div class="bw-modal-backdrop" id="bw-moveback-modal" style="display:none;">
+  <div class="bw-modal" role="dialog" aria-modal="true" aria-labelledby="bw-moveback-modal-title">
+    <h2 class="bw-modal-title" id="bw-moveback-modal-title">Bench this book?</h2>
+    <div class="bw-modal-body" id="bw-moveback-modal-body"></div>
+    <div class="bw-modal-actions">
+      <button type="button" class="bw-btn" id="bw-moveback-cancel-btn">Cancel</button>
+      <button type="button" class="bw-btn bw-btn-primary" id="bw-moveback-confirm-btn">Bench it, discard progress</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // =========================================================================
+  // image pipeline -- confirmed working end to end in the standalone checkpoint
+  // =========================================================================
+
+  var BW_DB_NAME = "bookworm_covers";
+  var BW_DB_VERSION = 1;
+  var BW_STORE_NAME = "covers";
+  var BW_MAX_EDGE = 600;
+  var BW_JPEG_QUALITY = 0.75;
+  var BW_MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+  var BW_ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+  var bwDbPromise = null;
+
+  function bwOpenDb(){
+    if(bwDbPromise) return bwDbPromise;
+    bwDbPromise = new Promise(function(resolve, reject){
+      if(!window.indexedDB){ reject(new Error("IndexedDB unavailable")); return; }
+      var req = indexedDB.open(BW_DB_NAME, BW_DB_VERSION);
+      req.onupgradeneeded = function(){
+        req.result.createObjectStore(BW_STORE_NAME);
+      };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+    return bwDbPromise;
+  }
+
+  function bwDownscaleImage(file){
+    return new Promise(function(resolve, reject){
+      if(BW_ACCEPTED_TYPES.indexOf(file.type) === -1){
+        reject(new Error("That file type isn't supported -- use JPEG, PNG, or WebP."));
+        return;
+      }
+      if(file.size > BW_MAX_UPLOAD_BYTES){
+        reject(new Error("That file is too large -- pick something under 15 MB."));
+        return;
+      }
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function(){
+        URL.revokeObjectURL(url);
+        var w = img.naturalWidth, h = img.naturalHeight;
+        var scale = Math.min(1, BW_MAX_EDGE / Math.max(w, h));
+        var outW = Math.round(w * scale), outH = Math.round(h * scale);
+        var canvas = document.createElement("canvas");
+        canvas.width = outW;
+        canvas.height = outH;
+        canvas.getContext("2d").drawImage(img, 0, 0, outW, outH);
+        resolve(canvas.toDataURL("image/jpeg", BW_JPEG_QUALITY));
+      };
+      img.onerror = function(){
+        URL.revokeObjectURL(url);
+        reject(new Error("Couldn't read that as an image."));
+      };
+      img.src = url;
+    });
+  }
+
+  function bwStoreCover(bookId, dataUrl){
+    return bwOpenDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(BW_STORE_NAME, "readwrite");
+        tx.objectStore(BW_STORE_NAME).put(dataUrl, bookId);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+
+  function bwGetCover(bookId){
+    return bwOpenDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(BW_STORE_NAME, "readonly");
+        var req = tx.objectStore(BW_STORE_NAME).get(bookId);
+        req.onsuccess = function(){ resolve(req.result || null); };
+        req.onerror = function(){ reject(req.error); };
+      });
+    });
+  }
+
+  function bwDeleteCover(bookId){
+    return bwOpenDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(BW_STORE_NAME, "readwrite");
+        tx.objectStore(BW_STORE_NAME).delete(bookId);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+
+  function bwClearAllCovers(){
+    return bwOpenDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(BW_STORE_NAME, "readwrite");
+        tx.objectStore(BW_STORE_NAME).clear();
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+
+  function bwAllCoverIds(){
+    return bwOpenDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(BW_STORE_NAME, "readonly");
+        var req = tx.objectStore(BW_STORE_NAME).getAllKeys();
+        req.onsuccess = function(){ resolve(req.result || []); };
+        req.onerror = function(){ reject(req.error); };
+      });
+    });
+  }
+
+  // =========================================================================
+  // state: localStorage holds book/session records, IndexedDB holds cover images
+  // =========================================================================
+
+  var BW_STORAGE_KEY = "bookworm_state_v1";
+
+  function bwDefaultState(){
+    return {
+      version: 1,
+      books: [],
+      sessions: [],
+      settings: { weeklyTargets: {} }
+    };
+  }
+
+  function bwLoadState(){
+    try{
+      var raw = localStorage.getItem(BW_STORAGE_KEY);
+      if(!raw) return bwDefaultState();
+      var parsed = JSON.parse(raw);
+      if(!parsed || typeof parsed !== "object" || !parsed.version) return bwDefaultState();
+      return parsed;
+    }catch(e){
+      bwShowStorageWarning();
+      return bwDefaultState();
+    }
+  }
+
+  function bwSaveState(){
+    try{
+      localStorage.setItem(BW_STORAGE_KEY, JSON.stringify(bwState));
+    }catch(e){
+      bwShowStorageWarning();
+    }
+  }
+
+  function bwShowStorageWarning(){
+    if(document.getElementById("bw-storage-warning")) return;
+    var bar = document.createElement("div");
+    bar.id = "bw-storage-warning";
+    bar.style.cssText = "background:var(--accent-cognac);color:var(--bg-primary);font-size:12px;text-align:center;padding:6px;";
+    bar.textContent = "Storage unavailable -- working in memory only, nothing will be saved.";
+    document.body.insertBefore(bar, document.body.firstChild);
+  }
+
+  var bwState = bwLoadState();
+
+  // ---- shared helpers ----
+
+  function bwUid(){
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function bwTodayKey(){
+    var d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0,10);
+  }
+
+  function bwFormatDate(d){
+    return d.toLocaleDateString(undefined, { weekday:"short", day:"numeric", month:"short" });
+  }
+
+  function bwFormatDelta(minutes){
+    var sign = minutes < 0 ? "−" : "+";
+    var abs = Math.abs(minutes);
+    var h = Math.floor(abs / 60);
+    var m = abs % 60;
+    return sign + h + ":" + (m < 10 ? "0" : "") + m;
+  }
+
+  function bwFormatDuration(minutes){
+    minutes = minutes || 0;
+    var h = Math.floor(minutes / 60);
+    var m = minutes % 60;
+    if(h === 0) return m + "m";
+    return h + "h " + m + "m";
+  }
+
+  function bwFormatClock(ms){
+    var totalSeconds = Math.floor(ms / 1000);
+    var h = Math.floor(totalSeconds / 3600);
+    var m = Math.floor((totalSeconds % 3600) / 60);
+    var s = totalSeconds % 60;
+    var pad = function(n){ return (n < 10 ? "0" : "") + n; };
+    return (h > 0 ? h + ":" + pad(m) : m) + ":" + pad(s);
+  }
+
+  function bwMondayKey(d){
+    var date = new Date(d);
+    var day = date.getDay();
+    var diff = (day === 0 ? -6 : 1) - day;
+    date.setDate(date.getDate() + diff);
+    date.setHours(0,0,0,0);
+    // toISOString() converts to UTC -- for any timezone ahead of UTC that
+    // rolls local midnight back into the previous UTC day, so correct for
+    // the offset first, same as bwTodayKey does just above.
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().slice(0,10);
+  }
+
+  function bwDaysSince(dateStr){
+    if(!dateStr) return null;
+    var start = new Date(dateStr);
+    var now = new Date(bwTodayKey());
+    return Math.round((now - start) / 86400000);
+  }
+
+  function bwDaysUntil(dateStr){
+    var due = new Date(dateStr);
+    var now = new Date(bwTodayKey());
+    return Math.round((due - now) / 86400000);
+  }
+
+  function bwWeekLoggedMinutes(weekKey){
+    var start = new Date(weekKey);
+    var end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    var total = 0;
+    bwState.sessions.forEach(function(s){
+      if(s.status !== "done") return;
+      var d = new Date(s.date);
+      if(d >= start && d < end) total += (s.actualMinutes || 0);
+    });
+    return total;
+  }
+
+  function bwWeekSessions(weekKey){
+    var start = new Date(weekKey);
+    var end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return bwState.sessions.filter(function(s){
+      if(s.status !== "done") return false;
+      var d = new Date(s.date);
+      return d >= start && d < end;
+    });
+  }
+
+  function bwBookById(id){
+    for(var i = 0; i < bwState.books.length; i++){
+      if(bwState.books[i].id === id) return bwState.books[i];
+    }
+    return null;
+  }
+
+  // Reused from games/lessoncanvas.html's renderMiniMarkdown (bold/italic/lists only).
+  function bwRenderMiniMarkdown(text){
+    var lines = String(text || "").split("\n");
+    var html = "";
+    var inList = false;
+    var paraLines = [];
+
+    function flushParagraph(){
+      if(paraLines.length){
+        html += "<p>" + bwInlineFormat(paraLines.join(" ")) + "</p>";
+        paraLines = [];
+      }
+    }
+
+    lines.forEach(function(line){
+      var trimmed = line.trim();
+      if(/^[-*]\s+/.test(trimmed)){
+        flushParagraph();
+        if(!inList){ html += "<ul>"; inList = true; }
+        html += "<li>" + bwInlineFormat(trimmed.replace(/^[-*]\s+/, "")) + "</li>";
+      } else {
+        if(inList){ html += "</ul>"; inList = false; }
+        if(trimmed === ""){ flushParagraph(); }
+        else paraLines.push(trimmed);
+      }
+    });
+    flushParagraph();
+    if(inList) html += "</ul>";
+    return html;
+  }
+
+  function bwInlineFormat(s){
+    return s
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>");
+  }
+
+  // =========================================================================
+  // header
+  // =========================================================================
+
+  // The book the header calls "reading now" is whichever currently-reading book
+  // was touched most recently (last session, else start date) -- distinct from
+  // the Library tab's "longest neglected" sort, which deliberately surfaces the
+  // opposite end of the list.
+  function bwHeaderBook(){
+    var reading = bwState.books.filter(function(b){ return b.status === "reading"; });
+    if(reading.length === 0) return null;
+    reading.sort(function(a, b){
+      var da = a.lastReadDate || a.dateStarted || a.dateAdded;
+      var db = b.lastReadDate || b.dateStarted || b.dateAdded;
+      return new Date(db) - new Date(da);
+    });
+    return reading[0];
+  }
+
+  function bwRenderHeader(){
+    var now = new Date();
+    document.getElementById("bw-today-date").textContent = bwFormatDate(now);
+
+    var wk = bwMondayKey(now);
+    var targetMinutes = bwState.settings.weeklyTargets[wk];
+    var loggedMinutes = bwWeekLoggedMinutes(wk);
+    var deltaEl = document.getElementById("bw-week-delta");
+    if(typeof targetMinutes === "number"){
+      deltaEl.textContent = bwFormatDelta(loggedMinutes - targetMinutes);
+    } else {
+      deltaEl.textContent = "no target set";
+    }
+
+    var book = bwHeaderBook();
+    var titleEl = document.getElementById("bw-now-title");
+    var progressEl = document.getElementById("bw-now-progress");
+    if(!book){
+      titleEl.textContent = "Nothing being read";
+      progressEl.textContent = "";
+    } else {
+      titleEl.textContent = book.title;
+      if(book.totalPages){
+        progressEl.textContent = "page " + (book.currentPage || 0) + " / " + book.totalPages;
+      } else if(book.currentPage){
+        progressEl.textContent = "page " + book.currentPage;
+      } else {
+        progressEl.textContent = "no pages logged yet";
+      }
+    }
+  }
+
+  document.getElementById("bw-target-edit-btn").addEventListener("click", function(){
+    var wk = bwMondayKey(new Date());
+    var current = bwState.settings.weeklyTargets[wk];
+    var input = window.prompt("Target minutes for the week of " + wk + ":", current != null ? String(current) : "");
+    if(input === null) return;
+    var minutes = parseInt(input, 10);
+    if(isNaN(minutes) || minutes < 0) return;
+    bwState.settings.weeklyTargets[wk] = minutes;
+    bwSaveState();
+    bwRenderHeader();
+  });
+
+  // =========================================================================
+  // tabs
+  // =========================================================================
+
+  var bwTabIds = ["today", "library", "log", "tracker"];
+
+  function bwSelectTab(id){
+    bwTabIds.forEach(function(t){
+      var isActive = t === id;
+      document.getElementById("bw-tab-btn-" + t).setAttribute("aria-selected", String(isActive));
+      document.getElementById("bw-panel-" + t).classList.toggle("bw-panel-active", isActive);
+    });
+  }
+
+  bwTabIds.forEach(function(t){
+    document.getElementById("bw-tab-btn-" + t).addEventListener("click", function(){ bwSelectTab(t); });
+  });
+
+  // =========================================================================
+  // Today tab: plan, timer, log
+  // =========================================================================
+
+  var bwActiveTimerSessionId = null;
+  var bwTimerTickHandle = null;
+  var bwPendingStopId = null; // session awaiting its "page reached / how did it go" form after Stop
+
+  function bwTodaySessions(){
+    var key = bwTodayKey();
+    return bwState.sessions.filter(function(s){ return s.date === key; });
+  }
+
+  function bwElapsedMs(session){
+    var base = session.timerAccumulatedMs || 0;
+    if(session.timerStartedAt) base += (Date.now() - session.timerStartedAt);
+    return base;
+  }
+
+  function bwStartTimer(session){
+    if(bwActiveTimerSessionId && bwActiveTimerSessionId !== session.id) return;
+    if(session.pageStart == null){
+      var book = bwBookById(session.bookId);
+      session.pageStart = (book && book.currentPage) || 0;
+    }
+    session.timerStartedAt = Date.now();
+    bwActiveTimerSessionId = session.id;
+    bwSaveState();
+    bwEnsureTicking();
+    bwRenderToday();
+  }
+
+  function bwPauseTimer(session){
+    session.timerAccumulatedMs = bwElapsedMs(session);
+    session.timerStartedAt = null;
+    bwSaveState();
+    bwRenderToday();
+  }
+
+  function bwStopTimer(session){
+    session.timerAccumulatedMs = bwElapsedMs(session);
+    session.timerStartedAt = null;
+    session.actualMinutes = Math.max(1, Math.round(session.timerAccumulatedMs / 60000));
+    session.status = "done";
+    bwActiveTimerSessionId = null;
+    bwPendingStopId = session.id;
+    bwSaveState();
+    bwRenderToday();
+    bwRenderHeader();
+  }
+
+  function bwEnsureTicking(){
+    if(bwTimerTickHandle) return;
+    bwTimerTickHandle = setInterval(function(){
+      if(!bwActiveTimerSessionId){ clearInterval(bwTimerTickHandle); bwTimerTickHandle = null; return; }
+      var el = document.querySelector('.bw-timer-elapsed[data-session-id="' + bwActiveTimerSessionId + '"]');
+      var session = bwState.sessions.filter(function(s){ return s.id === bwActiveTimerSessionId; })[0];
+      if(el && session) el.textContent = bwFormatClock(bwElapsedMs(session));
+    }, 1000);
+  }
+
+  // Undoes an accidental Stop: clears the logged result and puts the session
+  // back in today's plan so it can be timed again.
+  function bwRetrySession(session){
+    session.status = "planned";
+    session.actualMinutes = null;
+    session.whatHappened = "";
+    session.pageEnd = null;
+    session.timerStartedAt = null;
+    session.timerAccumulatedMs = 0;
+    if(bwPendingStopId === session.id) bwPendingStopId = null;
+    bwSaveState();
+    bwRenderToday();
+    bwRenderHeader();
+    bwRenderLog();
+  }
+
+  function bwDeletePlannedSession(session){
+    var book = bwBookById(session.bookId);
+    var confirmed = window.confirm(
+      "Remove this planned session" + (book ? " for \"" + book.title + "\"" : "") + "? This can't be undone."
+    );
+    if(!confirmed) return;
+    bwState.sessions = bwState.sessions.filter(function(s){ return s.id !== session.id; });
+    bwSaveState();
+    bwRenderToday();
+    bwRenderLog();
+  }
+
+  function bwBuildStopForm(session){
+    var book = bwBookById(session.bookId);
+    var wrap = document.createElement("div");
+    wrap.className = "bw-stop-form";
+
+    var pageLabel = document.createElement("label");
+    var pageInputId = "bw-stop-page-" + session.id;
+    pageLabel.setAttribute("for", pageInputId);
+    pageLabel.textContent = "Page reached" + (book ? " -- " + book.title : "");
+    var pageInput = document.createElement("input");
+    pageInput.type = "number";
+    pageInput.className = "bw-input";
+    pageInput.id = pageInputId;
+    pageInput.min = "0";
+    pageInput.step = "1";
+    if(book && book.totalPages) pageInput.max = String(book.totalPages);
+    pageInput.value = session.pageEnd != null ? session.pageEnd : (book ? (book.currentPage || "") : "");
+    pageLabel.appendChild(pageInput);
+    wrap.appendChild(pageLabel);
+
+    var pageError = document.createElement("div");
+    pageError.className = "bw-stop-form-error";
+    pageError.style.display = "none";
+    wrap.appendChild(pageError);
+
+    var whatLabel = document.createElement("label");
+    var whatInputId = "bw-stop-what-" + session.id;
+    whatLabel.setAttribute("for", whatInputId);
+    whatLabel.textContent = "How did it go";
+    var whatInput = document.createElement("textarea");
+    whatInput.className = "bw-textarea";
+    whatInput.id = whatInputId;
+    whatInput.placeholder = "Breakthrough / dragged / nothing to report...";
+    whatInput.value = session.whatHappened || "";
+    whatLabel.appendChild(whatInput);
+    wrap.appendChild(whatLabel);
+
+    var actions = document.createElement("div");
+    actions.className = "bw-stop-form-actions";
+    var saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "bw-btn bw-btn-primary";
+    saveBtn.textContent = "Save";
+    saveBtn.addEventListener("click", function(){
+      var raw = pageInput.value.trim();
+      var pageVal = raw === "" ? null : parseInt(raw, 10);
+
+      if(pageVal != null && isNaN(pageVal)){ pageVal = null; }
+      if(pageVal != null && pageVal < 0){
+        pageError.textContent = "Page can't be negative.";
+        pageError.style.display = "block";
+        return;
+      }
+      if(pageVal != null && book && book.totalPages && pageVal > book.totalPages){
+        pageError.textContent = book.title + " only has " + book.totalPages + " pages -- can't be past that.";
+        pageError.style.display = "block";
+        return;
+      }
+      pageError.style.display = "none";
+
+      if(pageVal != null){
+        session.pageEnd = pageVal;
+        if(book){
+          book.currentPage = pageVal;
+          book.lastReadDate = session.date;
+        }
+      } else if(book){
+        book.lastReadDate = session.date;
+      }
+      session.whatHappened = whatInput.value;
+      bwPendingStopId = null;
+      bwSaveState();
+      bwRenderToday();
+      bwRenderHeader();
+      bwRenderLibrary();
+      bwRenderLog();
+      bwRenderTracker();
+    });
+    actions.appendChild(saveBtn);
+    wrap.appendChild(actions);
+
+    return wrap;
+  }
+
+  function bwRefreshPlanBookSelect(){
+    var select = document.getElementById("bw-plan-book-select");
+    var reading = bwState.books.filter(function(b){ return b.status === "reading"; });
+    select.innerHTML = "";
+    if(reading.length === 0){
+      var opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "No books currently reading -- start one in Library";
+      select.appendChild(opt);
+      select.disabled = true;
+      document.getElementById("bw-plan-add-form").querySelector(".bw-btn-primary").disabled = true;
+      return;
+    }
+    select.disabled = false;
+    document.getElementById("bw-plan-add-form").querySelector(".bw-btn-primary").disabled = false;
+    reading.forEach(function(b){
+      var opt = document.createElement("option");
+      opt.value = b.id;
+      opt.textContent = b.title;
+      select.appendChild(opt);
+    });
+  }
+
+  function bwRenderToday(){
+    var planItems = bwTodaySessions().filter(function(s){ return s.status === "planned"; });
+    var doneItems = bwTodaySessions().filter(function(s){ return s.status === "done"; });
+
+    var planList = document.getElementById("bw-plan-list");
+    planList.innerHTML = "";
+    if(planItems.length === 0){
+      planList.innerHTML = '<div class="bw-empty">Nothing planned yet -- add a session below.</div>';
+    } else {
+      planItems.forEach(function(session){
+        var book = bwBookById(session.bookId);
+        var row = document.createElement("div");
+        row.className = "bw-row";
+
+        var bookSpan = document.createElement("span");
+        bookSpan.className = "bw-row-book";
+        bookSpan.textContent = book ? book.title : "(deleted book)";
+        row.appendChild(bookSpan);
+
+        var minutesSpan = document.createElement("span");
+        minutesSpan.className = "bw-row-minutes";
+        minutesSpan.textContent = session.plannedMinutes + " min";
+        row.appendChild(minutesSpan);
+
+        var actions = document.createElement("div");
+        actions.className = "bw-row-actions";
+
+        var isActive = bwActiveTimerSessionId === session.id;
+        var isRunning = isActive && !!session.timerStartedAt;
+        var isPaused = isActive && !session.timerStartedAt && (session.timerAccumulatedMs || 0) > 0;
+
+        if(isActive){
+          var clock = document.createElement("span");
+          clock.className = "bw-timer-elapsed";
+          clock.setAttribute("data-session-id", session.id);
+          clock.textContent = bwFormatClock(bwElapsedMs(session));
+          actions.appendChild(clock);
+        }
+
+        if(!isActive){
+          var startBtn = document.createElement("button");
+          startBtn.type = "button";
+          startBtn.className = "bw-btn";
+          startBtn.textContent = "Start";
+          startBtn.disabled = !!bwActiveTimerSessionId;
+          startBtn.addEventListener("click", function(){ bwStartTimer(session); });
+          actions.appendChild(startBtn);
+
+          var deletePlanBtn = document.createElement("button");
+          deletePlanBtn.type = "button";
+          deletePlanBtn.className = "bw-btn bw-btn-danger";
+          deletePlanBtn.textContent = "Delete";
+          deletePlanBtn.addEventListener("click", function(){ bwDeletePlannedSession(session); });
+          actions.appendChild(deletePlanBtn);
+        } else if(isRunning){
+          var pauseBtn = document.createElement("button");
+          pauseBtn.type = "button";
+          pauseBtn.className = "bw-btn";
+          pauseBtn.textContent = "Pause";
+          pauseBtn.addEventListener("click", function(){ bwPauseTimer(session); });
+          actions.appendChild(pauseBtn);
+
+          var stopBtn1 = document.createElement("button");
+          stopBtn1.type = "button";
+          stopBtn1.className = "bw-btn bw-btn-primary";
+          stopBtn1.textContent = "Stop";
+          stopBtn1.addEventListener("click", function(){ bwStopTimer(session); });
+          actions.appendChild(stopBtn1);
+        } else if(isPaused){
+          var resumeBtn = document.createElement("button");
+          resumeBtn.type = "button";
+          resumeBtn.className = "bw-btn";
+          resumeBtn.textContent = "Resume";
+          resumeBtn.addEventListener("click", function(){ bwStartTimer(session); });
+          actions.appendChild(resumeBtn);
+
+          var stopBtn2 = document.createElement("button");
+          stopBtn2.type = "button";
+          stopBtn2.className = "bw-btn bw-btn-primary";
+          stopBtn2.textContent = "Stop";
+          stopBtn2.addEventListener("click", function(){ bwStopTimer(session); });
+          actions.appendChild(stopBtn2);
+        }
+
+        row.appendChild(actions);
+        planList.appendChild(row);
+
+        if(bwPendingStopId === session.id){
+          planList.appendChild(bwBuildStopForm(session));
+        }
+      });
+    }
+
+    var logList = document.getElementById("bw-today-log-list");
+    logList.innerHTML = "";
+    if(doneItems.length === 0){
+      logList.innerHTML = '<div class="bw-empty">Nothing completed yet today.</div>';
+    } else {
+      doneItems.slice().reverse().forEach(function(session){
+        if(bwPendingStopId === session.id){
+          logList.appendChild(bwBuildStopForm(session));
+          return;
+        }
+        var book = bwBookById(session.bookId);
+        var row = document.createElement("div");
+        row.className = "bw-row";
+
+        var bookSpan = document.createElement("span");
+        bookSpan.className = "bw-row-book";
+        bookSpan.textContent = book ? book.title : "(deleted book)";
+        row.appendChild(bookSpan);
+
+        var delta = (session.actualMinutes || 0) - session.plannedMinutes;
+        var deltaSpan = document.createElement("span");
+        deltaSpan.className = "bw-log-delta";
+        var pagesText = (session.pageStart != null && session.pageEnd != null && session.pageEnd >= session.pageStart) ?
+          (", +" + (session.pageEnd - session.pageStart) + "p") : "";
+        deltaSpan.textContent = session.actualMinutes + "m actual (planned " + session.plannedMinutes + "m, " +
+          (delta >= 0 ? "+" : "") + delta + "m" + pagesText + ")";
+        row.appendChild(deltaSpan);
+
+        if(session.whatHappened){
+          var whatP = document.createElement("div");
+          whatP.className = "bw-log-what";
+          whatP.textContent = session.whatHappened;
+          row.appendChild(whatP);
+        }
+
+        var retryBtn = document.createElement("button");
+        retryBtn.type = "button";
+        retryBtn.className = "bw-btn";
+        retryBtn.textContent = "Retry";
+        retryBtn.addEventListener("click", function(){ bwRetrySession(session); });
+        row.appendChild(retryBtn);
+
+        logList.appendChild(row);
+      });
+    }
+  }
+
+  document.getElementById("bw-plan-add-form").addEventListener("submit", function(e){
+    e.preventDefault();
+    var select = document.getElementById("bw-plan-book-select");
+    var minutesInput = document.getElementById("bw-plan-minutes-input");
+    var bookId = select.value;
+    var minutes = parseInt(minutesInput.value, 10);
+    if(!bookId || !minutes || minutes < 1) return;
+
+    bwState.sessions.push({
+      id: bwUid(),
+      date: bwTodayKey(),
+      bookId: bookId,
+      plannedMinutes: minutes,
+      actualMinutes: null,
+      status: "planned",
+      whatHappened: "",
+      pageStart: null,
+      pageEnd: null,
+      timerStartedAt: null,
+      timerAccumulatedMs: 0
+    });
+    bwSaveState();
+    minutesInput.value = "";
+    bwRenderToday();
+    bwRenderLog();
+  });
+
+  // =========================================================================
+  // Library tab
+  // =========================================================================
+
+  // Small illustrated-style line icons for the ornamental flourishes called
+  // for by the design spec -- quill for notes, ink bottle for marking a book
+  // finished. currentColor so they inherit each button's text color.
+  var BW_ICON_QUILL =
+    '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;" aria-hidden="true">' +
+    '<path d="M19 3c-5 0-11 3-14 8-1.5 2.5-2 5-1 6s3.5.5 6-1c5-3 8-9 8-14z"/>' +
+    '<path d="M10 14L4 20"/><path d="M13 8l-6 6"/></svg>';
+  var BW_ICON_INKWELL =
+    '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;" aria-hidden="true">' +
+    '<path d="M7 9h10v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V9z"/>' +
+    '<path d="M9 9V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/><path d="M10 3h4"/></svg>';
+  var BW_ICON_PENCIL =
+    '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;" aria-hidden="true">' +
+    '<path d="M14 4l6 6-11 11H3v-6z"/><path d="M12.5 5.5l6 6"/></svg>';
+  var BW_ICON_RIBBON =
+    '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;" aria-hidden="true">' +
+    '<path d="M6 2h12v18l-6-4-6 4z"/></svg>';
+  var BW_ICON_FLAME =
+    '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;" aria-hidden="true">' +
+    '<path d="M12 2c1 3-3 4-3 8a3 3 0 0 0 6 0c0-1.5-1-2-1-3.5 2 1 3 3.5 3 5.5a5 5 0 0 1-10 0c0-4.5 3-6 5-10z"/></svg>';
+
+  var bwUpNextSortMode = "priority";
+  var bwExpandedNoteIds = {};
+  var bwEditingNoteIds = {};
+  var bwEditingBookIds = {};
+  var bwShowFinished = false;
+  var bwPendingMoveBackBook = null;
+
+  // Shared edit form for a book's core fields (title/author/cover/read-by/priority/
+  // total pages) -- used from the reading, up-next, and finished views alike so
+  // there's one place that knows how to save a book edit.
+  function bwBuildEditForm(book){
+    var wrap = document.createElement("form");
+    wrap.className = "bw-add-form";
+    wrap.addEventListener("submit", function(e){ e.preventDefault(); });
+
+    function field(labelText, wide, inputEl){
+      var label = document.createElement("label");
+      if(wide) label.className = "bw-field-wide";
+      label.appendChild(document.createTextNode(labelText));
+      label.appendChild(inputEl);
+      return label;
+    }
+
+    var titleInput = document.createElement("input");
+    titleInput.type = "text"; titleInput.className = "bw-input"; titleInput.required = true;
+    titleInput.value = book.title;
+    wrap.appendChild(field("Title", true, titleInput));
+
+    var authorInput = document.createElement("input");
+    authorInput.type = "text"; authorInput.className = "bw-input";
+    authorInput.value = book.author || "";
+    wrap.appendChild(field("Author", true, authorInput));
+
+    var coverInput = document.createElement("input");
+    coverInput.type = "file"; coverInput.className = "bw-input";
+    coverInput.accept = "image/jpeg,image/png,image/webp";
+    wrap.appendChild(field(book.hasCover ? "Replace cover photo" : "Cover photo", true, coverInput));
+
+    var readbyInput = document.createElement("input");
+    readbyInput.type = "date"; readbyInput.className = "bw-input";
+    readbyInput.value = book.readByDate || "";
+    wrap.appendChild(field("Read-by date", false, readbyInput));
+
+    var priorityInput = document.createElement("select");
+    priorityInput.className = "bw-select";
+    [["high","High"],["medium","Medium"],["low","Low"]].forEach(function(pair){
+      var opt = document.createElement("option");
+      opt.value = pair[0];
+      opt.textContent = pair[1];
+      if(book.priority === pair[0]) opt.selected = true;
+      priorityInput.appendChild(opt);
+    });
+    wrap.appendChild(field("Priority", false, priorityInput));
+
+    var pagesInput = document.createElement("input");
+    pagesInput.type = "number"; pagesInput.className = "bw-input"; pagesInput.min = "1"; pagesInput.step = "1";
+    if(book.totalPages) pagesInput.value = book.totalPages;
+    wrap.appendChild(field("Total pages", false, pagesInput));
+
+    var currentPageInput = document.createElement("input");
+    currentPageInput.type = "number"; currentPageInput.className = "bw-input"; currentPageInput.min = "0"; currentPageInput.step = "1";
+    if(book.currentPage != null) currentPageInput.value = book.currentPage;
+    wrap.appendChild(field("Current page", false, currentPageInput));
+
+    var pageError = document.createElement("div");
+    pageError.className = "bw-stop-form-error bw-field-wide";
+    pageError.style.display = "none";
+    wrap.appendChild(pageError);
+
+    var actions = document.createElement("div");
+    actions.className = "bw-card-actions bw-field-wide";
+
+    var cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "bw-btn";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", function(){
+      bwEditingBookIds[book.id] = false;
+      bwRenderLibrary();
+    });
+    actions.appendChild(cancelBtn);
+
+    var saveBtn = document.createElement("button");
+    saveBtn.type = "submit";
+    saveBtn.className = "bw-btn bw-btn-primary";
+    saveBtn.textContent = "Save";
+    actions.appendChild(saveBtn);
+
+    wrap.appendChild(actions);
+
+    function applyFieldsAndSave(){
+      var title = titleInput.value.trim();
+      if(!title) return;
+      var pages = pagesInput.value ? parseInt(pagesInput.value, 10) : null;
+      var currentPage = currentPageInput.value ? parseInt(currentPageInput.value, 10) : null;
+      if(currentPage != null && currentPage < 0){
+        pageError.textContent = "Current page can't be negative.";
+        pageError.style.display = "block";
+        return;
+      }
+      if(currentPage != null && pages && currentPage > pages){
+        pageError.textContent = "Current page can't be past the total page count (" + pages + ").";
+        pageError.style.display = "block";
+        return;
+      }
+      pageError.style.display = "none";
+      book.title = title;
+      book.author = authorInput.value.trim();
+      book.readByDate = readbyInput.value || null;
+      book.priority = priorityInput.value;
+      book.totalPages = (pages && pages > 0) ? pages : null;
+      book.currentPage = currentPage;
+      bwEditingBookIds[book.id] = false;
+      bwSaveState();
+      bwRenderAll();
+    }
+
+    saveBtn.addEventListener("click", function(){
+      var file = coverInput.files && coverInput.files[0];
+      if(file){
+        bwDownscaleImage(file).then(function(dataUrl){
+          return bwStoreCover(book.id, dataUrl).then(function(){
+            book.hasCover = true;
+            applyFieldsAndSave();
+          });
+        }).catch(function(err){ window.alert(err.message); });
+      } else {
+        applyFieldsAndSave();
+      }
+    });
+
+    return wrap;
+  }
+
+  document.getElementById("bw-upnext-sort").addEventListener("change", function(e){
+    bwUpNextSortMode = e.target.value;
+    bwRenderLibrary();
+  });
+
+  function bwPriorityWeight(p){
+    return p === "high" ? 0 : (p === "low" ? 2 : 1);
+  }
+
+  function bwSortedReading(){
+    var list = bwState.books.filter(function(b){ return b.status === "reading"; });
+    list.sort(function(a, b){
+      var da = bwDaysSince(a.lastReadDate);
+      var db = bwDaysSince(b.lastReadDate);
+      if(da === null && db === null) return 0;
+      if(da === null) return -1;
+      if(db === null) return 1;
+      return db - da;
+    });
+    return list;
+  }
+
+  function bwSortedUpNext(){
+    var list = bwState.books.filter(function(b){ return b.status === "upcoming"; });
+    if(bwUpNextSortMode === "priority"){
+      list.sort(function(a, b){ return bwPriorityWeight(a.priority) - bwPriorityWeight(b.priority); });
+    } else if(bwUpNextSortMode === "readby"){
+      list.sort(function(a, b){
+        if(!a.readByDate && !b.readByDate) return 0;
+        if(!a.readByDate) return 1;
+        if(!b.readByDate) return -1;
+        return new Date(a.readByDate) - new Date(b.readByDate);
+      });
+    } else {
+      list.sort(function(a, b){ return new Date(a.dateAdded) - new Date(b.dateAdded); });
+    }
+    return list;
+  }
+
+  function bwSortedFinished(){
+    var list = bwState.books.filter(function(b){ return b.status === "finished"; });
+    list.sort(function(a, b){ return new Date(b.dateFinished || 0) - new Date(a.dateFinished || 0); });
+    return list;
+  }
+
+  function bwBookMinutes(bookId){
+    var total = 0;
+    bwState.sessions.forEach(function(s){
+      if(s.status === "done" && s.bookId === bookId) total += (s.actualMinutes || 0);
+    });
+    return total;
+  }
+
+  function bwBuildCoverEl(book, large){
+    var cover = document.createElement("div");
+    cover.className = large ? "bw-card-cover bw-card-cover-lg" : "bw-card-cover";
+    if(book.hasCover){
+      var img = document.createElement("img");
+      img.alt = "";
+      cover.appendChild(img);
+      bwGetCover(book.id).then(function(dataUrl){
+        if(dataUrl) img.src = dataUrl;
+      });
+    } else {
+      var ph = document.createElement("span");
+      ph.className = "bw-card-cover-placeholder";
+      ph.textContent = book.title;
+      cover.appendChild(ph);
+    }
+    return cover;
+  }
+
+  function bwBuildNoteSection(book){
+    var section = document.createElement("div");
+    section.className = "bw-note-section";
+
+    if(bwEditingNoteIds[book.id]){
+      var textarea = document.createElement("textarea");
+      textarea.className = "bw-textarea";
+      textarea.value = book.note || "";
+      section.appendChild(textarea);
+
+      var actions = document.createElement("div");
+      actions.className = "bw-card-actions";
+
+      var cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "bw-btn";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.addEventListener("click", function(){
+        bwEditingNoteIds[book.id] = false;
+        bwRenderLibrary();
+      });
+      actions.appendChild(cancelBtn);
+
+      var saveBtn = document.createElement("button");
+      saveBtn.type = "button";
+      saveBtn.className = "bw-btn bw-btn-primary";
+      saveBtn.textContent = "Save";
+      saveBtn.addEventListener("click", function(){
+        book.note = textarea.value;
+        bwEditingNoteIds[book.id] = false;
+        bwSaveState();
+        bwRenderLibrary();
+      });
+      actions.appendChild(saveBtn);
+
+      section.appendChild(actions);
+      return section;
+    }
+
+    if(book.note){
+      var view = document.createElement("div");
+      view.className = "bw-note-view";
+      view.innerHTML = bwRenderMiniMarkdown(book.note);
+      section.appendChild(view);
+    } else {
+      var empty = document.createElement("div");
+      empty.className = "bw-note-empty";
+      empty.textContent = "No note yet.";
+      section.appendChild(empty);
+    }
+
+    var editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "bw-btn";
+    editBtn.textContent = book.note ? "Edit note" : "Write note";
+    editBtn.addEventListener("click", function(){
+      bwEditingNoteIds[book.id] = true;
+      bwRenderLibrary();
+    });
+    section.appendChild(editBtn);
+
+    return section;
+  }
+
+  function bwDeleteBook(book){
+    var confirmed = window.confirm(
+      "Delete \"" + book.title + "\"? This removes the book, its cover photo, and every session logged against it. This can't be undone."
+    );
+    if(!confirmed) return;
+    bwState.books = bwState.books.filter(function(b){ return b.id !== book.id; });
+    bwState.sessions = bwState.sessions.filter(function(s){ return s.bookId !== book.id; });
+    delete bwExpandedNoteIds[book.id];
+    delete bwEditingNoteIds[book.id];
+    delete bwEditingBookIds[book.id];
+    var cleanup = book.hasCover ? bwDeleteCover(book.id) : Promise.resolve();
+    cleanup.then(function(){
+      bwSaveState();
+      bwRenderAll();
+    });
+  }
+
+  function bwStartReading(book){
+    if(!book.totalPages){
+      var input = window.prompt("Total pages for \"" + book.title + "\" (optional -- powers the progress bar):", "");
+      if(input !== null && input.trim() !== ""){
+        var pages = parseInt(input, 10);
+        if(!isNaN(pages) && pages > 0) book.totalPages = pages;
+      }
+    }
+    book.status = "reading";
+    book.dateStarted = bwTodayKey();
+    if(book.currentPage == null) book.currentPage = 0;
+    bwSaveState();
+    bwRenderAll();
+  }
+
+  function bwMarkFinished(book){
+    book.status = "finished";
+    book.dateFinished = bwTodayKey();
+    bwSaveState();
+    bwRenderAll();
+  }
+
+  function bwBuildReadingCard(book){
+    var card = document.createElement("div");
+    card.className = "bw-card bw-card-reading bw-priority-" + book.priority;
+
+    card.appendChild(bwBuildCoverEl(book, true));
+
+    var body = document.createElement("div");
+    body.className = "bw-card-body";
+
+    if(bwEditingBookIds[book.id]){
+      body.appendChild(bwBuildEditForm(book));
+      card.appendChild(body);
+      return card;
+    }
+
+    var title = document.createElement("p");
+    title.className = "bw-card-title";
+    title.textContent = book.title;
+    body.appendChild(title);
+
+    if(book.author){
+      var author = document.createElement("p");
+      author.className = "bw-card-author";
+      author.textContent = book.author;
+      body.appendChild(author);
+    }
+
+    if(book.totalPages){
+      var pct = Math.max(0, Math.min(100, ((book.currentPage || 0) / book.totalPages) * 100));
+      var foreedge = document.createElement("div");
+      foreedge.className = "bw-foreedge";
+      foreedge.innerHTML =
+        '<div class="bw-foreedge-bar">' +
+          '<div class="bw-foreedge-read" style="width:' + pct + '%;"></div>' +
+        '</div>' +
+        '<span class="bw-foreedge-pages">' + (book.currentPage || 0) + ' / ' + book.totalPages + '</span>';
+      body.appendChild(foreedge);
+    } else if(book.currentPage){
+      var pageOnly = document.createElement("div");
+      pageOnly.className = "bw-foreedge-pages";
+      pageOnly.textContent = "page " + book.currentPage + " (no total page count set)";
+      body.appendChild(pageOnly);
+    }
+
+    var meta = document.createElement("div");
+    meta.className = "bw-card-meta";
+    var days = bwDaysSince(book.lastReadDate);
+    meta.innerHTML =
+      '<span>started ' + (book.dateStarted || "--") + '</span>' +
+      '<span>' + (book.lastReadDate ? "last read " + book.lastReadDate + " (" + days + "d ago)" : "not read yet") + '</span>' +
+      '<span>' + bwFormatDuration(bwBookMinutes(book.id)) + ' logged</span>';
+    body.appendChild(meta);
+
+    var actions = document.createElement("div");
+    actions.className = "bw-card-actions";
+
+    var noteToggle = document.createElement("button");
+    noteToggle.type = "button";
+    noteToggle.className = "bw-note-toggle";
+    noteToggle.innerHTML = BW_ICON_QUILL + (bwExpandedNoteIds[book.id] ? "Hide note" : "Note");
+    noteToggle.addEventListener("click", function(){
+      bwExpandedNoteIds[book.id] = !bwExpandedNoteIds[book.id];
+      bwRenderLibrary();
+    });
+    actions.appendChild(noteToggle);
+
+    var editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "bw-btn";
+    editBtn.innerHTML = BW_ICON_PENCIL + "Edit";
+    editBtn.addEventListener("click", function(){
+      bwEditingBookIds[book.id] = true;
+      bwRenderLibrary();
+    });
+    actions.appendChild(editBtn);
+
+    var finishBtn = document.createElement("button");
+    finishBtn.type = "button";
+    finishBtn.className = "bw-btn";
+    finishBtn.innerHTML = BW_ICON_INKWELL + "Mark finished";
+    finishBtn.addEventListener("click", function(){ bwMarkFinished(book); });
+    actions.appendChild(finishBtn);
+
+    var moveBackBtn = document.createElement("button");
+    moveBackBtn.type = "button";
+    moveBackBtn.className = "bw-btn";
+    moveBackBtn.innerHTML = BW_ICON_RIBBON + "Bench";
+    moveBackBtn.addEventListener("click", function(){ bwOpenMoveBackModal(book); });
+    actions.appendChild(moveBackBtn);
+
+    var deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "bw-btn bw-btn-danger";
+    deleteBtn.innerHTML = BW_ICON_FLAME + "Delete";
+    deleteBtn.addEventListener("click", function(){ bwDeleteBook(book); });
+    actions.appendChild(deleteBtn);
+
+    body.appendChild(actions);
+
+    if(bwExpandedNoteIds[book.id]) body.appendChild(bwBuildNoteSection(book));
+
+    card.appendChild(body);
+    return card;
+  }
+
+  function bwBuildUpNextCard(book){
+    var card = document.createElement("div");
+    card.className = "bw-card bw-card-up-next bw-priority-" + book.priority;
+
+    card.appendChild(bwBuildCoverEl(book));
+
+    var body = document.createElement("div");
+    body.className = "bw-card-body";
+
+    if(bwEditingBookIds[book.id]){
+      body.appendChild(bwBuildEditForm(book));
+      card.appendChild(body);
+      return card;
+    }
+
+    var title = document.createElement("p");
+    title.className = "bw-card-title";
+    title.textContent = book.title;
+    body.appendChild(title);
+
+    if(book.author){
+      var author = document.createElement("p");
+      author.className = "bw-card-author";
+      author.textContent = book.author;
+      body.appendChild(author);
+    }
+
+    if(book.readByDate){
+      var overdue = bwDaysUntil(book.readByDate) < 0;
+      var stamp = document.createElement("span");
+      stamp.className = "bw-stamp" + (overdue ? " bw-stamp-overdue" : "");
+      stamp.textContent = "Read by " + new Date(book.readByDate).toLocaleDateString(undefined, { day:"2-digit", month:"short", year:"numeric" });
+      body.appendChild(stamp);
+    }
+
+    var actions = document.createElement("div");
+    actions.className = "bw-card-actions";
+
+    var noteToggle = document.createElement("button");
+    noteToggle.type = "button";
+    noteToggle.className = "bw-note-toggle";
+    noteToggle.innerHTML = BW_ICON_QUILL + (bwExpandedNoteIds[book.id] ? "Hide note" : "Note");
+    noteToggle.addEventListener("click", function(){
+      bwExpandedNoteIds[book.id] = !bwExpandedNoteIds[book.id];
+      bwRenderLibrary();
+    });
+    actions.appendChild(noteToggle);
+
+    var editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "bw-btn";
+    editBtn.innerHTML = BW_ICON_PENCIL + "Edit";
+    editBtn.addEventListener("click", function(){
+      bwEditingBookIds[book.id] = true;
+      bwRenderLibrary();
+    });
+    actions.appendChild(editBtn);
+
+    var startBtn = document.createElement("button");
+    startBtn.type = "button";
+    startBtn.className = "bw-btn bw-btn-primary";
+    startBtn.textContent = "Read";
+    startBtn.addEventListener("click", function(){ bwStartReading(book); });
+    actions.appendChild(startBtn);
+
+    var deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "bw-btn bw-btn-danger";
+    deleteBtn.innerHTML = BW_ICON_FLAME + "Delete";
+    deleteBtn.addEventListener("click", function(){ bwDeleteBook(book); });
+    actions.appendChild(deleteBtn);
+
+    body.appendChild(actions);
+
+    if(bwExpandedNoteIds[book.id]) body.appendChild(bwBuildNoteSection(book));
+
+    card.appendChild(body);
+    return card;
+  }
+
+  function bwOpenMoveBackModal(book){
+    bwPendingMoveBackBook = book;
+    document.getElementById("bw-moveback-modal-body").innerHTML =
+      "<p>Benching <strong>" + book.title + "</strong> moves it back to Up next and clears its start date, " +
+      "current page, and last-read date. Sessions already logged stay on the Shelf. This can't be undone.</p>";
+    document.getElementById("bw-moveback-modal").style.display = "flex";
+  }
+
+  document.getElementById("bw-moveback-cancel-btn").addEventListener("click", function(){
+    bwPendingMoveBackBook = null;
+    document.getElementById("bw-moveback-modal").style.display = "none";
+  });
+
+  document.getElementById("bw-moveback-confirm-btn").addEventListener("click", function(){
+    if(!bwPendingMoveBackBook) return;
+    var book = bwPendingMoveBackBook;
+    book.status = "upcoming";
+    book.dateStarted = null;
+    book.currentPage = null;
+    book.lastReadDate = null;
+    bwPendingMoveBackBook = null;
+    document.getElementById("bw-moveback-modal").style.display = "none";
+    bwSaveState();
+    bwRenderAll();
+  });
+
+  function bwRenderFinished(){
+    var finished = bwSortedFinished();
+    document.getElementById("bw-finished-toggle").textContent =
+      (bwShowFinished ? "Hide" : "Show") + " finished books (" + finished.length + ")";
+
+    var list = document.getElementById("bw-finished-list");
+    list.style.display = bwShowFinished ? "flex" : "none";
+    if(!bwShowFinished) return;
+
+    list.innerHTML = "";
+    if(finished.length === 0){
+      list.innerHTML = '<div class="bw-empty">No finished books yet.</div>';
+      return;
+    }
+    finished.forEach(function(book){
+      if(bwEditingBookIds[book.id]){
+        var editWrap = document.createElement("div");
+        editWrap.className = "bw-card";
+        editWrap.appendChild(bwBuildEditForm(book));
+        list.appendChild(editWrap);
+        return;
+      }
+
+      var row = document.createElement("div");
+      row.className = "bw-finished-row";
+
+      var title = document.createElement("span");
+      title.className = "bw-finished-title";
+      title.textContent = book.title + (book.author ? " -- " + book.author : "");
+      row.appendChild(title);
+
+      var meta = document.createElement("span");
+      meta.className = "bw-finished-meta";
+      meta.textContent = (book.dateStarted || "?") + " to " + (book.dateFinished || "?") + ", " + bwFormatDuration(bwBookMinutes(book.id));
+      row.appendChild(meta);
+
+      var editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "bw-btn";
+      editBtn.innerHTML = BW_ICON_PENCIL + "Edit";
+      editBtn.addEventListener("click", function(){
+        bwEditingBookIds[book.id] = true;
+        bwRenderFinished();
+      });
+      row.appendChild(editBtn);
+
+      var deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "bw-btn bw-btn-danger";
+      deleteBtn.innerHTML = BW_ICON_FLAME + "Delete";
+      deleteBtn.addEventListener("click", function(){ bwDeleteBook(book); });
+      row.appendChild(deleteBtn);
+
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById("bw-finished-toggle").addEventListener("click", function(){
+    bwShowFinished = !bwShowFinished;
+    bwRenderFinished();
+  });
+
+  function bwRenderLibrary(){
+    var reading = bwSortedReading();
+    var readingList = document.getElementById("bw-reading-list");
+    readingList.innerHTML = "";
+    if(reading.length === 0){
+      readingList.innerHTML = '<div class="bw-empty">Nothing currently reading -- start a book from Up next below.</div>';
+    } else {
+      reading.forEach(function(book){ readingList.appendChild(bwBuildReadingCard(book)); });
+    }
+
+    var upNext = bwSortedUpNext();
+    var upNextList = document.getElementById("bw-upnext-list");
+    upNextList.innerHTML = "";
+    if(upNext.length === 0){
+      upNextList.innerHTML = '<div class="bw-empty">Nothing queued up -- add a book below.</div>';
+    } else {
+      upNext.forEach(function(book){ upNextList.appendChild(bwBuildUpNextCard(book)); });
+    }
+
+    bwRenderFinished();
+    bwRefreshPlanBookSelect();
+    bwRefreshLogBookFilter();
+  }
+
+  document.getElementById("bw-book-add-form").addEventListener("submit", function(e){
+    e.preventDefault();
+    var titleInput = document.getElementById("bw-book-title-input");
+    var authorInput = document.getElementById("bw-book-author-input");
+    var coverInput = document.getElementById("bw-book-cover-input");
+    var noteInput = document.getElementById("bw-book-note-input");
+    var readbyInput = document.getElementById("bw-book-readby-input");
+    var priorityInput = document.getElementById("bw-book-priority-input");
+    var pagesInput = document.getElementById("bw-book-pages-input");
+    var currentPageInput = document.getElementById("bw-book-currentpage-input");
+    var errorEl = document.getElementById("bw-book-add-error");
+    errorEl.style.display = "none";
+
+    var title = titleInput.value.trim();
+    if(!title) return;
+
+    var pages = pagesInput.value ? parseInt(pagesInput.value, 10) : null;
+    var currentPage = currentPageInput.value ? parseInt(currentPageInput.value, 10) : null;
+    if(currentPage != null && currentPage < 0) currentPage = null;
+    if(currentPage != null && pages && currentPage > pages){
+      errorEl.textContent = "Current page can't be past the total page count (" + pages + ").";
+      errorEl.style.display = "block";
+      return;
+    }
+    var id = bwUid();
+    var today = bwTodayKey();
+
+    // New books always land on Up next -- "Read" is the one action that moves
+    // a book into Currently reading, matching the Library tab's own flow. A
+    // preset current page (for a book someone's already partway through)
+    // survives that move since bwStartReading only defaults it when unset.
+    var book = {
+      id: id,
+      title: title,
+      author: authorInput.value.trim(),
+      note: noteInput.value,
+      readByDate: readbyInput.value || null,
+      priority: priorityInput.value,
+      totalPages: (pages && pages > 0) ? pages : null,
+      currentPage: currentPage,
+      status: "upcoming",
+      hasCover: false,
+      dateAdded: today,
+      dateStarted: null,
+      dateFinished: null,
+      lastReadDate: null
+    };
+
+    var file = coverInput.files && coverInput.files[0];
+    var pipeline = file ? bwDownscaleImage(file).then(function(dataUrl){
+      return bwStoreCover(id, dataUrl).then(function(){ book.hasCover = true; });
+    }) : Promise.resolve();
+
+    pipeline.then(function(){
+      bwState.books.push(book);
+      bwSaveState();
+      document.getElementById("bw-book-add-form").reset();
+      bwRenderAll();
+    }).catch(function(err){
+      window.alert(err.message);
+    });
+  });
+
+  // =========================================================================
+  // Log tab
+  // =========================================================================
+
+  var bwLogBookFilter = "";
+
+  function bwRefreshLogBookFilter(){
+    var select = document.getElementById("bw-log-book-filter");
+    var current = select.value;
+    select.innerHTML = '<option value="">All</option>';
+    bwState.books.forEach(function(b){
+      var opt = document.createElement("option");
+      opt.value = b.id;
+      opt.textContent = b.title;
+      select.appendChild(opt);
+    });
+    select.value = current;
+  }
+
+  document.getElementById("bw-log-book-filter").addEventListener("change", function(e){
+    bwLogBookFilter = e.target.value;
+    bwRenderLog();
+  });
+
+  function bwRenderLog(){
+    var wk = bwMondayKey(new Date());
+    var weekSessions = bwWeekSessions(wk);
+    var byBook = {};
+    var totalPages = 0;
+    weekSessions.forEach(function(s){
+      byBook[s.bookId] = (byBook[s.bookId] || 0) + (s.actualMinutes || 0);
+      if(s.pageStart != null && s.pageEnd != null && s.pageEnd >= s.pageStart){
+        totalPages += (s.pageEnd - s.pageStart);
+      }
+    });
+
+    var summary = document.getElementById("bw-log-weekly-summary");
+    summary.innerHTML = "";
+    var totalRow = document.createElement("div");
+    totalRow.className = "bw-log-summary-row";
+    totalRow.innerHTML = "<span>Sessions completed</span><span>" + weekSessions.length + "</span>";
+    summary.appendChild(totalRow);
+
+    var pagesRow = document.createElement("div");
+    pagesRow.className = "bw-log-summary-row";
+    pagesRow.innerHTML = "<span>Pages read this week</span><span>" + totalPages + "</span>";
+    summary.appendChild(pagesRow);
+
+    Object.keys(byBook).forEach(function(bookId){
+      var book = bwBookById(bookId);
+      var row = document.createElement("div");
+      row.className = "bw-log-summary-row";
+      row.innerHTML = "<span>" + (book ? book.title : "(deleted book)") + "</span><span>" + bwFormatDuration(byBook[bookId]) + "</span>";
+      summary.appendChild(row);
+    });
+    if(Object.keys(byBook).length === 0 && weekSessions.length === 0){
+      summary.innerHTML = '<div class="bw-empty">No sessions logged this week yet.</div>';
+    }
+
+    var allDone = bwState.sessions.filter(function(s){ return s.status === "done"; });
+    if(bwLogBookFilter) allDone = allDone.filter(function(s){ return s.bookId === bwLogBookFilter; });
+    allDone.sort(function(a, b){ return new Date(b.date) - new Date(a.date); });
+
+    var list = document.getElementById("bw-log-list");
+    list.innerHTML = "";
+    if(allDone.length === 0){
+      list.innerHTML = '<div class="bw-empty">No sessions logged yet.</div>';
+      return;
+    }
+    allDone.forEach(function(s){
+      var book = bwBookById(s.bookId);
+      var delta = (s.actualMinutes || 0) - s.plannedMinutes;
+      var entry = document.createElement("div");
+      entry.className = "bw-log-entry";
+      var pagesText = (s.pageStart != null && s.pageEnd != null && s.pageEnd >= s.pageStart) ?
+        (", +" + (s.pageEnd - s.pageStart) + " pages") : "";
+      entry.innerHTML =
+        '<div class="bw-log-entry-top">' +
+          '<span class="bw-log-entry-book">' + (book ? book.title : "(deleted book)") + '</span>' +
+          '<span class="bw-log-entry-date">' + s.date + '</span>' +
+        '</div>' +
+        '<div class="bw-log-delta">' + s.actualMinutes + 'm actual (planned ' + s.plannedMinutes + 'm, ' +
+          (delta >= 0 ? "+" : "") + delta + 'm' + pagesText + ')</div>';
+      if(s.whatHappened){
+        var what = document.createElement("div");
+        what.className = "bw-log-what";
+        what.textContent = s.whatHappened;
+        entry.appendChild(what);
+      }
+      list.appendChild(entry);
+    });
+  }
+
+  // =========================================================================
+  // Tracker tab: reading speed, book lengths and progress
+  // =========================================================================
+
+  var bwTrackerBookFilter = "";
+  var bwTrackerRange = "all";
+
+  // The exact guard bwRenderLog already applies for "does this session carry
+  // real page numbers" -- reused rather than re-derived, per the build spec.
+  function bwSessionUsableForSpeed(s){
+    return s.status === "done" && s.pageStart != null && s.pageEnd != null &&
+      s.pageEnd >= s.pageStart && (s.actualMinutes || 0) > 0;
+  }
+
+  // Session dates are plain "YYYY-MM-DD" strings, which Date parses as UTC
+  // midnight -- so any boundary built with the local-time Date constructor
+  // (new Date(y, m, d)) drifts a day off in either direction depending on
+  // the timezone. Building boundaries from the same kind of date string
+  // keeps every comparison in the same basis session.date already uses.
+  function bwDateKey(y, m, d){
+    var mm = String(m + 1); if(mm.length < 2) mm = "0" + mm;
+    var dd = String(d); if(dd.length < 2) dd = "0" + dd;
+    return y + "-" + mm + "-" + dd;
+  }
+
+  function bwTrackerRangeBounds(){
+    var now = new Date();
+    if(bwTrackerRange === "week"){
+      var wStart = new Date(bwMondayKey(now));
+      var wEnd = new Date(wStart);
+      wEnd.setDate(wEnd.getDate() + 7);
+      return { start: wStart, end: wEnd };
+    }
+    if(bwTrackerRange === "month"){
+      var y = now.getFullYear(), m = now.getMonth();
+      var nextM = m + 1, nextY = y;
+      if(nextM > 11){ nextM = 0; nextY = y + 1; }
+      var mStart = new Date(bwDateKey(y, m, 1));
+      var mEnd = new Date(bwDateKey(nextY, nextM, 1));
+      return { start: mStart, end: mEnd };
+    }
+    return null;
+  }
+
+  function bwTrackerDoneSessionsInScope(){
+    var bounds = bwTrackerRangeBounds();
+    return bwState.sessions.filter(function(s){
+      if(s.status !== "done") return false;
+      if(bwTrackerBookFilter && s.bookId !== bwTrackerBookFilter) return false;
+      if(bounds){
+        var d = new Date(s.date);
+        if(d < bounds.start || d >= bounds.end) return false;
+      }
+      return true;
+    });
+  }
+
+  // Two sessions on the same book in one evening read as one reading stint,
+  // per Jasmine's call -- sum pages and minutes for each date rather than
+  // plotting every session as its own point.
+  function bwAggregateSessionsByDay(sessions){
+    var byDate = {};
+    sessions.forEach(function(s){
+      var pages = s.pageEnd - s.pageStart;
+      if(!byDate[s.date]) byDate[s.date] = { date: s.date, pages: 0, minutes: 0 };
+      byDate[s.date].pages += pages;
+      byDate[s.date].minutes += s.actualMinutes;
+    });
+    var points = Object.keys(byDate).map(function(k){ return byDate[k]; });
+    points.sort(function(a, b){ return new Date(a.date) - new Date(b.date); });
+    points.forEach(function(p){ p.ppm = p.minutes > 0 ? p.pages / p.minutes : 0; });
+    return points;
+  }
+
+  // Trailing moving average (window of up to 3 points) so the trend line
+  // reflects recent pace rather than flattening into a lifetime average.
+  function bwTrailingAverage(points, window){
+    return points.map(function(p, i){
+      var start = Math.max(0, i - window + 1);
+      var slice = points.slice(start, i + 1);
+      var sum = slice.reduce(function(a, b){ return a + b.ppm; }, 0);
+      return sum / slice.length;
+    });
+  }
+
+  function bwFormatPpm(n){
+    return n.toFixed(2);
+  }
+
+  // The SVG's own width:100% scales the whole viewBox (text included)
+  // uniformly to fit its container. Without this, a viewBox authored for a
+  // ~640px desktop card renders at roughly half that on a phone, shrinking
+  // every label to the point of being unreadable. Measuring the actual
+  // container and using that as the viewBox width keeps 1 viewBox unit
+  // close to 1 real CSS pixel on any device, so the authored font sizes
+  // hold regardless of screen width.
+  // Measured off .bw-main rather than the chart's own (possibly hidden)
+  // panel -- bwRenderAll() renders every tab's content up front, including
+  // tabs that aren't selected yet, and a display:none element's clientWidth
+  // reads 0. .bw-main is never hidden, so this stays reliable regardless of
+  // which tab happens to be active when the chart is built.
+  function bwChartAvailableWidth(){
+    var main = document.querySelector(".bw-main");
+    if(!main) return 640;
+    var cs = getComputedStyle(main);
+    var innerWidth = main.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+    return Math.max(260, innerWidth - 38); // 38 = .bw-chart-card's padding + border
+  }
+
+  function bwBuildSpeedChartSvg(points, avgLine, drawAvg, W){
+    W = W || 640;
+    var H = 220, padL = 42, padR = 16, padT = 14, padB = 30;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+
+    var maxPpm = 0;
+    points.forEach(function(p){ if(p.ppm > maxPpm) maxPpm = p.ppm; });
+    if(drawAvg) avgLine.forEach(function(v){ if(v > maxPpm) maxPpm = v; });
+    if(maxPpm <= 0) maxPpm = 0.1;
+    maxPpm *= 1.15;
+
+    var minTime = new Date(points[0].date).getTime();
+    var maxTime = new Date(points[points.length - 1].date).getTime();
+    var singlePoint = points.length === 1 || maxTime === minTime;
+
+    function xFor(i){
+      if(singlePoint) return padL + plotW / 2;
+      var t = new Date(points[i].date).getTime();
+      return padL + ((t - minTime) / (maxTime - minTime)) * plotW;
+    }
+    function yFor(v){
+      return padT + plotH - (v / maxPpm) * plotH;
+    }
+
+    var svg = '<svg class="bw-chart-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+      'aria-label="Pages per minute over time, one point per day with logged reading">';
+
+    // axis
+    svg += '<line x1="' + padL + '" y1="' + (padT + plotH) + '" x2="' + (padL + plotW) + '" y2="' + (padT + plotH) +
+      '" stroke="var(--border)" stroke-width="1"/>';
+    svg += '<text x="' + (padL - 8) + '" y="' + (padT + plotH) + '" text-anchor="end" dominant-baseline="middle">0</text>';
+    svg += '<text x="' + (padL - 8) + '" y="' + padT + '" text-anchor="end" dominant-baseline="middle">' + bwFormatPpm(maxPpm) + '</text>';
+
+    // running average line, drawn under the dots
+    if(drawAvg && points.length > 1){
+      var avgPath = points.map(function(p, i){
+        return (i === 0 ? "M" : "L") + xFor(i).toFixed(1) + "," + yFor(avgLine[i]).toFixed(1);
+      }).join(" ");
+      svg += '<path d="' + avgPath + '" fill="none" stroke="var(--accent-gold)" stroke-width="2" stroke-linecap="round"/>';
+    }
+
+    // points
+    points.forEach(function(p, i){
+      svg += '<circle cx="' + xFor(i).toFixed(1) + '" cy="' + yFor(p.ppm).toFixed(1) + '" r="3.5" fill="var(--accent-cognac)">' +
+        '<title>' + p.date + ': ' + bwFormatPpm(p.ppm) + ' pages/min</title></circle>';
+    });
+
+    // first/last date labels
+    svg += '<text x="' + padL + '" y="' + H + '" text-anchor="start">' + points[0].date + '</text>';
+    if(!singlePoint){
+      svg += '<text x="' + (padL + plotW) + '" y="' + H + '" text-anchor="end">' + points[points.length - 1].date + '</text>';
+    }
+
+    svg += '</svg>';
+    return svg;
+  }
+
+  function bwRefreshTrackerBookSelect(){
+    var select = document.getElementById("bw-tracker-book-select");
+    var current = select.value;
+    select.innerHTML = '<option value="">All books</option>';
+    bwState.books.forEach(function(b){
+      var opt = document.createElement("option");
+      opt.value = b.id;
+      opt.textContent = b.title;
+      select.appendChild(opt);
+    });
+    select.value = current;
+  }
+
+  function bwRenderTrackerSpeed(){
+    var container = document.getElementById("bw-tracker-speed-content");
+
+    var allDone = bwState.sessions.filter(function(s){ return s.status === "done"; });
+    if(allDone.length === 0){
+      container.innerHTML =
+        '<div class="bw-empty">Once you time a reading session and enter the page you reached when you stop, ' +
+        'this tab will chart your pages-per-minute over time and show how your books compare by length and progress.</div>';
+      return;
+    }
+
+    var allUsable = allDone.filter(bwSessionUsableForSpeed);
+    if(allUsable.length === 0){
+      container.innerHTML =
+        '<div class="bw-empty">Sessions are logged, but none have a page number recorded. ' +
+        'The "page reached" field you fill in when you stop a timer is what drives these charts -- ' +
+        'enter it next time and this tab will start filling in.</div>';
+      return;
+    }
+
+    var doneInScope = bwTrackerDoneSessionsInScope();
+    var usable = doneInScope.filter(bwSessionUsableForSpeed);
+    var excludedCount = doneInScope.length - usable.length;
+
+    if(usable.length === 0){
+      container.innerHTML = '<div class="bw-empty">No sessions with page numbers match this book/range filter.</div>';
+      return;
+    }
+
+    var totalPages = 0, totalMinutes = 0;
+    usable.forEach(function(s){
+      totalPages += (s.pageEnd - s.pageStart);
+      totalMinutes += s.actualMinutes;
+    });
+    var n = usable.length;
+    var avgPpm = totalMinutes > 0 ? totalPages / totalMinutes : 0;
+    var avgSessionLen = totalMinutes / n;
+    var avgProgress = totalPages / n;
+
+    var points = bwAggregateSessionsByDay(usable);
+    var smallSample = n < 5;
+    var drawAvg = !smallSample && points.length > 1;
+    var avgLine = drawAvg ? bwTrailingAverage(points, 3) : [];
+
+    var html = "";
+    html += '<div class="bw-chart-card">';
+    html += bwBuildSpeedChartSvg(points, avgLine, drawAvg, bwChartAvailableWidth());
+    if(drawAvg){
+      html += '<div class="bw-tracker-legend">' +
+        '<span class="bw-tracker-legend-item"><span class="bw-tracker-legend-swatch" style="background:var(--accent-cognac);"></span>Daily pace</span>' +
+        '<span class="bw-tracker-legend-item"><span class="bw-tracker-legend-swatch" style="background:var(--accent-gold);"></span>Running average (3-day)</span>' +
+        '</div>';
+    }
+    html += '</div>';
+
+    html += '<div class="bw-card-list" style="margin-top:14px;">';
+    html += '<div class="bw-log-summary-row"><span>Average pace</span><span class="bw-stat-value">' +
+      bwFormatPpm(avgPpm) + ' pages/min &middot; ' + n + ' session' + (n === 1 ? "" : "s") + '</span></div>';
+    html += '<div class="bw-log-summary-row"><span>Average session length</span><span class="bw-stat-value">' +
+      bwFormatDuration(Math.round(avgSessionLen)) + '</span></div>';
+    html += '<div class="bw-log-summary-row"><span>Typical progress per session</span><span class="bw-stat-value">' +
+      Math.round(avgProgress * 10) / 10 + ' pages</span></div>';
+    html += '</div>';
+
+    if(smallSample){
+      html += '<p class="bw-chart-note bw-chart-note-small">' + n + ' session' + (n === 1 ? "" : "s") +
+        ' so far -- these will settle as you log more.</p>';
+    }
+    if(excludedCount > 0){
+      html += '<p class="bw-chart-note">' + excludedCount + ' session' + (excludedCount === 1 ? "" : "s") +
+        ' not shown -- no page numbers recorded.</p>';
+    }
+
+    container.innerHTML = html;
+  }
+
+  // ---- Chart 2: book lengths and how far through ----
+
+  var bwTrackerLengthMode = "total"; // "total" | "read"
+
+  // Upcoming books only count if they have a page count -- there's no
+  // progress to show for them either way, so "reading"/"finished" without a
+  // page count and "upcoming" without one both land in the same excluded list.
+  function bwTrackerLengthChartBooks(){
+    return bwState.books.filter(function(b){
+      return b.totalPages != null &&
+        (b.status === "reading" || b.status === "finished" || b.status === "upcoming");
+    });
+  }
+
+  function bwTrackerBooksMissingPages(){
+    return bwState.books.filter(function(b){ return b.totalPages == null; });
+  }
+
+  // Rough average character width for Inter -- not pixel-perfect, but good
+  // enough to decide when an SVG <text> label needs truncating so a long
+  // title can't run into the bar or off the chart (SVG text doesn't wrap).
+  function bwEstimateTextWidth(text, fontSize){
+    return text.length * fontSize * 0.55;
+  }
+
+  function bwTruncateForWidth(text, maxWidth, fontSize){
+    if(bwEstimateTextWidth(text, fontSize) <= maxWidth) return text;
+    var lo = 0, hi = text.length;
+    while(lo < hi){
+      var mid = Math.ceil((lo + hi) / 2);
+      var candidate = text.slice(0, mid) + "…";
+      if(bwEstimateTextWidth(candidate, fontSize) <= maxWidth) lo = mid; else hi = mid - 1;
+    }
+    return text.slice(0, lo) + "…";
+  }
+
+  function bwEscapeXml(s){
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function bwBuildLengthChartSvg(books, maxPages, mode, W){
+    W = W || 640;
+    var padL = 12, padR = 12, labelColW = 96, rowH = 46, barH = 16, titleFont = 13;
+    var plotW = W - padL - padR - labelColW;
+    var H = books.length * rowH + 10;
+
+    var svg = '<svg class="bw-chart-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' +
+      'Book lengths' + (mode === "read" ? " and pages read" : "") + ', one bar per book">';
+
+    // Same fine page-edge hairlines as the fore-edge progress bar, so a book
+    // length bar reads as a stack of pages too rather than a flat rectangle.
+    svg += '<defs>' +
+      '<pattern id="bwHairlineTrack" width="3" height="' + barH + '" patternUnits="userSpaceOnUse">' +
+        '<rect width="1" height="' + barH + '" fill="rgba(139,111,71,0.16)"/></pattern>' +
+      '<pattern id="bwHairlineRead" width="3" height="' + barH + '" patternUnits="userSpaceOnUse">' +
+        '<rect width="1" height="' + barH + '" fill="rgba(255,255,255,0.22)"/></pattern>' +
+      '</defs>';
+
+    books.forEach(function(book, i){
+      var rowTop = i * rowH + 4;
+      var isUpcoming = book.status === "upcoming";
+      // Upcoming books still get the split in "Pages read" mode -- almost
+      // always 0%, since they're real, honest zero progress rather than a
+      // number to hide. Only the dimming (opacity/title colour) marks them
+      // as not started; the bar itself behaves the same as any other book.
+      var showRead = mode === "read";
+      var barW = Math.max(plotW * 0.05, (book.totalPages / maxPages) * plotW);
+      var barY = rowTop + 16;
+
+      var titleColor = isUpcoming ? "var(--muted-accent)" : "var(--text-primary)";
+      var fullTitle = book.title;
+      var shownTitle = bwTruncateForWidth(fullTitle, plotW + labelColW, titleFont);
+      svg += '<text x="' + padL + '" y="' + (rowTop + 10) + '" font-size="' + titleFont + '" fill="' + titleColor + '">' +
+        bwEscapeXml(shownTitle);
+      if(shownTitle !== fullTitle) svg += '<title>' + bwEscapeXml(fullTitle) + '</title>';
+      svg += '</text>';
+
+      var barRectAttrs = 'x="' + padL + '" y="' + barY + '" width="' + barW.toFixed(1) + '" height="' + barH + '" rx="4"';
+      svg += '<rect ' + barRectAttrs + ' fill="var(--muted-accent)"' + (isUpcoming ? ' opacity="0.6"' : '') + '/>';
+      svg += '<rect ' + barRectAttrs + ' fill="url(#bwHairlineTrack)"' + (isUpcoming ? ' opacity="0.6"' : '') + '/>';
+
+      var labelText;
+      if(showRead){
+        var current = book.currentPage || 0;
+        var pct = Math.round((current / book.totalPages) * 100);
+        var readW = Math.max(0, Math.min(barW, (current / book.totalPages) * barW));
+        var readRectAttrs = 'x="' + padL + '" y="' + barY + '" width="' + readW.toFixed(1) + '" height="' + barH + '" rx="4"';
+        svg += '<rect ' + readRectAttrs + ' fill="var(--accent-cognac)"' + (isUpcoming ? ' opacity="0.6"' : '') + '/>';
+        svg += '<rect ' + readRectAttrs + ' fill="url(#bwHairlineRead)"' + (isUpcoming ? ' opacity="0.6"' : '') + '/>';
+        labelText = current + ' / ' + book.totalPages + ' (' + pct + '%)';
+      } else {
+        labelText = book.totalPages + ' pages';
+      }
+      svg += '<text x="' + (padL + plotW + labelColW) + '" y="' + (barY + barH - 3) +
+        '" font-size="12" text-anchor="end" fill="var(--text-secondary)">' + bwEscapeXml(labelText) + '</text>';
+    });
+
+    svg += '</svg>';
+    return svg;
+  }
+
+  function bwRenderTrackerLength(){
+    var container = document.getElementById("bw-tracker-length-content");
+    var books = bwTrackerLengthChartBooks();
+    var missing = bwTrackerBooksMissingPages();
+
+    if(books.length === 0){
+      container.innerHTML = '<div class="bw-empty">' +
+        (missing.length > 0 ?
+          'None of your books have a total page count yet -- add one from the Edit button on a book to see it charted here.' :
+          'Add a book with a total page count to see it charted here.') +
+        '</div>';
+      return;
+    }
+
+    var sorted = books.slice().sort(function(a, b){ return b.totalPages - a.totalPages; });
+    var maxPages = sorted[0].totalPages;
+
+    var chartW = bwChartAvailableWidth();
+    var html = '<div class="bw-chart-card">' + bwBuildLengthChartSvg(sorted, maxPages, bwTrackerLengthMode, chartW) + '</div>';
+
+    if(missing.length > 0){
+      html += '<p class="bw-chart-note">No page count set, so not shown above: ' +
+        missing.map(function(b){ return b.title; }).join(", ") + '.</p>';
+    }
+
+    container.innerHTML = html;
+  }
+
+  function bwSetTrackerLengthMode(mode){
+    bwTrackerLengthMode = mode;
+    document.getElementById("bw-tracker-lengthmode-total").setAttribute("aria-pressed", String(mode === "total"));
+    document.getElementById("bw-tracker-lengthmode-read").setAttribute("aria-pressed", String(mode === "read"));
+    bwRenderTrackerLength();
+  }
+
+  document.getElementById("bw-tracker-lengthmode-total").addEventListener("click", function(){ bwSetTrackerLengthMode("total"); });
+  document.getElementById("bw-tracker-lengthmode-read").addEventListener("click", function(){ bwSetTrackerLengthMode("read"); });
+
+  function bwRenderTracker(){
+    bwRefreshTrackerBookSelect();
+    bwRenderTrackerSpeed();
+    bwRenderTrackerLength();
+  }
+
+  document.getElementById("bw-tracker-book-select").addEventListener("change", function(e){
+    bwTrackerBookFilter = e.target.value;
+    bwRenderTrackerSpeed();
+  });
+
+  document.getElementById("bw-tracker-range-select").addEventListener("change", function(e){
+    bwTrackerRange = e.target.value;
+    bwRenderTrackerSpeed();
+  });
+
+  // =========================================================================
+  // export / import
+  // =========================================================================
+
+  function bwExportData(){
+    var ids = bwState.books.filter(function(b){ return b.hasCover; }).map(function(b){ return b.id; });
+    Promise.all(ids.map(function(id){ return bwGetCover(id).then(function(dataUrl){ return { id: id, dataUrl: dataUrl }; }); }))
+      .then(function(covers){
+        var coverMap = {};
+        covers.forEach(function(c){ if(c.dataUrl) coverMap[c.id] = c.dataUrl; });
+        var exportObj = {
+          version: bwState.version,
+          books: bwState.books.map(function(b){
+            var copy = Object.assign({}, b);
+            if(coverMap[b.id]) copy.coverDataUrl = coverMap[b.id];
+            return copy;
+          }),
+          sessions: bwState.sessions,
+          settings: bwState.settings
+        };
+        var blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: "application/json" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "bookworm-backup-" + bwTodayKey() + ".json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+  }
+
+  function bwShowDatabarMessage(text){
+    var existing = document.getElementById("bw-databar-message");
+    if(existing) existing.remove();
+    var panel = document.getElementById("bw-databar-panel");
+    panel.removeAttribute("hidden");
+    document.getElementById("bw-databar-toggle").setAttribute("aria-expanded", "true");
+    var msg = document.createElement("div");
+    msg.id = "bw-databar-message";
+    msg.style.cssText = "width:100%;text-align:center;font-size:12px;font-weight:600;color:var(--text-primary);padding:4px 6px;";
+    msg.textContent = text;
+    panel.appendChild(msg);
+    setTimeout(function(){ if(msg.parentNode) msg.remove(); }, 5000);
+  }
+
+  document.getElementById("bw-databar-toggle").addEventListener("click", function(){
+    var panel = document.getElementById("bw-databar-panel");
+    var willShow = panel.hasAttribute("hidden");
+    if(willShow) panel.removeAttribute("hidden"); else panel.setAttribute("hidden", "");
+    this.setAttribute("aria-expanded", String(willShow));
+  });
+
+  var bwPendingImportState = null;
+  var bwPendingImportCovers = null;
+
+  function bwHandleImportFile(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var parsed;
+      try{
+        parsed = JSON.parse(reader.result);
+      }catch(e){
+        bwShowDatabarMessage("That file isn't valid JSON.");
+        return;
+      }
+      var looksValid = parsed && typeof parsed === "object" &&
+        Array.isArray(parsed.books) && Array.isArray(parsed.sessions);
+      if(!looksValid){
+        bwShowDatabarMessage("That file doesn't look like a Bookworm backup.");
+        return;
+      }
+
+      var covers = {};
+      var books = parsed.books.map(function(b){
+        var copy = Object.assign({}, b);
+        if(copy.coverDataUrl){
+          covers[copy.id] = copy.coverDataUrl;
+          delete copy.coverDataUrl;
+          copy.hasCover = true;
+        } else {
+          copy.hasCover = false;
+        }
+        return copy;
+      });
+
+      bwPendingImportState = {
+        version: parsed.version || 1,
+        books: books,
+        sessions: parsed.sessions,
+        settings: Object.assign({ weeklyTargets: {} }, parsed.settings || {})
+      };
+      bwPendingImportCovers = covers;
+
+      var body = document.getElementById("bw-import-modal-body");
+      body.innerHTML =
+        "<p>This file has <strong>" + books.length + "</strong> books and " +
+        "<strong>" + parsed.sessions.length + "</strong> logged sessions.</p>" +
+        "<p>Importing will <strong>replace</strong> your current data -- " +
+        bwState.books.length + " books, " + bwState.sessions.length + " sessions -- entirely, " +
+        "including every stored cover photo. This can't be undone.</p>";
+      document.getElementById("bw-import-modal").style.display = "flex";
+    };
+    reader.readAsText(file);
+  }
+
+  document.getElementById("bw-export-btn").addEventListener("click", bwExportData);
+
+  document.getElementById("bw-import-btn").addEventListener("click", function(){
+    document.getElementById("bw-import-file-input").click();
+  });
+
+  document.getElementById("bw-import-file-input").addEventListener("change", function(e){
+    if(e.target.files && e.target.files[0]) bwHandleImportFile(e.target.files[0]);
+    e.target.value = "";
+  });
+
+  document.getElementById("bw-import-cancel-btn").addEventListener("click", function(){
+    bwPendingImportState = null;
+    bwPendingImportCovers = null;
+    document.getElementById("bw-import-modal").style.display = "none";
+  });
+
+  document.getElementById("bw-import-confirm-btn").addEventListener("click", function(){
+    if(!bwPendingImportState) return;
+    var newState = bwPendingImportState;
+    var newCovers = bwPendingImportCovers;
+    bwPendingImportState = null;
+    bwPendingImportCovers = null;
+    document.getElementById("bw-import-modal").style.display = "none";
+
+    bwClearAllCovers().then(function(){
+      var ids = Object.keys(newCovers);
+      return Promise.all(ids.map(function(id){ return bwStoreCover(id, newCovers[id]); }));
+    }).then(function(){
+      bwState = newState;
+      bwExpandedNoteIds = {};
+      bwEditingNoteIds = {};
+      bwEditingBookIds = {};
+      bwShowFinished = false;
+      bwActiveTimerSessionId = null;
+      bwPendingStopId = null;
+      bwLogBookFilter = "";
+      if(bwTimerTickHandle){ clearInterval(bwTimerTickHandle); bwTimerTickHandle = null; }
+
+      bwSaveState();
+      bwRenderAll();
+      bwShowDatabarMessage("Import complete.");
+    });
+  });
+
+  function bwRenderStorageEstimate(){
+    var el = document.getElementById("bw-storage-estimate");
+    var withCovers = bwState.books.filter(function(b){ return b.hasCover; }).length;
+    if(navigator.storage && navigator.storage.estimate){
+      navigator.storage.estimate().then(function(est){
+        var mb = est.usage ? (est.usage / (1024 * 1024)).toFixed(1) : "0.0";
+        el.textContent = "Covers: " + withCovers + " books, about " + mb + " MB";
+      }).catch(function(){
+        el.textContent = "Covers: " + withCovers + " books";
+      });
+    } else {
+      el.textContent = "Covers: " + withCovers + " books";
+    }
+  }
+
+  // =========================================================================
+  // init
+  // =========================================================================
+
+  function bwRenderAll(){
+    bwRenderHeader();
+    bwRenderToday();
+    bwRenderLibrary();
+    bwRenderLog();
+    bwRenderTracker();
+    bwRenderStorageEstimate();
+  }
+
+  bwRenderAll();
+  if(bwState.sessions.some(function(s){ return !!s.timerStartedAt; })){
+    bwActiveTimerSessionId = bwState.sessions.filter(function(s){ return !!s.timerStartedAt; })[0].id;
+    bwEnsureTicking();
+    bwRenderToday();
+  }
+</script>
+</body></html>

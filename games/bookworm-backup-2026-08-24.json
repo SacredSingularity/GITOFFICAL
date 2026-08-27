@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "books": [
+    {
+      "id": "mt73s43mn1ggcg",
+      "title": "Test Book Title",
+      "author": "Test Author",
+      "note": "",
+      "readByDate": null,
+      "priority": "medium",
+      "totalPages": 300,
+      "currentPage": 18,
+      "status": "reading",
+      "hasCover": false,
+      "dateAdded": "2026-08-24",
+      "dateStarted": "2026-08-24",
+      "dateFinished": null,
+      "lastReadDate": "2026-08-24"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "mt73sibwsut8hu",
+      "date": "2026-08-24",
+      "bookId": "mt73s43mn1ggcg",
+      "plannedMinutes": 20,
+      "actualMinutes": 1,
+      "status": "done",
+      "whatHappened": "Good start, liked the opening chapter.",
+      "pageStart": 0,
+      "pageEnd": 18,
+      "timerStartedAt": null,
+      "timerAccumulatedMs": 9643
+    }
+  ],
+  "settings": {
+    "weeklyTargets": {}
+  }
+}
