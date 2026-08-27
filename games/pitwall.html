@@ -321,6 +321,8 @@
     .pw-header-cell.pw-header-center, .pw-header-cell.pw-header-right{align-items:flex-start;text-align:left;}
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../cloud-sync.js"></script>
 </head>
 <body>
 <div class="pw-app">
@@ -526,6 +528,7 @@
     }catch(e){
       pwShowStorageWarning();
     }
+    if(typeof CloudSync !== "undefined") CloudSync.pushSave("pitwall", pwState);
   }
 
   function pwShowStorageWarning(){
@@ -2279,6 +2282,119 @@
     pwEnsureTicking();
     pwRenderToday();
   }
+
+  // =========================================================================
+  // cloud sync — optional account (shared cloud-sync.js) so progress follows
+  // you across devices/games. Fully opt-in.
+  // =========================================================================
+  var PW_GAME_ID = "pitwall";
+
+  var pwAuthBar = document.createElement("div");
+  pwAuthBar.innerHTML =
+    '<style>' +
+    '#pwAuthBox{position:fixed;top:10px;right:10px;z-index:999;font-family:inherit;font-size:12px;' +
+    'background:var(--carbon);border:1px solid var(--accent);border-radius:10px;padding:8px 10px;' +
+    'display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,0.35);color:var(--text);}' +
+    '#pwAuthBox input{border:1px solid var(--muted);border-radius:6px;padding:4px 6px;font-size:12px;width:160px;' +
+    'font-family:inherit;background:var(--carbon);color:var(--text);}' +
+    '#pwAuthBox button{border:1px solid var(--accent);border-radius:6px;padding:5px 10px;font-size:12px;' +
+    'font-weight:600;cursor:pointer;background:var(--accent);color:var(--carbon);font-family:inherit;}' +
+    '#pwAuthBox button:hover{filter:brightness(1.1);}' +
+    '#pwAuthBox .pwMsg{color:var(--muted);}' +
+    '#pwHideBtn{background:transparent !important;color:var(--muted) !important;padding:2px 4px !important;' +
+    'font-size:11px !important;font-weight:400 !important;border-color:transparent !important;margin-left:2px;}' +
+    '#pwShowTab{opacity:0.55;padding:4px 8px !important;font-size:13px !important;}' +
+    '#pwShowTab:hover{opacity:1;}' +
+    '</style><div id="pwAuthBox"></div>';
+  document.body.appendChild(pwAuthBar);
+
+  var pwPendingEmail = null;
+  var pwShowEmailForm = false;
+
+  function pwRenderAuthBox(){
+    var box = document.getElementById("pwAuthBox");
+    var session = CloudSync.getSession();
+
+    if(CloudSync.isWidgetHidden(PW_GAME_ID)){
+      box.innerHTML = '<button id="pwShowTab" title="show cloud save">&#9729;</button>';
+      document.getElementById("pwShowTab").onclick = function(){ CloudSync.setWidgetHidden(PW_GAME_ID, false); pwRenderAuthBox(); };
+      return;
+    }
+
+    if(session && CloudSync.isGameActive(PW_GAME_ID)){
+      box.innerHTML = '<button id="pwSignOut">Sign out</button>';
+      document.getElementById("pwSignOut").onclick = function(){
+        CloudSync.setOptOut(PW_GAME_ID, true);
+        pwRenderAuthBox();
+      };
+    } else if(session){
+      box.innerHTML = '<button id="pwReactivate">Sign in</button>';
+      document.getElementById("pwReactivate").onclick = function(){
+        CloudSync.setOptOut(PW_GAME_ID, false);
+        pwRenderAuthBox();
+        pwSyncFromCloud();
+      };
+    } else if(pwPendingEmail){
+      box.innerHTML = '<span class="pwMsg">code sent to ' + pwPendingEmail + '</span>' +
+        '<input id="pwCode" type="text" inputmode="numeric" placeholder="6-digit code" style="width:90px">' +
+        '<button id="pwVerify">Verify</button>' +
+        '<button id="pwCancel" style="background:transparent;color:var(--muted);">&times;</button>';
+      document.getElementById("pwVerify").onclick = function(){
+        var token = document.getElementById("pwCode").value.trim();
+        if(!token) return;
+        box.querySelector(".pwMsg").textContent = "Verifying…";
+        CloudSync.verifyCode(pwPendingEmail, token).then(function(res){
+          if(res.error){
+            box.innerHTML = '<span class="pwMsg">' + res.error.message + '</span>';
+            setTimeout(function(){ pwPendingEmail = null; pwShowEmailForm = false; pwRenderAuthBox(); }, 2500);
+          }
+        });
+      };
+      document.getElementById("pwCancel").onclick = function(){ pwPendingEmail = null; pwShowEmailForm = false; pwRenderAuthBox(); };
+    } else if(pwShowEmailForm){
+      box.innerHTML = '<input id="pwEmail" type="email" placeholder="email for cloud save"><button id="pwSignIn">Send code</button>';
+      document.getElementById("pwSignIn").onclick = function(){
+        var email = document.getElementById("pwEmail").value.trim();
+        if(!email) return;
+        box.innerHTML = '<span class="pwMsg">Sending code…</span>';
+        CloudSync.requestCode(email).then(function(res){
+          if(res.error){
+            box.innerHTML = '<span class="pwMsg">' + res.error.message + '</span>';
+            setTimeout(function(){ pwShowEmailForm = false; pwRenderAuthBox(); }, 2500);
+          } else {
+            pwPendingEmail = email;
+            pwRenderAuthBox();
+          }
+        });
+      };
+    } else {
+      box.innerHTML = '<button id="pwOpenSignIn">Sign in</button>';
+      document.getElementById("pwOpenSignIn").onclick = function(){ pwShowEmailForm = true; pwRenderAuthBox(); };
+    }
+
+    box.insertAdjacentHTML("beforeend", '<button id="pwHideBtn" title="hide">&times;</button>');
+    document.getElementById("pwHideBtn").onclick = function(){ CloudSync.setWidgetHidden(PW_GAME_ID, true); pwRenderAuthBox(); };
+  }
+
+  function pwSyncFromCloud(){
+    CloudSync.pullSave(PW_GAME_ID).then(function(data){
+      if(data){
+        pwState = pwNormalizeStatuses(data);
+        pwSaveState();
+        pwRenderAll();
+      }
+    });
+  }
+
+  var pwHadSession = false;
+  CloudSync.subscribe(function(session){
+    var justSignedIn = !pwHadSession && !!session;
+    pwHadSession = !!session;
+    pwPendingEmail = null;
+    pwShowEmailForm = false;
+    pwRenderAuthBox();
+    if(justSignedIn && CloudSync.isGameActive(PW_GAME_ID)) pwSyncFromCloud();
+  });
 </script>
 </body>
 </html>

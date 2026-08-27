@@ -1409,6 +1409,10 @@ dcAuthBar.innerHTML = `
       font-weight: 600; cursor: pointer; background: #ffb347; color: #4a2e08; }
     #dcAuthBox button:hover { background: #ffc26b; }
     #dcAuthBox .dcMsg { color: #3a4a3e; }
+    #dcHideBtn { background: transparent !important; color: #8a7a5a !important; padding: 2px 4px !important;
+      font-size: 11px !important; font-weight: 400 !important; margin-left: 2px; }
+    #dcShowTab { opacity: 0.55; padding: 4px 8px !important; font-size: 13px !important; }
+    #dcShowTab:hover { opacity: 1; }
   </style>
   <div id="dcAuthBox"></div>
 `;
@@ -1420,6 +1424,12 @@ let dcShowEmailForm = false;
 function dcRenderAuthBox() {
   const box = document.getElementById('dcAuthBox');
   const session = CloudSync.getSession();
+
+  if (CloudSync.isWidgetHidden(DC_GAME_ID)) {
+    box.innerHTML = `<button id="dcShowTab" title="show cloud save">&#9729;</button>`;
+    document.getElementById('dcShowTab').onclick = () => { CloudSync.setWidgetHidden(DC_GAME_ID, false); dcRenderAuthBox(); };
+    return;
+  }
 
   if (session && CloudSync.isGameActive(DC_GAME_ID)) {
     // signed in and active for this game
@@ -1472,6 +1482,9 @@ function dcRenderAuthBox() {
     box.innerHTML = `<button id="dcOpenSignIn">Sign in</button>`;
     document.getElementById('dcOpenSignIn').onclick = () => { dcShowEmailForm = true; dcRenderAuthBox(); };
   }
+
+  box.insertAdjacentHTML('beforeend', '<button id="dcHideBtn" title="hide">&times;</button>');
+  document.getElementById('dcHideBtn').onclick = () => { CloudSync.setWidgetHidden(DC_GAME_ID, true); dcRenderAuthBox(); };
 }
 
 function dcApplyCloudSave(data) {

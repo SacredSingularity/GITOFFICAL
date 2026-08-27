@@ -188,6 +188,8 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   text-shadow: 0 0 14px rgba(255,210,74,0.8), 0 0 4px rgba(0,0,0,0.6);
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../cloud-sync.js"></script>
 </head>
 <body>
 <div id="stage">
@@ -646,6 +648,7 @@ function loadSave() {
 }
 function writeSave() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
+  if (typeof CloudSync !== 'undefined') CloudSync.pushSave('quickdraw', save);
 }
 let save = loadSave();
 
@@ -1361,6 +1364,134 @@ function loop(t) {
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
+// -------------------------------------------------------------------
+//  CLOUD SYNC — optional account (shared cloud-sync.js) so progress
+//  follows you across devices/games. Fully opt-in.
+// -------------------------------------------------------------------
+const QD_GAME_ID = 'quickdraw';
+
+const qdAuthBar = document.createElement('div');
+qdAuthBar.innerHTML = `
+  <style>
+    #qdAuthBox { position: fixed; top: 10px; right: 10px; z-index: 999;
+      font-family: Rockwell, 'Rockwell Nova', Georgia, 'Times New Roman', serif; font-size: 12px;
+      background: rgba(30,18,8,0.85); border: 1px solid rgba(255,154,60,0.5);
+      border-radius: 10px; padding: 8px 10px; display: flex; align-items: center;
+      gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); color: #e8d9b8; }
+    #qdAuthBox input { border: 1px solid rgba(214,160,90,0.4); border-radius: 6px; padding: 4px 6px;
+      font-size: 12px; width: 160px; font-family: inherit; background: rgba(20,12,6,0.8); color: #e8d9b8; }
+    #qdAuthBox button { border: 1px solid #ff9a3c; border-radius: 6px; padding: 5px 10px; font-size: 12px;
+      font-weight: 700; cursor: pointer; background: #ff9a3c; color: #2c1a0e; font-family: inherit; }
+    #qdAuthBox button:hover { filter: brightness(1.1); }
+    #qdAuthBox .qdMsg { color: rgba(232,217,184,0.75); }
+    #qdHideBtn { background: transparent !important; color: rgba(232,217,184,0.6) !important; padding: 2px 4px !important;
+      font-size: 11px !important; font-weight: 400 !important; border-color: transparent !important; margin-left: 2px; }
+    #qdShowTab { opacity: 0.55; padding: 4px 8px !important; font-size: 13px !important; }
+    #qdShowTab:hover { opacity: 1; }
+  </style>
+  <div id="qdAuthBox"></div>
+`;
+document.body.appendChild(qdAuthBar);
+
+let qdPendingEmail = null;
+let qdShowEmailForm = false;
+
+function qdNormalizeSave(raw) {
+  return {
+    money: raw.money || 0,
+    power: raw.power || 0,
+    ammo: raw.ammo || 0,
+    reload: raw.reload || 0,
+    skins: raw.skins || ['rusty'],
+    equippedSkin: raw.equippedSkin || 'rusty',
+    bestRound: raw.bestRound || 0,
+    currentRound: raw.currentRound || 1,
+    laser: raw.laser || false,
+    laserEquipped: raw.laserEquipped !== undefined ? raw.laserEquipped : true,
+  };
+}
+
+function qdRenderAuthBox() {
+  const box = document.getElementById('qdAuthBox');
+  const session = CloudSync.getSession();
+
+  if (CloudSync.isWidgetHidden(QD_GAME_ID)) {
+    box.innerHTML = `<button id="qdShowTab" title="show cloud save">&#9729;</button>`;
+    document.getElementById('qdShowTab').onclick = () => { CloudSync.setWidgetHidden(QD_GAME_ID, false); qdRenderAuthBox(); };
+    return;
+  }
+
+  if (session && CloudSync.isGameActive(QD_GAME_ID)) {
+    box.innerHTML = `<button id="qdSignOut">Sign out</button>`;
+    document.getElementById('qdSignOut').onclick = () => {
+      CloudSync.setOptOut(QD_GAME_ID, true);
+      qdRenderAuthBox();
+    };
+  } else if (session) {
+    box.innerHTML = `<button id="qdReactivate">Sign in</button>`;
+    document.getElementById('qdReactivate').onclick = async () => {
+      CloudSync.setOptOut(QD_GAME_ID, false);
+      qdRenderAuthBox();
+      await qdSyncFromCloud();
+    };
+  } else if (qdPendingEmail) {
+    box.innerHTML = `<span class="qdMsg">code sent to ${qdPendingEmail}</span>
+      <input id="qdCode" type="text" inputmode="numeric" placeholder="6-digit code" style="width:90px">
+      <button id="qdVerify">Verify</button>
+      <button id="qdCancel" style="background:transparent;color:rgba(232,217,184,0.6);">&times;</button>`;
+    document.getElementById('qdVerify').onclick = async () => {
+      const token = document.getElementById('qdCode').value.trim();
+      if (!token) return;
+      box.querySelector('.qdMsg').textContent = 'Verifying…';
+      const { error } = await CloudSync.verifyCode(qdPendingEmail, token);
+      if (error) {
+        box.innerHTML = `<span class="qdMsg">${error.message}</span>`;
+        setTimeout(() => { qdPendingEmail = null; qdShowEmailForm = false; qdRenderAuthBox(); }, 2500);
+      }
+    };
+    document.getElementById('qdCancel').onclick = () => { qdPendingEmail = null; qdShowEmailForm = false; qdRenderAuthBox(); };
+  } else if (qdShowEmailForm) {
+    box.innerHTML = `<input id="qdEmail" type="email" placeholder="email for cloud save"><button id="qdSignIn">Send code</button>`;
+    document.getElementById('qdSignIn').onclick = async () => {
+      const email = document.getElementById('qdEmail').value.trim();
+      if (!email) return;
+      box.innerHTML = '<span class="qdMsg">Sending code&hellip;</span>';
+      const { error } = await CloudSync.requestCode(email);
+      if (error) {
+        box.innerHTML = `<span class="qdMsg">${error.message}</span>`;
+        setTimeout(() => { qdShowEmailForm = false; qdRenderAuthBox(); }, 2500);
+      } else {
+        qdPendingEmail = email;
+        qdRenderAuthBox();
+      }
+    };
+  } else {
+    box.innerHTML = `<button id="qdOpenSignIn">Sign in</button>`;
+    document.getElementById('qdOpenSignIn').onclick = () => { qdShowEmailForm = true; qdRenderAuthBox(); };
+  }
+
+  box.insertAdjacentHTML('beforeend', '<button id="qdHideBtn" title="hide">&times;</button>');
+  document.getElementById('qdHideBtn').onclick = () => { CloudSync.setWidgetHidden(QD_GAME_ID, true); qdRenderAuthBox(); };
+}
+
+async function qdSyncFromCloud() {
+  const data = await CloudSync.pullSave(QD_GAME_ID);
+  if (!data) return;
+  save = qdNormalizeSave(data);
+  writeSave();
+  renderMenu();
+}
+
+let qdHadSession = false;
+CloudSync.subscribe((session) => {
+  const justSignedIn = !qdHadSession && !!session;
+  qdHadSession = !!session;
+  qdPendingEmail = null;
+  qdShowEmailForm = false;
+  qdRenderAuthBox();
+  if (justSignedIn && CloudSync.isGameActive(QD_GAME_ID)) qdSyncFromCloud();
+});
 </script>
 </body>
 </html>

@@ -243,6 +243,8 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 .btn.locked { opacity: 0.4; cursor: not-allowed; }
 .btn.locked:hover { background: rgba(232,184,120,0.12); color: #f0cf9a; box-shadow: none; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../cloud-sync.js"></script>
 </head>
 <body>
 <div id="stage">
@@ -508,6 +510,7 @@ function loadSave() {
 }
 function writeSave() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
+  if (typeof CloudSync !== 'undefined') CloudSync.pushSave('driftline', save);
 }
 let save = loadSave();
 
@@ -2021,6 +2024,135 @@ function loop(t) {
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
+// -------------------------------------------------------------------
+//  CLOUD SYNC — optional account (shared cloud-sync.js) so progress
+//  follows you across devices/games. Fully opt-in.
+// -------------------------------------------------------------------
+const DL_GAME_ID = 'driftline';
+
+const dlAuthBar = document.createElement('div');
+dlAuthBar.innerHTML = `
+  <style>
+    #dlAuthBox { position: fixed; top: 10px; right: 10px; z-index: 999;
+      font-family: Georgia, 'Times New Roman', serif; font-size: 12px;
+      background: rgba(18,26,22,0.85); border: 1px solid rgba(232,184,120,0.5);
+      border-radius: 10px; padding: 8px 10px; display: flex; align-items: center;
+      gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.35); color: #dfe6df; }
+    #dlAuthBox input { border: 1px solid rgba(180,200,170,0.4); border-radius: 6px; padding: 4px 6px;
+      font-size: 12px; width: 160px; font-family: inherit; background: rgba(14,21,18,0.8); color: #dfe6df; }
+    #dlAuthBox button { border: 1px solid #e8b878; border-radius: 6px; padding: 5px 10px; font-size: 12px;
+      font-weight: 700; cursor: pointer; background: #e8b878; color: #16211c; font-family: inherit; }
+    #dlAuthBox button:hover { filter: brightness(1.1); }
+    #dlAuthBox .dlMsg { color: rgba(223,230,223,0.75); }
+    #dlHideBtn { background: transparent !important; color: rgba(223,230,223,0.6) !important; padding: 2px 4px !important;
+      font-size: 11px !important; font-weight: 400 !important; border-color: transparent !important; margin-left: 2px; }
+    #dlShowTab { opacity: 0.55; padding: 4px 8px !important; font-size: 13px !important; }
+    #dlShowTab:hover { opacity: 1; }
+  </style>
+  <div id="dlAuthBox"></div>
+`;
+document.body.appendChild(dlAuthBar);
+
+let dlPendingEmail = null;
+let dlShowEmailForm = false;
+
+function dlNormalizeSave(raw) {
+  return {
+    money: raw.money || 0,
+    inventory: raw.inventory || {},
+    upgrades: Object.assign({ luck: 0, speed: 0, market: 0 }, raw.upgrades || {}),
+    rods: raw.rods || ['basic'],
+    equippedRod: raw.equippedRod || 'basic',
+    sceneMode: raw.sceneMode || 'day',
+  };
+}
+
+function dlRenderAuthBox() {
+  const box = document.getElementById('dlAuthBox');
+  const session = CloudSync.getSession();
+
+  if (CloudSync.isWidgetHidden(DL_GAME_ID)) {
+    box.innerHTML = `<button id="dlShowTab" title="show cloud save">&#9729;</button>`;
+    document.getElementById('dlShowTab').onclick = () => { CloudSync.setWidgetHidden(DL_GAME_ID, false); dlRenderAuthBox(); };
+    return;
+  }
+
+  if (session && CloudSync.isGameActive(DL_GAME_ID)) {
+    box.innerHTML = `<button id="dlSignOut">Sign out</button>`;
+    document.getElementById('dlSignOut').onclick = () => {
+      CloudSync.setOptOut(DL_GAME_ID, true);
+      dlRenderAuthBox();
+    };
+  } else if (session) {
+    box.innerHTML = `<button id="dlReactivate">Sign in</button>`;
+    document.getElementById('dlReactivate').onclick = async () => {
+      CloudSync.setOptOut(DL_GAME_ID, false);
+      dlRenderAuthBox();
+      await dlSyncFromCloud();
+    };
+  } else if (dlPendingEmail) {
+    box.innerHTML = `<span class="dlMsg">code sent to ${dlPendingEmail}</span>
+      <input id="dlCode" type="text" inputmode="numeric" placeholder="6-digit code" style="width:90px">
+      <button id="dlVerify">Verify</button>
+      <button id="dlCancel" style="background:transparent;color:rgba(223,230,223,0.6);">&times;</button>`;
+    document.getElementById('dlVerify').onclick = async () => {
+      const token = document.getElementById('dlCode').value.trim();
+      if (!token) return;
+      box.querySelector('.dlMsg').textContent = 'Verifying…';
+      const { error } = await CloudSync.verifyCode(dlPendingEmail, token);
+      if (error) {
+        box.innerHTML = `<span class="dlMsg">${error.message}</span>`;
+        setTimeout(() => { dlPendingEmail = null; dlShowEmailForm = false; dlRenderAuthBox(); }, 2500);
+      }
+    };
+    document.getElementById('dlCancel').onclick = () => { dlPendingEmail = null; dlShowEmailForm = false; dlRenderAuthBox(); };
+  } else if (dlShowEmailForm) {
+    box.innerHTML = `<input id="dlEmail" type="email" placeholder="email for cloud save"><button id="dlSignIn">Send code</button>`;
+    document.getElementById('dlSignIn').onclick = async () => {
+      const email = document.getElementById('dlEmail').value.trim();
+      if (!email) return;
+      box.innerHTML = '<span class="dlMsg">Sending code&hellip;</span>';
+      const { error } = await CloudSync.requestCode(email);
+      if (error) {
+        box.innerHTML = `<span class="dlMsg">${error.message}</span>`;
+        setTimeout(() => { dlShowEmailForm = false; dlRenderAuthBox(); }, 2500);
+      } else {
+        dlPendingEmail = email;
+        dlRenderAuthBox();
+      }
+    };
+  } else {
+    box.innerHTML = `<button id="dlOpenSignIn">Sign in</button>`;
+    document.getElementById('dlOpenSignIn').onclick = () => { dlShowEmailForm = true; dlRenderAuthBox(); };
+  }
+
+  box.insertAdjacentHTML('beforeend', '<button id="dlHideBtn" title="hide">&times;</button>');
+  document.getElementById('dlHideBtn').onclick = () => { CloudSync.setWidgetHidden(DL_GAME_ID, true); dlRenderAuthBox(); };
+}
+
+async function dlSyncFromCloud() {
+  const data = await CloudSync.pullSave(DL_GAME_ID);
+  if (!data) return;
+  save = dlNormalizeSave(data);
+  document.getElementById('money').textContent = save.money;
+  dayNightBtn.textContent = SCENE_ICONS[save.sceneMode];
+  renderInventory();
+  renderStatUpgrades();
+  renderRodGrid();
+  updateGambleButtonVisibility();
+  writeSave();
+}
+
+let dlHadSession = false;
+CloudSync.subscribe((session) => {
+  const justSignedIn = !dlHadSession && !!session;
+  dlHadSession = !!session;
+  dlPendingEmail = null;
+  dlShowEmailForm = false;
+  dlRenderAuthBox();
+  if (justSignedIn && CloudSync.isGameActive(DL_GAME_ID)) dlSyncFromCloud();
+});
 </script>
 </body>
 </html>

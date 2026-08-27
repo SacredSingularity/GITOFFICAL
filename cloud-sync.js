@@ -29,6 +29,16 @@
     try { localStorage.setItem(optOutKey(gameId), val ? '1' : '0'); } catch (e) { /* ignore */ }
   }
 
+  // widget visibility is separate from sign-in state — hiding it never
+  // signs anyone out or opts a game out, it's purely "get this off my screen"
+  function widgetHiddenKey(gameId) { return 'cloudSyncWidgetHidden_' + gameId; }
+  function isWidgetHidden(gameId) {
+    try { return localStorage.getItem(widgetHiddenKey(gameId)) === '1'; } catch (e) { return false; }
+  }
+  function setWidgetHidden(gameId, val) {
+    try { localStorage.setItem(widgetHiddenKey(gameId), val ? '1' : '0'); } catch (e) { /* ignore */ }
+  }
+
   sb.auth.getSession().then(({ data }) => { session = data.session; ready = true; notify(); });
   sb.auth.onAuthStateChange((_event, s) => { session = s; ready = true; notify(); });
 
@@ -44,6 +54,8 @@
 
     isOptedOut,
     setOptOut,
+    isWidgetHidden,
+    setWidgetHidden,
     // true if there's a real session AND this specific game hasn't been locally opted out
     isGameActive(gameId) { return !!session && !isOptedOut(gameId); },
 
