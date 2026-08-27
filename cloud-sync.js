@@ -222,13 +222,18 @@
 
     let hadSession = false;
     listeners.push((s) => {
+      // 'code'/'setpw' are a deliberate multi-step flow this widget is already
+      // mid-way through; verifyOtp()/updateUser() fire this same auth-change
+      // event at unpredictable times relative to their own await continuing,
+      // so rather than race it, just don't touch anything while those steps
+      // own the screen — the button handlers driving them call render()
+      // themselves once each step actually finishes.
+      if (mode === 'code' || mode === 'setpw') { hadSession = !!s; return; }
       const justSignedIn = !hadSession && !!s;
       hadSession = !!s;
-      // don't stomp on the password-setup step just because verifyOtp() already
-      // created a session — that step ends itself (resetTransient) once done
-      if (mode !== 'setpw') resetTransient();
+      resetTransient();
       render();
-      if (justSignedIn && mode !== 'setpw' && gameId && !isOptedOut(gameId)) syncFromCloud();
+      if (justSignedIn && gameId && !isOptedOut(gameId)) syncFromCloud();
     });
     if (ready) render();
   }
