@@ -1416,19 +1416,43 @@ dcAuthBar.innerHTML = `
 `;
 document.body.appendChild(dcAuthBar);
 
+let dcPendingEmail = null;
+
 function dcRenderAuthBox() {
   const box = document.getElementById('dcAuthBox');
   if (dcSession) {
     box.innerHTML = `<span class="dcMsg">&#9729; ${dcSession.user.email}</span><button id="dcSignOut">Sign out</button>`;
     document.getElementById('dcSignOut').onclick = () => dcSupabase.auth.signOut();
+  } else if (dcPendingEmail) {
+    box.innerHTML = `<span class="dcMsg">code sent to ${dcPendingEmail}</span>
+      <input id="dcCode" type="text" inputmode="numeric" placeholder="6-digit code" style="width:90px">
+      <button id="dcVerify">Verify</button>
+      <button id="dcCancel" style="background:transparent;color:#3a4a3e;">&times;</button>`;
+    document.getElementById('dcVerify').onclick = async () => {
+      const token = document.getElementById('dcCode').value.trim();
+      if (!token) return;
+      box.querySelector('.dcMsg').textContent = 'Verifying…';
+      const { error } = await dcSupabase.auth.verifyOtp({ email: dcPendingEmail, token, type: 'email' });
+      if (error) {
+        box.innerHTML = `<span class="dcMsg">${error.message}</span>`;
+        setTimeout(() => { dcPendingEmail = null; dcRenderAuthBox(); }, 2500);
+      }
+      // on success, onAuthStateChange fires and re-renders as signed in
+    };
+    document.getElementById('dcCancel').onclick = () => { dcPendingEmail = null; dcRenderAuthBox(); };
   } else {
     box.innerHTML = `<input id="dcEmail" type="email" placeholder="email for cloud save"><button id="dcSignIn">Sign in</button>`;
     document.getElementById('dcSignIn').onclick = async () => {
       const email = document.getElementById('dcEmail').value.trim();
       if (!email) return;
-      box.innerHTML = '<span class="dcMsg">Sending link&hellip;</span>';
+      box.innerHTML = '<span class="dcMsg">Sending code&hellip;</span>';
       const { error } = await dcSupabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
-      box.innerHTML = error ? `<span class="dcMsg">${error.message}</span>` : '<span class="dcMsg">Check your email!</span>';
+      if (error) {
+        box.innerHTML = `<span class="dcMsg">${error.message}</span>`;
+      } else {
+        dcPendingEmail = email;
+        dcRenderAuthBox();
+      }
     };
   }
 }
