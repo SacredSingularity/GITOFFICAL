@@ -2,7 +2,8 @@
 
 - `lessoncanvas.html` — JSON-driven interactive lesson shell. Self-contained single file.
 - `graphcalc.html` — standalone Desmos-style graphing calculator. Also self-contained, and also embeddable via `createGraphCalc(container, options)`.
-- `validate-lesson.js` — offline validator for lesson JSON files: `node validate-lesson.js my-lesson.json`. Run this before shipping a lesson to a student; it catches things the app itself only ever reports as a `console.warn`.
+- `validate-lesson.js` — offline validator for lesson JSON files: `node validate-lesson.js my-lesson.json`. Run this before studying from a lesson; it catches things the app itself only ever reports as a `console.warn`.
+- `lessoncanvas-helper-proxy.js` — a deployable *alternative* backend for the AI Helper button (Claude via the Anthropic API). It is not what's currently live — the live endpoint is a separately-built Llama 3.1 8B Worker whose source isn't in this repo. Deploy this file yourself if you'd rather run the helper on Claude with your own API key; see its header comment for setup steps.
 
 ## Before studying from a new lesson
 
@@ -15,6 +16,16 @@
    through it for real. Watch for amber verification banners on graded blocks and any
    `console.warn` output — both mean something needs fixing before the lesson is trustworthy to
    study from.
+
+## AI Helper: no conversation history
+
+The AI Helper is stateless — each question is answered on its own, with no memory of earlier turns
+in the same session. This isn't an oversight: the live Llama Worker was confirmed, across three
+separate trials, to silently ignore a `messages` history field even when it was sent correctly, so
+sending it was pure waste and was removed. Deploying `lessoncanvas-helper-proxy.js` above and
+switching the hardcoded URL in `sendAiHelperQuestion()` would restore real history, since that
+Worker does read and use `messages`. (The AI Inspect panel, Dev Mode only, has the live request/
+response contract in full if you need more detail than this.)
 
 ## Re-embedding GraphCalc into LessonCanvas
 
@@ -45,7 +56,7 @@ diff games/graphcalc.html /tmp/decoded_check.html && echo "match"
 
 The comment directly above `GRAPHCALC_HTML_B64` in `lessoncanvas.html` records the source file's SHA-256 and the date it was last encoded — update both when you re-embed.
 
-**Don't forget the same file lives in exported per-lesson copies too.** Any standalone lesson file exported from this shell (e.g. files handed out to students) carries its own frozen copy of this same blob. Re-embedding in the shell does not update those; each exported copy needs the same treatment separately if it should pick up a GraphCalc change.
+**Don't forget the same file lives in exported per-lesson copies too.** Any standalone lesson file exported from this shell carries its own frozen copy of this same blob. Re-embedding in the shell does not update those; each exported copy needs the same treatment separately if it should pick up a GraphCalc change.
 
 ## The `</script>` escaping gotcha
 
