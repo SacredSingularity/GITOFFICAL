@@ -2325,6 +2325,9 @@
       box.innerHTML = '<button id="pwSignOut">Sign out</button>';
       document.getElementById("pwSignOut").onclick = function(){
         CloudSync.setOptOut(PW_GAME_ID, true);
+        pwState = pwDefaultState();
+        pwSaveState();
+        pwRenderAll();
         pwRenderAuthBox();
       };
     } else if(session){

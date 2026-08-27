@@ -1436,6 +1436,7 @@ function dcRenderAuthBox() {
     box.innerHTML = `<button id="dcSignOut">Sign out</button>`;
     document.getElementById('dcSignOut').onclick = () => {
       CloudSync.setOptOut(DC_GAME_ID, true); // only opts this game out, session elsewhere untouched
+      dcResetLocalState(); // clear this account's data locally so it doesn't linger while "signed out"
       dcRenderAuthBox();
     };
   } else if (session) {
@@ -1485,6 +1486,23 @@ function dcRenderAuthBox() {
 
   box.insertAdjacentHTML('beforeend', '<button id="dcHideBtn" title="hide">&times;</button>');
   document.getElementById('dcHideBtn').onclick = () => { CloudSync.setWidgetHidden(DC_GAME_ID, true); dcRenderAuthBox(); };
+}
+
+function dcResetLocalState() {
+  breadcrumbs = 0;
+  totalClicks = 0;
+  activeSkinId = 'default';
+  for (const k in upgradeLevels) delete upgradeLevels[k];
+  for (const k in claimedAchievements) delete claimedAchievements[k];
+  for (const k in cosmeticsOwned) delete cosmeticsOwned[k];
+  for (const k in cosmeticsEquipped) delete cosmeticsEquipped[k];
+  recomputeClickValue();
+  updateHUD();
+  renderShop();
+  renderAchievements();
+  renderDucksTab();
+  renderCosmeticsTab();
+  writeSave();
 }
 
 function dcApplyCloudSave(data) {

@@ -1426,6 +1426,7 @@ function qdRenderAuthBox() {
     box.innerHTML = `<button id="qdSignOut">Sign out</button>`;
     document.getElementById('qdSignOut').onclick = () => {
       CloudSync.setOptOut(QD_GAME_ID, true);
+      qdResetLocalState();
       qdRenderAuthBox();
     };
   } else if (session) {
@@ -1473,6 +1474,12 @@ function qdRenderAuthBox() {
 
   box.insertAdjacentHTML('beforeend', '<button id="qdHideBtn" title="hide">&times;</button>');
   document.getElementById('qdHideBtn').onclick = () => { CloudSync.setWidgetHidden(QD_GAME_ID, true); qdRenderAuthBox(); };
+}
+
+function qdResetLocalState() {
+  save = qdNormalizeSave({});
+  writeSave();
+  renderMenu();
 }
 
 async function qdSyncFromCloud() {

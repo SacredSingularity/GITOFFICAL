@@ -2082,6 +2082,7 @@ function dlRenderAuthBox() {
     box.innerHTML = `<button id="dlSignOut">Sign out</button>`;
     document.getElementById('dlSignOut').onclick = () => {
       CloudSync.setOptOut(DL_GAME_ID, true);
+      dlResetLocalState();
       dlRenderAuthBox();
     };
   } else if (session) {
@@ -2129,6 +2130,17 @@ function dlRenderAuthBox() {
 
   box.insertAdjacentHTML('beforeend', '<button id="dlHideBtn" title="hide">&times;</button>');
   document.getElementById('dlHideBtn').onclick = () => { CloudSync.setWidgetHidden(DL_GAME_ID, true); dlRenderAuthBox(); };
+}
+
+function dlResetLocalState() {
+  save = dlNormalizeSave({});
+  document.getElementById('money').textContent = save.money;
+  dayNightBtn.textContent = SCENE_ICONS[save.sceneMode];
+  renderInventory();
+  renderStatUpgrades();
+  renderRodGrid();
+  updateGambleButtonVisibility();
+  writeSave();
 }
 
 async function dlSyncFromCloud() {

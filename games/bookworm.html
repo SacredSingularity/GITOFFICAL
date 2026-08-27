@@ -2679,6 +2679,9 @@
       box.innerHTML = '<button id="bwSignOut">Sign out</button>';
       document.getElementById("bwSignOut").onclick = function(){
         CloudSync.setOptOut(BW_GAME_ID, true);
+        bwState = bwDefaultState();
+        bwSaveState();
+        bwRenderAll();
         bwRenderAuthBox();
       };
     } else if(session){
