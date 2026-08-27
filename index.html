@@ -202,12 +202,61 @@
   }
 
   footer span { color: var(--neon3); }
+
+  #gAuthBox {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: 'Courier New', ui-monospace, monospace;
+    font-size: 0.75rem;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 999px;
+    padding: 0.45em 0.9em;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 20px rgba(124,77,255,0.15);
+  }
+  #gAuthBox input {
+    background: rgba(5,5,15,0.6);
+    border: 1px solid var(--card-border);
+    border-radius: 999px;
+    color: #f2f2ff;
+    padding: 0.35em 0.8em;
+    font-family: inherit;
+    font-size: 0.75rem;
+    width: 150px;
+  }
+  #gAuthBox input::placeholder { color: #8888b0; }
+  #gAuthBox button {
+    background: transparent;
+    border: 1px solid var(--neon2);
+    color: var(--neon2);
+    border-radius: 999px;
+    padding: 0.35em 0.9em;
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  #gAuthBox button:hover { background: var(--neon2); color: #05050f; }
+  #gAuthBox .gMsg { color: #a8a8d0; white-space: nowrap; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="cloud-sync.js"></script>
 </head>
 <body>
   <canvas id="grid"></canvas>
   <div class="glow-orb"></div>
   <div class="glow-orb b"></div>
+
+  <div id="gAuthBox"></div>
 
   <header>
     <div class="badge">// gallery.exe online</div>
@@ -247,6 +296,66 @@
       `;
       main.appendChild(a);
     }
+
+    // -----------------------------------------------------------------
+    //  ACCOUNT — signing in here is the real, shared sign-in for every
+    //  game on this site (they all read the same Supabase session).
+    //  Signing out here ends that shared session everywhere. Each game
+    //  additionally offers its own "sign out", but that only opts that
+    //  one game out locally — it never touches the session created here.
+    // -----------------------------------------------------------------
+    let gPendingEmail = null;
+    let gShowEmailForm = false;
+
+    function gRenderAuthBox() {
+      const box = document.getElementById('gAuthBox');
+      const session = CloudSync.getSession();
+
+      if (session) {
+        box.innerHTML = `<button id="gSignOut">Sign out</button>`;
+        document.getElementById('gSignOut').onclick = () => CloudSync.signOutEverywhere();
+      } else if (gPendingEmail) {
+        box.innerHTML = `<span class="gMsg">code sent</span>
+          <input id="gCode" type="text" inputmode="numeric" placeholder="6-digit code" style="width:100px">
+          <button id="gVerify">Verify</button>
+          <button id="gCancel" style="border-color:transparent;color:#8888b0;">&times;</button>`;
+        document.getElementById('gVerify').onclick = async () => {
+          const token = document.getElementById('gCode').value.trim();
+          if (!token) return;
+          box.querySelector('.gMsg').textContent = 'Verifying…';
+          const { error } = await CloudSync.verifyCode(gPendingEmail, token);
+          if (error) {
+            box.innerHTML = `<span class="gMsg">${error.message}</span>`;
+            setTimeout(() => { gPendingEmail = null; gShowEmailForm = false; gRenderAuthBox(); }, 2500);
+          }
+        };
+        document.getElementById('gCancel').onclick = () => { gPendingEmail = null; gShowEmailForm = false; gRenderAuthBox(); };
+      } else if (gShowEmailForm) {
+        box.innerHTML = `<input id="gEmail" type="email" placeholder="email for cloud save"><button id="gSignIn">Send code</button>`;
+        document.getElementById('gSignIn').onclick = async () => {
+          const email = document.getElementById('gEmail').value.trim();
+          if (!email) return;
+          box.innerHTML = '<span class="gMsg">Sending code&hellip;</span>';
+          const { error } = await CloudSync.requestCode(email);
+          if (error) {
+            box.innerHTML = `<span class="gMsg">${error.message}</span>`;
+            setTimeout(() => { gShowEmailForm = false; gRenderAuthBox(); }, 2500);
+          } else {
+            gPendingEmail = email;
+            gRenderAuthBox();
+          }
+        };
+      } else {
+        box.innerHTML = `<button id="gOpenSignIn">Sign in</button>`;
+        document.getElementById('gOpenSignIn').onclick = () => { gShowEmailForm = true; gRenderAuthBox(); };
+      }
+    }
+
+    CloudSync.subscribe(() => {
+      gPendingEmail = null;
+      gShowEmailForm = false;
+      gRenderAuthBox();
+    });
 
     const canvas = document.getElementById('grid');
     const ctx = canvas.getContext('2d');

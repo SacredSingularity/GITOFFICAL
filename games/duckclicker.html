@@ -185,6 +185,7 @@ body {
 .cosmetic-toggle-btn.unequip:hover { background: rgba(255,255,255,0.8); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../cloud-sync.js"></script>
 </head>
 <body>
 <div id="app">
@@ -1387,16 +1388,13 @@ renderDucksTab();
 renderCosmeticsTab();
 
 // -------------------------------------------------------------------
-//  CLOUD SYNC — optional Supabase account so progress follows you
-//  across devices. Fully opt-in: with no session, the game behaves
-//  exactly as before (localStorage only). Signing in pulls the cloud
-//  save down (if one exists) and writeSave() pushes to it from then on.
+//  CLOUD SYNC — optional account (via shared cloud-sync.js) so progress
+//  follows you across devices and games. Fully opt-in: with no session,
+//  or with this game locally opted out, it behaves exactly as before
+//  (localStorage only). "Sign out" here only opts *this* game out —
+//  it does not end the shared session used by other games/the menu.
 // -------------------------------------------------------------------
-const dcSupabase = window.supabase.createClient(
-  'https://jfdpliogytcysqwaeted.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmZHBsaW9neXRjeXNxd2FldGVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4MTAxODYsImV4cCI6MjEwMzM4NjE4Nn0.xGJdKDDsWK-92bvFSXDQnQXVWehkHd2mgAiB5Gv_HIE'
-);
-let dcSession = null;
+const DC_GAME_ID = 'duckclicker';
 
 const dcAuthBar = document.createElement('div');
 dcAuthBar.innerHTML = `
@@ -1421,9 +1419,23 @@ let dcShowEmailForm = false;
 
 function dcRenderAuthBox() {
   const box = document.getElementById('dcAuthBox');
-  if (dcSession) {
+  const session = CloudSync.getSession();
+
+  if (session && CloudSync.isGameActive(DC_GAME_ID)) {
+    // signed in and active for this game
     box.innerHTML = `<button id="dcSignOut">Sign out</button>`;
-    document.getElementById('dcSignOut').onclick = () => dcSupabase.auth.signOut();
+    document.getElementById('dcSignOut').onclick = () => {
+      CloudSync.setOptOut(DC_GAME_ID, true); // only opts this game out, session elsewhere untouched
+      dcRenderAuthBox();
+    };
+  } else if (session) {
+    // signed in globally, but this game was locally opted out — one click re-activates, no email needed
+    box.innerHTML = `<button id="dcReactivate">Sign in</button>`;
+    document.getElementById('dcReactivate').onclick = async () => {
+      CloudSync.setOptOut(DC_GAME_ID, false);
+      dcRenderAuthBox();
+      await dcSyncFromCloud();
+    };
   } else if (dcPendingEmail) {
     box.innerHTML = `<span class="dcMsg">code sent to ${dcPendingEmail}</span>
       <input id="dcCode" type="text" inputmode="numeric" placeholder="6-digit code" style="width:90px">
@@ -1433,12 +1445,12 @@ function dcRenderAuthBox() {
       const token = document.getElementById('dcCode').value.trim();
       if (!token) return;
       box.querySelector('.dcMsg').textContent = 'Verifying…';
-      const { error } = await dcSupabase.auth.verifyOtp({ email: dcPendingEmail, token, type: 'email' });
+      const { error } = await CloudSync.verifyCode(dcPendingEmail, token);
       if (error) {
         box.innerHTML = `<span class="dcMsg">${error.message}</span>`;
         setTimeout(() => { dcPendingEmail = null; dcShowEmailForm = false; dcRenderAuthBox(); }, 2500);
       }
-      // on success, onAuthStateChange fires and re-renders as signed in
+      // on success, CloudSync's subscribe callback fires and re-renders as signed in
     };
     document.getElementById('dcCancel').onclick = () => { dcPendingEmail = null; dcShowEmailForm = false; dcRenderAuthBox(); };
   } else if (dcShowEmailForm) {
@@ -1447,7 +1459,7 @@ function dcRenderAuthBox() {
       const email = document.getElementById('dcEmail').value.trim();
       if (!email) return;
       box.innerHTML = '<span class="dcMsg">Sending code&hellip;</span>';
-      const { error } = await dcSupabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+      const { error } = await CloudSync.requestCode(email);
       if (error) {
         box.innerHTML = `<span class="dcMsg">${error.message}</span>`;
         setTimeout(() => { dcShowEmailForm = false; dcRenderAuthBox(); }, 2500);
@@ -1461,7 +1473,6 @@ function dcRenderAuthBox() {
     document.getElementById('dcOpenSignIn').onclick = () => { dcShowEmailForm = true; dcRenderAuthBox(); };
   }
 }
-dcRenderAuthBox();
 
 function dcApplyCloudSave(data) {
   breadcrumbs = data.breadcrumbs || 0;
@@ -1481,36 +1492,22 @@ function dcApplyCloudSave(data) {
 }
 
 async function dcSyncFromCloud() {
-  const { data } = await dcSupabase
-    .from('game_saves')
-    .select('data')
-    .eq('user_id', dcSession.user.id)
-    .eq('game_id', 'duckclicker')
-    .maybeSingle();
-  if (data) dcApplyCloudSave(data.data);
+  const data = await CloudSync.pullSave(DC_GAME_ID);
+  if (data) dcApplyCloudSave(data);
 }
 
 function dcPushCloudSave(payload) {
-  if (!dcSession) return;
-  dcSupabase.from('game_saves').upsert({
-    user_id: dcSession.user.id,
-    game_id: 'duckclicker',
-    data: payload,
-    updated_at: new Date().toISOString(),
-  }).then(({ error }) => { if (error) console.warn('cloud save failed:', error.message); });
+  CloudSync.pushSave(DC_GAME_ID, payload);
 }
 
-dcSupabase.auth.onAuthStateChange((_event, session) => {
-  const justSignedIn = !dcSession && session;
-  dcSession = session;
+let dcHadSession = false;
+CloudSync.subscribe((session) => {
+  const justSignedIn = !dcHadSession && !!session;
+  dcHadSession = !!session;
+  dcPendingEmail = null;
+  dcShowEmailForm = false;
   dcRenderAuthBox();
-  if (justSignedIn) dcSyncFromCloud();
-});
-
-dcSupabase.auth.getSession().then(({ data: { session } }) => {
-  dcSession = session;
-  dcRenderAuthBox();
-  if (session) dcSyncFromCloud();
+  if (justSignedIn && CloudSync.isGameActive(DC_GAME_ID)) dcSyncFromCloud();
 });
 </script>
 </body>
