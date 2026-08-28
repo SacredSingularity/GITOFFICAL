@@ -157,14 +157,10 @@
           const token = val(boxId + '_code');
           if (!token) return;
           errorMsg = 'Verifying…'; render();
-          console.log('[CloudSync debug] calling verifyOtp, mode=', mode);
           const { error } = await sb.auth.verifyOtp({ email: pendingEmail, token, type: 'email' });
-          console.log('[CloudSync debug] verifyOtp resolved, error=', error, 'mode is now=', mode, 'session=', !!session);
           if (error) { errorMsg = error.message; render(); return; }
           mode = 'setpw';
-          console.log('[CloudSync debug] set mode=setpw, about to render');
           render();
-          console.log('[CloudSync debug] render done, box innerHTML=', box().innerHTML.slice(0, 120));
         };
         document.getElementById(boxId + '_back').onclick = () => { resetTransient(); render(); };
       } else if (mode === 'signup') {
@@ -226,17 +222,15 @@
 
     let hadSession = false;
     listeners.push((s) => {
-      console.log('[CloudSync debug] listener fired for', boxId, 'session=', !!s, 'mode=', mode);
       // 'code'/'setpw' are a deliberate multi-step flow this widget is already
       // mid-way through; verifyOtp()/updateUser() fire this same auth-change
       // event at unpredictable times relative to their own await continuing,
       // so rather than race it, just don't touch anything while those steps
       // own the screen — the button handlers driving them call render()
       // themselves once each step actually finishes.
-      if (mode === 'code' || mode === 'setpw') { hadSession = !!s; console.log('[CloudSync debug] listener skipped (mid-flow)'); return; }
+      if (mode === 'code' || mode === 'setpw') { hadSession = !!s; return; }
       const justSignedIn = !hadSession && !!s;
       hadSession = !!s;
-      console.log('[CloudSync debug] listener proceeding: resetTransient + render, justSignedIn=', justSignedIn);
       resetTransient();
       render();
       if (justSignedIn && gameId && !isOptedOut(gameId)) syncFromCloud();
