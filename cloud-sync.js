@@ -19,6 +19,19 @@
   const SUPABASE_URL = 'https://jfdpliogytcysqwaeted.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmZHBsaW9neXRjeXNxd2FldGVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4MTAxODYsImV4cCI6MjEwMzM4NjE4Nn0.xGJdKDDsWK-92bvFSXDQnQXVWehkHd2mgAiB5Gv_HIE';
 
+  // every game's localStorage save key — kept here (not just inside each
+  // game's own page) so a real sign-out from the menu can wipe every game's
+  // local data even though the menu never loads those games' scripts.
+  // All pages share one origin, so localStorage is already shared; this
+  // list just needs to be kept in sync with each game's own SAVE_KEY.
+  const KNOWN_GAME_SAVE_KEYS = {
+    duckclicker: 'duckClickerSave',
+    bookworm: 'bookworm_state_v1',
+    pitwall: 'pitwall_state_v1',
+    driftline: 'driftlineSave',
+    quickdraw: 'quickdrawSave',
+  };
+
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   let session = null;
   let ready = false;
@@ -46,6 +59,20 @@
 
   sb.auth.getSession().then(({ data }) => { session = data.session; ready = true; notify(); });
   sb.auth.onAuthStateChange((_event, s) => { session = s; ready = true; notify(); });
+
+  // wipes every known game's local save + resets its opt-out flag, so a
+  // real account sign-out (from the menu) leaves no account data behind
+  // in any game, not just the page the sign-out happened on.
+  function wipeAllGameLocalData() {
+    Object.keys(KNOWN_GAME_SAVE_KEYS).forEach((gameId) => {
+      try { localStorage.removeItem(KNOWN_GAME_SAVE_KEYS[gameId]); } catch (e) { /* ignore */ }
+      setOptOut(gameId, false);
+    });
+  }
+  function realSignOut() {
+    wipeAllGameLocalData();
+    return sb.auth.signOut();
+  }
 
   // one shared stylesheet for the bits every widget's markup uses, so each
   // page only has to theme its own container/input/button colors
@@ -129,7 +156,7 @@
             setOptOut(gameId, true);
             resetLocalState();
           } else {
-            sb.auth.signOut();
+            realSignOut();
           }
           render();
         };
@@ -241,7 +268,7 @@
   global.CloudSync = {
     subscribe(fn) { listeners.push(fn); if (ready) fn(session); },
     getSession() { return session; },
-    signOutEverywhere() { return sb.auth.signOut(); },
+    signOutEverywhere() { return realSignOut(); },
 
     isOptedOut,
     setOptOut,
