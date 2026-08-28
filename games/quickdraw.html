@@ -298,15 +298,28 @@ ctx.imageSmoothingEnabled = false;
 let SCALE = 1;
 function fitStage() {
   const pad = 20;
-  const s = Math.min((window.innerWidth - pad) / VW, (window.innerHeight - pad) / VH);
+  // visualViewport reflects the actually-visible area on mobile (excludes
+  // the on-screen keyboard and shrinks as browser chrome like the address
+  // bar appears) -- window.innerWidth/Height can overstate that on phones,
+  // which is what was letting the bottom of the stage get cut off.
+  const vv = window.visualViewport;
+  const availW = vv ? vv.width : window.innerWidth;
+  const availH = vv ? vv.height : window.innerHeight;
+  const s = Math.min((availW - pad) / VW, (availH - pad) / VH);
   SCALE = (isFinite(s) && s > 0) ? Math.max(0.25, s) : 1;
   stage.style.transform = 'scale(' + SCALE + ')';
 }
 window.addEventListener('resize', fitStage);
+window.addEventListener('orientationchange', fitStage);
 window.addEventListener('load', fitStage);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', fitStage);
+  window.visualViewport.addEventListener('scroll', fitStage);
+}
 fitStage();
 requestAnimationFrame(fitStage);
 setTimeout(fitStage, 200);
+setTimeout(fitStage, 800);
 
 // -------------------------------------------------------------------
 //  PIXEL SPRITE FACTORY

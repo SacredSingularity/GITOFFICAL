@@ -711,9 +711,16 @@ window.addEventListener('beforeunload', writeSave);
 let actx = null;
 let audioFailed = false;
 function audio() {
-  if (actx || audioFailed) return actx;
-  try { actx = new (window.AudioContext || window.webkitAudioContext)(); }
-  catch (e) { audioFailed = true; actx = null; }
+  if (!actx && !audioFailed) {
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { audioFailed = true; actx = null; }
+  }
+  // mobile browsers (iOS Safari especially) start a freshly-created context
+  // suspended even when the creation happens inside a real tap/click — it
+  // has to be explicitly resumed, and that resume call itself has to happen
+  // inside a genuine user-gesture handler, which every caller of audio()
+  // here already is (click/tap sound effects).
+  if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
   return actx;
 }
 function blip(freq, dur, type, vol, slideTo) {
