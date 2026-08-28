@@ -295,4 +295,43 @@
       return data ? data.data : null;
     },
   };
+
+  // -------------------------------------------------------------------
+  //  UPDATE CHECK — a page that's been open a while doesn't know the
+  //  server's copy of itself has changed since it loaded (deploys don't
+  //  push to open tabs). Rather than requiring a manual refresh-and-hope,
+  //  poll this exact URL for its ETag and surface a small "reload" banner
+  //  the moment it differs, instead of silently forcing a reload mid-use.
+  // -------------------------------------------------------------------
+  let knownEtag = null;
+  async function checkForPageUpdate() {
+    try {
+      const res = await fetch(window.location.pathname + window.location.search, { cache: 'no-store', method: 'HEAD' });
+      const etag = res.headers.get('etag') || res.headers.get('last-modified');
+      if (!etag) return;
+      if (knownEtag === null) { knownEtag = etag; return; }
+      if (etag !== knownEtag) showUpdateBanner();
+    } catch (e) { /* offline, or request blocked — just skip this check */ }
+  }
+  function showUpdateBanner() {
+    if (document.getElementById('cloudSyncUpdateBanner')) return;
+    const bar = document.createElement('div');
+    bar.id = 'cloudSyncUpdateBanner';
+    bar.innerHTML = `
+      <style>
+        #cloudSyncUpdateBanner { position: fixed; bottom: 0; left: 0; right: 0; z-index: 99999;
+          background: #1c1c26; color: #f2f2ff; font-family: system-ui, sans-serif; font-size: 13px;
+          padding: 10px 16px; display: flex; align-items: center; justify-content: center; gap: 12px;
+          box-shadow: 0 -2px 10px rgba(0,0,0,0.3); }
+        #cloudSyncUpdateBanner button { background: #ffb347; color: #2c1a0e; border: none;
+          border-radius: 6px; padding: 6px 14px; font-weight: 700; cursor: pointer; font-size: 13px; }
+      </style>
+      <span>This page has been updated.</span>
+      <button id="cloudSyncUpdateReload">Reload</button>
+    `;
+    document.body.appendChild(bar);
+    document.getElementById('cloudSyncUpdateReload').onclick = () => window.location.reload();
+  }
+  setInterval(checkForPageUpdate, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForPageUpdate(); });
 })(window);
