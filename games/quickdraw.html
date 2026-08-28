@@ -996,6 +996,12 @@ window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   if (e.code === 'Space' && state === State.PLAYING) tryFire();
 });
+// tap-to-fire for touch devices — bound to the canvas itself (not #stage)
+// so taps on the HUD chips/buttons, which are siblings of the canvas,
+// never bubble into a shot attempt.
+document.getElementById('game').addEventListener('click', () => {
+  if (state === State.PLAYING) tryFire();
+});
 
 document.getElementById('playBtn').addEventListener('click', startRun);
 document.getElementById('nextRoundBtn').addEventListener('click', () => {

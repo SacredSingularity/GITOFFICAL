@@ -260,7 +260,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
       <div id="backpackBtn" title="Inventory">🎒</div>
     </div>
   </div>
-  <div id="castHint">Press <kbd>Space</kbd> to cast</div>
+  <div id="castHint">Tap the water or press <kbd>Space</kbd> to cast</div>
 
   <!-- Phase 2: colour-matching minigame -->
   <div class="overlay" id="minigameScreen">
@@ -1724,6 +1724,10 @@ window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   if (e.code === 'Space') startCast();
 });
+// tap-to-cast for touch devices — bound to the canvas itself (not #stage)
+// so taps on the HUD buttons, which are siblings of the canvas, never
+// bubble into a cast attempt.
+document.getElementById('game').addEventListener('click', () => startCast());
 // -------------------------------------------------------------------
 //  PHASE 4 — inventory (stored fish, grouped with a stack-count badge)
 // -------------------------------------------------------------------

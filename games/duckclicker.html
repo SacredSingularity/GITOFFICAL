@@ -183,11 +183,54 @@ body {
 }
 .cosmetic-toggle-btn.unequip { background: rgba(255,255,255,0.6); border-color: rgba(90,106,94,0.35); color: #4a5a4e; }
 .cosmetic-toggle-btn.unequip:hover { background: rgba(255,255,255,0.8); }
+
+/* --- rotate-to-landscape prompt (phones in portrait only) --- */
+#rotatePrompt {
+  display: none;
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(20,30,25,0.96); color: #fff;
+  flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 30px; gap: 14px;
+}
+#rotatePrompt .icon { font-size: 48px; animation: rotateHint 1.6s ease-in-out infinite; }
+@keyframes rotateHint { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(90deg); } }
+#rotatePrompt h2 { font-size: 19px; margin: 0; }
+#rotatePrompt p { font-size: 14px; color: rgba(255,255,255,0.75); max-width: 280px; margin: 0; line-height: 1.4; }
+
+@media (max-width: 820px) and (orientation: portrait) {
+  #rotatePrompt { display: flex; }
+  #app { display: none; }
+}
+
+/* --- tighter layout so everything fits once actually in landscape on a phone --- */
+@media (max-width: 900px) {
+  #main { flex-direction: column; }
+  #duckStage { flex: none; height: 38vh; min-height: 160px; }
+  #duckCanvas { width: auto; height: 100%; max-width: 100%; }
+  #shopPanel { flex: 1; max-width: none; min-width: 0; }
+}
+
+@media (max-height: 520px) {
+  body { overflow-y: auto; }
+  #app { height: auto; min-height: 100%; gap: 6px; padding: 8px 0; }
+  #hud { padding: 6px 14px; }
+  #crumbCount { font-size: 18px; }
+  #cpsLine { margin-left: 10px; }
+  #tabs { gap: 6px; }
+  .tab-btn { padding: 5px 12px; font-size: 11px; }
+  #duckStage { height: 30vh; min-height: 130px; }
+  #shopPanel, #achievementsPanel, #ducksPanel, #cosmeticsPanel { padding: 8px; }
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../cloud-sync.js?v=3"></script>
 </head>
 <body>
+<div id="rotatePrompt">
+  <div class="icon">📱</div>
+  <h2>Rotate your device</h2>
+  <p>Duck Clicker works best in landscape — turn your phone sideways to play.</p>
+</div>
 <div id="app">
   <div id="hud">
     <span id="crumbCount">0</span><span id="crumbLabel">breadcrumbs</span>
