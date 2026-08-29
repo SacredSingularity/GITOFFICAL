@@ -301,10 +301,29 @@ function fitStage() {
   const s = Math.min((window.innerWidth - pad) / VW, (window.innerHeight - pad) / VH);
   SCALE = (isFinite(s) && s > 0) ? Math.max(0.25, s) : 1;
   stage.style.transform = 'scale(' + SCALE + ')';
+  updateDebugOverlay();
 }
 window.addEventListener('resize', fitStage);
 window.addEventListener('orientationchange', fitStage);
 window.addEventListener('load', fitStage);
+
+// TEMPORARY debug readout — shows exactly what this device computes,
+// since remote testing has repeatedly predicted different behavior
+// than what actually shows up on a real phone. Remove once resolved.
+const debugEl = document.createElement('div');
+debugEl.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#000;color:#0f0;' +
+  'font:11px monospace;padding:4px 8px;white-space:pre-wrap;pointer-events:none;';
+document.body.appendChild(debugEl);
+function updateDebugOverlay() {
+  const rect = stage.getBoundingClientRect();
+  debugEl.textContent =
+    'innerW/H: ' + window.innerWidth + ' x ' + window.innerHeight +
+    '  |  devicePixelRatio: ' + window.devicePixelRatio +
+    '  |  SCALE: ' + SCALE.toFixed(3) +
+    '\nstage rect: left=' + rect.left.toFixed(0) + ' top=' + rect.top.toFixed(0) +
+    ' width=' + rect.width.toFixed(0) + ' height=' + rect.height.toFixed(0) +
+    '  |  orientation: ' + (screen.orientation ? screen.orientation.type : 'unknown');
+}
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', fitStage);
   window.visualViewport.addEventListener('scroll', fitStage);
