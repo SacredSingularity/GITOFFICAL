@@ -202,24 +202,34 @@ body {
   #app { display: none; }
 }
 
-/* --- tighter layout so everything fits once actually in landscape on a phone --- */
-@media (max-width: 900px) {
+/* --- narrow but tall window (e.g. a resized desktop browser) --- */
+@media (max-width: 900px) and (min-aspect-ratio: 3/5) and (orientation: portrait) {
   #main { flex-direction: column; }
   #duckStage { flex: none; height: 38vh; min-height: 160px; }
   #duckCanvas { width: auto; height: 100%; max-width: 100%; }
   #shopPanel { flex: 1; max-width: none; min-width: 0; }
 }
 
-@media (max-height: 520px) {
-  body { overflow-y: auto; }
-  #app { height: auto; min-height: 100%; gap: 6px; padding: 8px 0; }
-  #hud { padding: 6px 14px; }
-  #crumbCount { font-size: 18px; }
-  #cpsLine { margin-left: 10px; }
-  #tabs { gap: 6px; }
-  .tab-btn { padding: 5px 12px; font-size: 11px; }
-  #duckStage { height: 30vh; min-height: 130px; }
-  #shopPanel, #achievementsPanel, #ducksPanel, #cosmeticsPanel { padding: 8px; }
+/* --- phone in landscape: this is the real target once past the rotate
+   prompt, so keep duck|shop side by side (there's width to spare) and
+   just compact everything to fit the short height instead of stacking --- */
+@media (max-height: 520px) and (orientation: landscape) {
+  html, body { overflow-y: auto; }
+  #app { width: 100%; max-width: 100vw; height: auto; min-height: 100%; gap: 5px; padding: 6px 8px; }
+  #hud { padding: 4px 12px; }
+  #crumbCount { font-size: 16px; }
+  #crumbLabel { font-size: 10px; margin-left: 5px; }
+  #cpsLine { font-size: 10px; margin-left: 8px; }
+  #tabs { gap: 5px; }
+  .tab-btn { padding: 4px 10px; font-size: 10px; }
+  #main { flex-direction: row; gap: 6px; }
+  #duckStage { min-height: 0; }
+  #shopPanel { padding: 8px; gap: 6px; min-width: 0; max-width: 42%; }
+  #shopPanel h2 { font-size: 11px; margin-bottom: 2px; }
+  .upgrade-card, .achievement-card, .skin-card, .cosmetic-card { padding: 6px 8px; gap: 6px; }
+  .upgrade-name, .achievement-name, .skin-name, .cosmetic-name { font-size: 11px; }
+  .upgrade-desc, .achievement-desc, .cosmetic-desc { font-size: 9.5px; }
+  .upgrade-buy-btn, .achievement-claim-btn, .skin-select-btn, .cosmetic-buy-btn, .cosmetic-toggle-btn { padding: 5px 8px; font-size: 10px; }
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
