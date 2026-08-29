@@ -134,7 +134,8 @@ canvas { display: block; touch-action: none; }
 @keyframes loadingSpin { to { transform: rotate(360deg); } }
 #loadingScreen p { font-size: 14px; color: rgba(255,255,255,0.6); letter-spacing: 0.5px; }
 
-/* --- rotate-to-landscape prompt (phones and tablets in portrait) --- */
+/* --- rotate-to-landscape prompt (tablets in portrait only -- phones are
+   blocked outright below regardless of orientation) --- */
 #rotatePrompt {
   display: none;
   position: fixed; inset: 0; z-index: 99999;
@@ -147,8 +148,30 @@ canvas { display: block; touch-action: none; }
 #rotatePrompt h2 { font-size: 19px; margin: 0; }
 #rotatePrompt p { font-size: 14px; color: rgba(255,255,255,0.75); max-width: 300px; margin: 0; line-height: 1.4; }
 
-@media (orientation: portrait) and (pointer: coarse) {
+/* tablet (short side >= 768px) in portrait: ask them to rotate */
+@media (pointer: coarse) and (orientation: portrait) and (min-width: 768px) {
   #rotatePrompt { display: flex; }
+  #hud, #view-toggle, #info, #speed-control, #pause-overlay, #planet-info, #detail-panel, #music-control { display: none !important; }
+}
+
+/* --- phone disclaimer: screen too small for this experience regardless of
+   orientation, so this is a hard block rather than a rotate prompt --- */
+#phoneBlock {
+  display: none;
+  position: fixed; inset: 0; z-index: 100000;
+  background: rgba(5,5,15,0.98); color: #fff;
+  flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 30px; gap: 14px;
+}
+#phoneBlock .icon { font-size: 44px; }
+#phoneBlock h2 { font-size: 19px; margin: 0; }
+#phoneBlock p { font-size: 14px; color: rgba(255,255,255,0.75); max-width: 300px; margin: 0; line-height: 1.4; }
+
+/* phone (short side < 768px) in either orientation */
+@media (pointer: coarse) and (orientation: portrait) and (max-width: 767px),
+       (pointer: coarse) and (orientation: landscape) and (max-height: 767px) {
+  #phoneBlock { display: flex; }
+  #rotatePrompt { display: none !important; }
   #hud, #view-toggle, #info, #speed-control, #pause-overlay, #planet-info, #detail-panel, #music-control { display: none !important; }
 }
 </style>
@@ -162,7 +185,13 @@ canvas { display: block; touch-action: none; }
 <div id="rotatePrompt">
   <div class="icon">📱</div>
   <h2>Rotate your device</h2>
-  <p>The Solar System simulator works best in landscape — turn your phone or tablet sideways to explore.</p>
+  <p>The Solar System simulator works best in landscape — turn your tablet sideways to explore.</p>
+</div>
+
+<div id="phoneBlock">
+  <div class="icon">🪐</div>
+  <h2>Desktop or tablet only</h2>
+  <p>The Solar System simulator needs more screen than a phone can offer. Please open this on a desktop or tablet instead.</p>
 </div>
 
 <div id="hud"></div>
