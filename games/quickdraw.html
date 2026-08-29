@@ -15,7 +15,7 @@ body {
 }
 #stage {
   position: relative;
-  width: 480px; height: 720px;
+  width: 560px; height: 720px;
   transform-origin: center center;
   box-shadow: 0 0 60px rgba(255,140,40,0.10), inset 0 0 140px rgba(0,0,0,0.65);
   border: 3px solid #4a2e18;
@@ -288,7 +288,7 @@ window.addEventListener('error', (e) => {
   el.textContent += 'JS ERROR: ' + e.message + '  (' + e.filename + ':' + e.lineno + ')\n';
 });
 
-const VW = 480, VH = 720;
+const VW = 560, VH = 720;
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const stage = document.getElementById('stage');
