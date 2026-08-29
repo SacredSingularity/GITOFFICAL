@@ -215,7 +215,8 @@ body {
    just compact everything to fit the short height instead of stacking --- */
 @media (max-height: 520px) and (orientation: landscape) {
   html, body { overflow-y: auto; }
-  #app { width: 100%; max-width: 100vw; height: auto; min-height: 100%; gap: 5px; padding: 6px 8px; }
+  body { align-items: flex-start; }
+  #app { width: 100%; max-width: 100vw; height: 100vh; max-height: 100vh; gap: 5px; padding: 6px 8px; }
   #hud { padding: 4px 12px; }
   #crumbCount { font-size: 16px; }
   #crumbLabel { font-size: 10px; margin-left: 5px; }
