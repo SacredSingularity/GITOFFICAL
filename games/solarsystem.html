@@ -113,6 +113,27 @@ canvas { display: block; touch-action: none; }
 #music-toggle { font-size: 14px; }
 #music-song { min-width: 80px; text-align: center; }
 
+/* --- loading screen: this file is large (embedded audio), so downloading
+   it can take a noticeable few seconds -- without this the page is just a
+   black screen with nothing else rendered yet, which reads as broken. This
+   sits early in the body (before the big inline script) so the browser can
+   paint it as soon as this much of the page has arrived, well before the
+   rest finishes downloading. Removed by the last line of the main script,
+   once the scene is actually built and ready. */
+#loadingScreen {
+  position: fixed; inset: 0; z-index: 999999;
+  background: #05050a; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; font-family: 'Segoe UI', sans-serif;
+}
+#loadingScreen .spinner {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 3px solid rgba(127,219,202,0.2); border-top-color: #7fdbca;
+  animation: loadingSpin 0.9s linear infinite;
+}
+@keyframes loadingSpin { to { transform: rotate(360deg); } }
+#loadingScreen p { font-size: 14px; color: rgba(255,255,255,0.6); letter-spacing: 0.5px; }
+
 /* --- rotate-to-landscape prompt (phones and tablets in portrait) --- */
 #rotatePrompt {
   display: none;
@@ -133,6 +154,10 @@ canvas { display: block; touch-action: none; }
 </style>
 </head>
 <body>
+<div id="loadingScreen">
+  <div class="spinner"></div>
+  <p>Loading Solar System&hellip;</p>
+</div>
 
 <div id="rotatePrompt">
   <div class="icon">📱</div>
@@ -2544,6 +2569,8 @@ document.getElementById('music-next').addEventListener('click', switchSong);
 document.getElementById('music-song').addEventListener('click', switchSong);
 
 init();
+const loadingScreenEl = document.getElementById('loadingScreen');
+if (loadingScreenEl) loadingScreenEl.remove();
 </script>
 </body>
 </html>
