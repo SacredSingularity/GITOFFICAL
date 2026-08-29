@@ -148,8 +148,9 @@ canvas { display: block; touch-action: none; }
 #rotatePrompt h2 { font-size: 19px; margin: 0; }
 #rotatePrompt p { font-size: 14px; color: rgba(255,255,255,0.75); max-width: 300px; margin: 0; line-height: 1.4; }
 
-/* tablet (short side >= 768px) in portrait: ask them to rotate */
-@media (pointer: coarse) and (orientation: portrait) and (min-width: 768px) {
+/* tablet (short side >= 600px, matching the phone-block boundary below so
+   there's no dead zone in between) in portrait: ask them to rotate */
+@media (pointer: coarse) and (orientation: portrait) and (min-width: 600px) {
   #rotatePrompt { display: flex; }
   #hud, #view-toggle, #info, #speed-control, #pause-overlay, #planet-info, #detail-panel, #music-control { display: none !important; }
 }
@@ -166,13 +167,30 @@ canvas { display: block; touch-action: none; }
 #phoneBlock .icon { font-size: 44px; }
 #phoneBlock h2 { font-size: 19px; margin: 0; }
 #phoneBlock p { font-size: 14px; color: rgba(255,255,255,0.75); max-width: 300px; margin: 0; line-height: 1.4; }
+#phoneBlock .force-btn {
+  margin-top: 6px; background: transparent; border: 1px solid rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.6); font-size: 12px; padding: 8px 16px; border-radius: 20px;
+  cursor: pointer; font-family: inherit;
+}
+#phoneBlock .force-btn:hover { border-color: rgba(255,255,255,0.5); color: #fff; }
 
-/* phone (short side < 768px) in either orientation */
-@media (pointer: coarse) and (orientation: portrait) and (max-width: 767px),
-       (pointer: coarse) and (orientation: landscape) and (max-height: 767px) {
-  #phoneBlock { display: flex; }
-  #rotatePrompt { display: none !important; }
-  #hud, #view-toggle, #info, #speed-control, #pause-overlay, #planet-info, #detail-panel, #music-control { display: none !important; }
+/* Real phones top out around 430-450px on their short side even on the
+   biggest "Pro Max"-class devices; real tablets (even iPad mini) start at
+   744px. 600px sits comfortably in that gap so a tablet never gets
+   misclassified as a phone. `:not(.force-desktop)` lets the failsafe
+   button below override this if a device still slips through anyway. */
+@media (pointer: coarse) and (orientation: portrait) and (max-width: 599px),
+       (pointer: coarse) and (orientation: landscape) and (max-height: 599px) {
+  html:not(.force-desktop) #phoneBlock { display: flex; }
+  html:not(.force-desktop) #rotatePrompt { display: none !important; }
+  html:not(.force-desktop) #hud,
+  html:not(.force-desktop) #view-toggle,
+  html:not(.force-desktop) #info,
+  html:not(.force-desktop) #speed-control,
+  html:not(.force-desktop) #pause-overlay,
+  html:not(.force-desktop) #planet-info,
+  html:not(.force-desktop) #detail-panel,
+  html:not(.force-desktop) #music-control { display: none !important; }
 }
 </style>
 </head>
@@ -192,7 +210,20 @@ canvas { display: block; touch-action: none; }
   <div class="icon">🪐</div>
   <h2>Desktop or tablet only</h2>
   <p>The Solar System simulator needs more screen than a phone can offer. Please open this on a desktop or tablet instead.</p>
+  <button class="force-btn" id="forceDesktopBtn">I am on desktop/tablet</button>
 </div>
+<script>
+  // failsafe: some tablets can report screen dimensions the size check
+  // above doesn't expect. Remembers the choice so it doesn't ask again on
+  // this device.
+  if (localStorage.getItem('ssForceDesktop') === '1') {
+    document.documentElement.classList.add('force-desktop');
+  }
+  document.getElementById('forceDesktopBtn').addEventListener('click', () => {
+    try { localStorage.setItem('ssForceDesktop', '1'); } catch (e) {}
+    document.documentElement.classList.add('force-desktop');
+  });
+</script>
 
 <div id="hud"></div>
 <div id="view-toggle"></div>
