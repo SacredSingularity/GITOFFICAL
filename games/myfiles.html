@@ -81,7 +81,18 @@
   #dropZone .icon { font-size: 2rem; display: block; margin-bottom: 0.75rem; }
   #fileInput { display: none; }
 
-  #uploadStatus { margin-top: 0.75rem; font-size: 0.8rem; color: var(--neon2); min-height: 1.2em; }
+  #uploadStatus {
+    margin-top: 0.75rem; font-size: 0.85rem; color: var(--neon2); min-height: 1.2em;
+    display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+  }
+  #uploadStatus .status-row { display: flex; align-items: center; gap: 0.6rem; }
+  #uploadStatus .spinner {
+    width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid rgba(47,230,255,0.25); border-top-color: var(--neon2);
+    animation: uploadSpin 0.8s linear infinite;
+  }
+  @keyframes uploadSpin { to { transform: rotate(360deg); } }
+  #uploadStatus .disclaimer { font-size: 0.7rem; color: #8888b0; }
 
   .file-list { display: flex; flex-direction: column; gap: 0.75rem; }
   .file-row {
@@ -286,15 +297,20 @@
 
     async function handleUpload(file) {
       if (!file) return;
-      uploadStatus.textContent = 'Uploading ' + file.name + '…';
+      dropZone.style.pointerEvents = 'none';
+      uploadStatus.innerHTML = `
+        <div class="status-row"><span class="spinner"></span><span>Uploading ${file.name}&hellip;</span></div>
+        <span class="disclaimer">Disclaimer: may take a moment, especially for larger files/videos.</span>
+      `;
       try {
         await CloudSync.uploadFile(file);
-        uploadStatus.textContent = 'Uploaded!';
-        setTimeout(() => { uploadStatus.textContent = ''; }, 2000);
+        uploadStatus.innerHTML = '<div class="status-row">✅ Uploaded!</div>';
+        setTimeout(() => { uploadStatus.innerHTML = ''; }, 2500);
         refreshFileList();
       } catch (err) {
-        uploadStatus.textContent = 'Upload failed: ' + err.message;
+        uploadStatus.innerHTML = `<div class="status-row">Upload failed: ${err.message}</div>`;
       }
+      dropZone.style.pointerEvents = '';
       fileInput.value = '';
     }
 
