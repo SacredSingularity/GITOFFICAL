@@ -424,8 +424,9 @@
         createdAt: f.created_at,
       }));
     },
-    async getFileUrl(path) {
-      const { data, error } = await sb.storage.from('user-files').createSignedUrl(path, 3600);
+    async getFileUrl(path, expiresInSeconds) {
+      const { data, error } = await sb.storage.from('user-files')
+        .createSignedUrl(path, expiresInSeconds || 3600);
       if (error) throw error;
       return data.signedUrl;
     },
