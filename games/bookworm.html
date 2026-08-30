@@ -2646,7 +2646,10 @@
   var bwAuthBar = document.createElement("div");
   bwAuthBar.innerHTML =
     '<style>' +
-    '#bwAuthBox{position:fixed;bottom:10px;left:10px;z-index:999;font-family:var(--font-body);font-size:12px;' +
+    '#bwAuthWrap{position:fixed;bottom:10px;left:10px;z-index:999;display:flex;flex-direction:column;align-items:flex-start;gap:4px;}' +
+    '#bwAuthHint{font-family:var(--font-body);font-size:10px;color:var(--text-primary);opacity:0.7;' +
+    'background:var(--bg-primary);border-radius:6px;padding:2px 7px;max-width:200px;}' +
+    '#bwAuthBox{font-family:var(--font-body);font-size:12px;' +
     'background:var(--bg-primary);border:1px solid var(--accent-cognac);border-radius:10px;padding:8px 10px;' +
     'display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,0.12);color:var(--text-primary);}' +
     '#bwAuthBox input{border:1px solid var(--muted-accent);border-radius:6px;padding:4px 6px;font-size:12px;width:160px;' +
@@ -2654,7 +2657,7 @@
     '#bwAuthBox button{border:1px solid var(--accent-cognac);border-radius:6px;padding:5px 10px;font-size:12px;' +
     'font-weight:600;cursor:pointer;background:var(--accent-cognac);color:var(--bg-primary);font-family:var(--font-body);}' +
     '#bwAuthBox button:hover{background:var(--accent-cognac-hover);}' +
-    '</style><div id="bwAuthBox"></div>';
+    '</style><div id="bwAuthWrap"><div id="bwAuthHint">If data does not appear, sign out and back in.</div><div id="bwAuthBox"></div></div>';
   document.body.appendChild(bwAuthBar);
 
   function bwResetLocalState(){

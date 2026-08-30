@@ -1387,8 +1387,12 @@ const QD_GAME_ID = 'quickdraw';
 const qdAuthBar = document.createElement('div');
 qdAuthBar.innerHTML = `
   <style>
-    #qdAuthBox { position: fixed; top: 10px; right: 10px; z-index: 999;
-      font-family: Rockwell, 'Rockwell Nova', Georgia, 'Times New Roman', serif; font-size: 12px;
+    #qdAuthWrap { position: fixed; top: 10px; right: 10px; z-index: 999;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    #qdAuthHint { font-family: Rockwell, 'Rockwell Nova', Georgia, 'Times New Roman', serif;
+      font-size: 10px; color: rgba(232,217,184,0.8); background: rgba(20,12,6,0.7);
+      border-radius: 6px; padding: 2px 7px; max-width: 200px; text-align: right; }
+    #qdAuthBox { font-family: Rockwell, 'Rockwell Nova', Georgia, 'Times New Roman', serif; font-size: 12px;
       background: rgba(30,18,8,0.85); border: 1px solid rgba(255,154,60,0.5);
       border-radius: 10px; padding: 8px 10px; display: flex; align-items: center;
       gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); color: #e8d9b8; }
@@ -1398,7 +1402,10 @@ qdAuthBar.innerHTML = `
       font-weight: 700; cursor: pointer; background: #ff9a3c; color: #2c1a0e; font-family: inherit; }
     #qdAuthBox button:hover { filter: brightness(1.1); }
   </style>
-  <div id="qdAuthBox"></div>
+  <div id="qdAuthWrap">
+    <div id="qdAuthHint">If data does not appear, sign out and back in.</div>
+    <div id="qdAuthBox"></div>
+  </div>
 `;
 document.body.appendChild(qdAuthBar);
 
