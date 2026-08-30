@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Files</title>
+<style>
+  :root {
+    --bg: #05050f;
+    --neon1: #ff2fe0;
+    --neon2: #2fe6ff;
+    --neon3: #7c4dff;
+    --card-bg: rgba(20, 18, 40, 0.55);
+    --card-border: rgba(124, 77, 255, 0.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: #f2f2ff;
+    font-family: 'Courier New', ui-monospace, monospace;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  .glow-orb {
+    position: fixed;
+    width: 60vmax; height: 60vmax;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124,77,255,0.30), transparent 60%);
+    filter: blur(40px);
+    animation: drift 14s ease-in-out infinite alternate;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .glow-orb.b {
+    background: radial-gradient(circle, rgba(47,230,255,0.22), transparent 60%);
+    animation-duration: 18s;
+    animation-direction: alternate-reverse;
+    right: 0; bottom: 0;
+  }
+  @keyframes drift {
+    0%   { transform: translate(-20%, -10%) scale(1); }
+    100% { transform: translate(15%, 20%) scale(1.2); }
+  }
+
+  header { position: relative; z-index: 1; text-align: center; padding: 3rem 1.5rem 2rem; }
+  .badge {
+    display: inline-block; font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--neon2); border: 1px solid rgba(47,230,255,0.4); border-radius: 999px;
+    padding: 0.4em 1.2em; margin-bottom: 1.5rem; text-shadow: 0 0 8px var(--neon2);
+    box-shadow: 0 0 20px rgba(47,230,255,0.15) inset; animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+  h1 {
+    font-size: clamp(1.8rem, 6vw, 3.2rem); margin: 0; font-weight: 900; letter-spacing: -0.02em;
+    background: linear-gradient(90deg, var(--neon1), var(--neon3), var(--neon2), var(--neon1));
+    background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shimmer 6s linear infinite; text-shadow: 0 0 60px rgba(255,47,224,0.2);
+  }
+  @keyframes shimmer { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+  .sub { margin-top: 1rem; font-size: clamp(0.85rem, 2vw, 1rem); color: #b8b8e0; }
+
+  main {
+    position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 0 1.5rem 5rem;
+  }
+
+  .panel {
+    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 18px;
+    padding: 1.5rem; backdrop-filter: blur(6px); margin-bottom: 1.5rem;
+  }
+
+  #signedOutMsg { text-align: center; color: #a8a8d0; font-size: 0.9rem; padding: 2rem 1rem; }
+
+  #dropZone {
+    border: 2px dashed var(--card-border); border-radius: 14px; padding: 2.5rem 1rem;
+    text-align: center; color: #a8a8d0; font-size: 0.85rem; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  #dropZone:hover, #dropZone.dragover { border-color: var(--neon2); background: rgba(47,230,255,0.05); }
+  #dropZone .icon { font-size: 2rem; display: block; margin-bottom: 0.75rem; }
+  #fileInput { display: none; }
+
+  #uploadStatus { margin-top: 0.75rem; font-size: 0.8rem; color: var(--neon2); min-height: 1.2em; }
+
+  .file-list { display: flex; flex-direction: column; gap: 0.75rem; }
+  .file-row {
+    display: flex; align-items: center; gap: 0.75rem;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 10px;
+    padding: 0.7rem 0.9rem;
+  }
+  .file-icon { font-size: 1.4rem; flex-shrink: 0; }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name { font-size: 0.85rem; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-meta { font-size: 0.7rem; color: #8888b0; margin-top: 2px; }
+  .file-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+  .file-actions button {
+    background: transparent; border: 1px solid var(--card-border); color: #f2f2ff;
+    border-radius: 8px; padding: 0.4em 0.7em; font-size: 0.75rem; cursor: pointer;
+    font-family: inherit; transition: border-color 0.15s, color 0.15s;
+  }
+  .file-actions button:hover { border-color: var(--neon2); color: var(--neon2); }
+  .file-actions .delete-btn:hover { border-color: var(--neon1); color: var(--neon1); }
+
+  #emptyMsg { text-align: center; color: #8888b0; font-size: 0.85rem; padding: 1.5rem; }
+
+  #gAuthBox {
+    position: fixed; top: 16px; right: 16px; z-index: 999;
+    display: flex; align-items: center; gap: 0.5rem;
+    font-family: 'Courier New', ui-monospace, monospace; font-size: 0.75rem;
+    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 999px;
+    padding: 0.45em 0.9em; backdrop-filter: blur(6px); box-shadow: 0 4px 20px rgba(124,77,255,0.15);
+  }
+  #gAuthBox input {
+    background: rgba(5,5,15,0.6); border: 1px solid var(--card-border); border-radius: 999px;
+    color: #f2f2ff; padding: 0.35em 0.8em; font-family: inherit; font-size: 0.75rem; width: 130px;
+  }
+  #gAuthBox input::placeholder { color: #8888b0; }
+  #gAuthBox button {
+    background: transparent; border: 1px solid var(--neon2); color: var(--neon2);
+    border-radius: 999px; padding: 0.35em 0.9em; font-family: inherit; font-size: 0.75rem;
+    font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  #gAuthBox button:hover { background: var(--neon2); color: #05050f; }
+
+  a.back-link {
+    position: fixed; top: 16px; left: 16px; z-index: 999;
+    color: #a8a8d0; font-size: 0.75rem; text-decoration: none;
+    border: 1px solid var(--card-border); border-radius: 999px; padding: 0.45em 0.9em;
+    background: var(--card-bg); backdrop-filter: blur(6px);
+  }
+  a.back-link:hover { color: var(--neon2); border-color: var(--neon2); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../cloud-sync.js?v=3"></script>
+</head>
+<body>
+  <div class="glow-orb"></div>
+  <div class="glow-orb b"></div>
+
+  <a href="../index.html" class="back-link">&larr; Gallery</a>
+  <div id="gAuthBox"></div>
+
+  <header>
+    <div class="badge">// private storage</div>
+    <h1>My Files</h1>
+    <div class="sub">upload once, download anywhere you're signed in</div>
+  </header>
+
+  <main>
+    <div class="panel" id="signedOutPanel">
+      <div id="signedOutMsg">Sign in (top right) to upload and access your files.</div>
+    </div>
+
+    <div class="panel" id="uploadPanel" style="display:none;">
+      <div id="dropZone">
+        <span class="icon">📤</span>
+        Drag a file here, or click to choose one
+      </div>
+      <input type="file" id="fileInput">
+      <div id="uploadStatus"></div>
+    </div>
+
+    <div class="panel" id="filesPanel" style="display:none;">
+      <div class="file-list" id="fileList"></div>
+      <div id="emptyMsg" style="display:none;">No files uploaded yet.</div>
+    </div>
+  </main>
+
+  <script>
+    CloudSync.mountAuthWidget('gAuthBox', null);
+
+    const signedOutPanel = document.getElementById('signedOutPanel');
+    const uploadPanel = document.getElementById('uploadPanel');
+    const filesPanel = document.getElementById('filesPanel');
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const uploadStatus = document.getElementById('uploadStatus');
+    const fileList = document.getElementById('fileList');
+    const emptyMsg = document.getElementById('emptyMsg');
+
+    function formatSize(bytes) {
+      if (!bytes) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let i = 0, n = bytes;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return n.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+    }
+    function formatDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    function iconFor(name) {
+      const ext = (name.split('.').pop() || '').toLowerCase();
+      if (['jpg','jpeg','png','gif','webp','heic','bmp'].includes(ext)) return '🖼️';
+      if (['mp4','mov','avi','mkv','webm'].includes(ext)) return '🎬';
+      if (['mp3','wav','m4a','flac'].includes(ext)) return '🎵';
+      if (['pdf'].includes(ext)) return '📄';
+      if (['zip','rar','7z'].includes(ext)) return '🗜️';
+      return '📁';
+    }
+
+    async function refreshFileList() {
+      const files = await CloudSync.listFiles();
+      fileList.innerHTML = '';
+      emptyMsg.style.display = files.length ? 'none' : 'block';
+      for (const f of files) {
+        const row = document.createElement('div');
+        row.className = 'file-row';
+        row.innerHTML = `
+          <span class="file-icon">${iconFor(f.name)}</span>
+          <div class="file-info">
+            <div class="file-name">${f.name}</div>
+            <div class="file-meta">${formatSize(f.size)} &middot; ${formatDate(f.createdAt)}</div>
+          </div>
+          <div class="file-actions">
+            <button class="download-btn">Download</button>
+            <button class="delete-btn">Delete</button>
+          </div>
+        `;
+        row.querySelector('.download-btn').onclick = async () => {
+          const url = await CloudSync.getFileUrl(f.path);
+          window.open(url, '_blank');
+        };
+        row.querySelector('.delete-btn').onclick = async () => {
+          if (!confirm('Delete "' + f.name + '"? This can\'t be undone.')) return;
+          await CloudSync.deleteFile(f.path);
+          refreshFileList();
+        };
+        fileList.appendChild(row);
+      }
+    }
+
+    async function handleUpload(file) {
+      if (!file) return;
+      uploadStatus.textContent = 'Uploading ' + file.name + '…';
+      try {
+        await CloudSync.uploadFile(file);
+        uploadStatus.textContent = 'Uploaded!';
+        setTimeout(() => { uploadStatus.textContent = ''; }, 2000);
+        refreshFileList();
+      } catch (err) {
+        uploadStatus.textContent = 'Upload failed: ' + err.message;
+      }
+      fileInput.value = '';
+    }
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => handleUpload(fileInput.files[0]));
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      handleUpload(e.dataTransfer.files[0]);
+    });
+
+    function renderAuthState() {
+      const session = CloudSync.getSession();
+      if (session) {
+        signedOutPanel.style.display = 'none';
+        uploadPanel.style.display = 'block';
+        filesPanel.style.display = 'block';
+        refreshFileList();
+      } else {
+        signedOutPanel.style.display = 'block';
+        uploadPanel.style.display = 'none';
+        filesPanel.style.display = 'none';
+        // clear the actual rendered rows, not just hide the panel, so no
+        // previous account's file list is still sitting in the DOM while
+        // signed out (e.g. visible via dev tools) -- signing back in
+        // re-fetches fresh from refreshFileList() above anyway
+        fileList.innerHTML = '';
+        emptyMsg.style.display = 'none';
+        uploadStatus.textContent = '';
+      }
+    }
+    CloudSync.subscribe(renderAuthState);
+  </script>
+</body>
+</html>

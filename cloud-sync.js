@@ -294,6 +294,42 @@
         .select('data').eq('user_id', session.user.id).eq('game_id', gameId).maybeSingle();
       return data ? data.data : null;
     },
+
+    // -------------------------------------------------------------------
+    //  FILE STORAGE — private per-account uploads (photos/videos/etc) via
+    //  the 'user-files' Storage bucket. Every path is prefixed with the
+    //  user's own id, matching the RLS policies set up on that bucket, so
+    //  one account can never see or touch another's files.
+    // -------------------------------------------------------------------
+    async uploadFile(file, filename) {
+      if (!session) throw new Error('Not signed in');
+      const safeName = (filename || file.name).replace(/[^\w.\- ]/g, '_');
+      const path = session.user.id + '/' + Date.now() + '_' + safeName;
+      const { error } = await sb.storage.from('user-files').upload(path, file);
+      if (error) throw error;
+      return path;
+    },
+    async listFiles() {
+      if (!session) return [];
+      const { data, error } = await sb.storage.from('user-files')
+        .list(session.user.id, { sortBy: { column: 'created_at', order: 'desc' } });
+      if (error) { console.warn('list files failed:', error.message); return []; }
+      return (data || []).map(f => ({
+        path: session.user.id + '/' + f.name,
+        name: f.name.replace(/^\d+_/, ''), // strip the timestamp prefix for display
+        size: f.metadata ? f.metadata.size : 0,
+        createdAt: f.created_at,
+      }));
+    },
+    async getFileUrl(path) {
+      const { data, error } = await sb.storage.from('user-files').createSignedUrl(path, 3600);
+      if (error) throw error;
+      return data.signedUrl;
+    },
+    async deleteFile(path) {
+      const { error } = await sb.storage.from('user-files').remove([path]);
+      if (error) throw error;
+    },
   };
 
   // -------------------------------------------------------------------
