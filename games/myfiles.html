@@ -113,6 +113,20 @@
   .file-actions button:hover { border-color: var(--neon2); color: var(--neon2); }
   .file-actions .delete-btn:hover { border-color: var(--neon1); color: var(--neon1); }
   .file-actions .share-btn:hover { border-color: var(--neon3); color: var(--neon3); }
+  .file-actions .preview-btn:hover { border-color: var(--neon2); color: var(--neon2); }
+
+  .preview-box {
+    flex-basis: 100%; display: none; flex-direction: column; align-items: center; gap: 0.5rem;
+    background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); border-radius: 8px;
+    padding: 0.75rem;
+  }
+  .preview-box.show { display: flex; }
+  .preview-box img, .preview-box video { max-width: 100%; max-height: 360px; border-radius: 6px; }
+  .preview-box audio { width: 100%; }
+  .preview-box iframe { width: 100%; height: 420px; border: none; border-radius: 6px; background: #fff; }
+  .preview-box .preview-loading, .preview-box .preview-unsupported {
+    font-size: 0.8rem; color: #8888b0; padding: 1rem;
+  }
 
   .share-box {
     flex-basis: 100%; display: none;
@@ -230,6 +244,16 @@
       if (['zip','rar','7z'].includes(ext)) return '🗜️';
       return '📁';
     }
+    function previewKind(name) {
+      const ext = (name.split('.').pop() || '').toLowerCase();
+      if (['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext)) return 'image';
+      // heic isn't reliably renderable by <img> in most browsers, so it
+      // falls through to "unsupported" rather than showing a broken image
+      if (['mp4','webm','mov'].includes(ext)) return 'video';
+      if (['mp3','wav','m4a','flac','ogg'].includes(ext)) return 'audio';
+      if (ext === 'pdf') return 'pdf';
+      return null;
+    }
 
     async function refreshFileList() {
       const files = await CloudSync.listFiles();
@@ -245,16 +269,43 @@
             <div class="file-meta">${formatSize(f.size)} &middot; ${formatDate(f.createdAt)}</div>
           </div>
           <div class="file-actions">
+            <button class="preview-btn">Preview</button>
             <button class="share-btn">Share</button>
             <button class="download-btn">Download</button>
             <button class="delete-btn">Delete</button>
           </div>
+          <div class="preview-box"></div>
           <div class="share-box">
             <input type="text" readonly>
             <button class="copy-btn">Copy</button>
             <span class="share-note">Anyone with this link can view/download it — no account needed. Expires in 7 days.</span>
           </div>
         `;
+        row.querySelector('.preview-btn').onclick = async () => {
+          const box = row.querySelector('.preview-box');
+          const btn = row.querySelector('.preview-btn');
+          const isShowing = box.classList.contains('show');
+          if (isShowing) {
+            box.classList.remove('show');
+            box.innerHTML = '';
+            btn.textContent = 'Preview';
+            return;
+          }
+          const kind = previewKind(f.name);
+          if (!kind) {
+            box.innerHTML = '<div class="preview-unsupported">No preview available for this file type — try Download instead.</div>';
+            box.classList.add('show');
+            return;
+          }
+          box.innerHTML = '<div class="preview-loading">Loading preview&hellip;</div>';
+          box.classList.add('show');
+          btn.textContent = 'Hide preview';
+          const url = await CloudSync.getFileUrl(f.path);
+          if (kind === 'image') box.innerHTML = `<img src="${url}" alt="${f.name}">`;
+          else if (kind === 'video') box.innerHTML = `<video src="${url}" controls autoplay></video>`;
+          else if (kind === 'audio') box.innerHTML = `<audio src="${url}" controls autoplay></audio>`;
+          else if (kind === 'pdf') box.innerHTML = `<iframe src="${url}"></iframe>`;
+        };
         row.querySelector('.download-btn').onclick = async () => {
           const url = await CloudSync.getFileUrl(f.path);
           window.open(url, '_blank');
