@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Account Settings</title>
+<style>
+  :root {
+    --bg: #05050f;
+    --neon1: #ff2fe0;
+    --neon2: #2fe6ff;
+    --neon3: #7c4dff;
+    --card-bg: rgba(20, 18, 40, 0.55);
+    --card-border: rgba(124, 77, 255, 0.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: #f2f2ff;
+    font-family: 'Courier New', ui-monospace, monospace;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  .glow-orb {
+    position: fixed;
+    width: 60vmax; height: 60vmax;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124,77,255,0.30), transparent 60%);
+    filter: blur(40px);
+    animation: drift 14s ease-in-out infinite alternate;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .glow-orb.b {
+    background: radial-gradient(circle, rgba(47,230,255,0.22), transparent 60%);
+    animation-duration: 18s;
+    animation-direction: alternate-reverse;
+    right: 0; bottom: 0;
+  }
+  @keyframes drift {
+    0%   { transform: translate(-20%, -10%) scale(1); }
+    100% { transform: translate(15%, 20%) scale(1.2); }
+  }
+
+  header { position: relative; z-index: 1; text-align: center; padding: 3rem 1.5rem 2rem; }
+  .badge {
+    display: inline-block; font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--neon2); border: 1px solid rgba(47,230,255,0.4); border-radius: 999px;
+    padding: 0.4em 1.2em; margin-bottom: 1.5rem; text-shadow: 0 0 8px var(--neon2);
+    box-shadow: 0 0 20px rgba(47,230,255,0.15) inset; animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+  h1 {
+    font-size: clamp(1.8rem, 6vw, 3.2rem); margin: 0; font-weight: 900; letter-spacing: -0.02em;
+    background: linear-gradient(90deg, var(--neon1), var(--neon3), var(--neon2), var(--neon1));
+    background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shimmer 6s linear infinite; text-shadow: 0 0 60px rgba(255,47,224,0.2);
+  }
+  @keyframes shimmer { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+  .sub { margin-top: 1rem; font-size: clamp(0.85rem, 2vw, 1rem); color: #b8b8e0; }
+
+  main { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; padding: 0 1.5rem 5rem; }
+
+  #signedOutMsg {
+    text-align: center; color: #a8a8d0; font-size: 0.9rem; padding: 2rem 1rem;
+    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 18px;
+  }
+  #signedOutMsg a { color: var(--neon2); }
+
+  .tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+  .tab-btn {
+    background: transparent; border: 1px solid var(--card-border); color: #a8a8d0;
+    border-radius: 999px; padding: 0.5em 1.2em; font-family: inherit; font-size: 0.8rem;
+    cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .tab-btn.active { border-color: var(--neon2); color: var(--neon2); }
+
+  .panel {
+    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 18px;
+    padding: 1.5rem; backdrop-filter: blur(6px); margin-bottom: 1.5rem;
+  }
+  .panel h2 { font-size: 1rem; margin: 0 0 0.3rem; color: #fff; }
+  .panel .desc { font-size: 0.8rem; color: #8888b0; margin-bottom: 1rem; line-height: 1.5; }
+
+  .field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.9rem; }
+  .field label { font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase; color: #8888b0; }
+  .field input {
+    background: rgba(5,5,15,0.6); border: 1px solid var(--card-border); border-radius: 8px;
+    color: #f2f2ff; padding: 0.6em 0.8em; font-family: inherit; font-size: 0.85rem;
+  }
+  .field input:focus { outline: none; border-color: var(--neon2); }
+
+  .btn {
+    background: transparent; border: 1px solid var(--neon2); color: var(--neon2);
+    border-radius: 999px; padding: 0.5em 1.3em; font-family: inherit; font-size: 0.8rem;
+    font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn:hover { background: var(--neon2); color: #05050f; }
+  .btn.danger { border-color: var(--neon1); color: var(--neon1); }
+  .btn.danger:hover { background: var(--neon1); color: #05050f; }
+  .btn.small { padding: 0.35em 0.9em; font-size: 0.7rem; }
+
+  #pwStatus, #passkeyStatus { margin-top: 0.75rem; font-size: 0.8rem; color: var(--neon2); min-height: 1.2em; }
+
+  .passkey-list { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+  .passkey-row {
+    display: flex; align-items: center; gap: 0.75rem;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 10px;
+    padding: 0.6rem 0.9rem;
+  }
+  .passkey-icon { font-size: 1.2rem; }
+  .passkey-info { flex: 1; min-width: 0; }
+  .passkey-name { font-size: 0.8rem; color: #fff; }
+  .passkey-meta { font-size: 0.7rem; color: #8888b0; margin-top: 2px; }
+  #passkeyEmpty, #passkeyUnsupported { font-size: 0.8rem; color: #8888b0; margin-top: 0.5rem; }
+
+  a.back-link {
+    position: fixed; top: 16px; left: 16px; z-index: 999;
+    color: #a8a8d0; font-size: 0.75rem; text-decoration: none;
+    border: 1px solid var(--card-border); border-radius: 999px; padding: 0.45em 0.9em;
+    background: var(--card-bg); backdrop-filter: blur(6px);
+  }
+  a.back-link:hover { color: var(--neon2); border-color: var(--neon2); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="cloud-sync.js?v=3"></script>
+</head>
+<body>
+  <div class="glow-orb"></div>
+  <div class="glow-orb b"></div>
+
+  <a href="index.html" class="back-link">&larr; Gallery</a>
+
+  <header>
+    <div class="badge">// account settings</div>
+    <h1>Settings</h1>
+    <div class="sub">manage how you sign in</div>
+  </header>
+
+  <main>
+    <div id="signedOutMsg" style="display:none;">
+      You need to be signed in to view settings. Head back to the <a href="index.html">gallery</a> and sign in first.
+    </div>
+
+    <div id="settingsContent" style="display:none;">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="account">Account</button>
+      </div>
+
+      <div class="tab-panel" data-tab="account">
+        <div class="panel">
+          <h2>Change Password</h2>
+          <div class="desc">Requires your current password.</div>
+          <div class="field">
+            <label>Current password</label>
+            <input type="password" id="curPw">
+          </div>
+          <div class="field">
+            <label>New password</label>
+            <input type="password" id="newPw1">
+          </div>
+          <div class="field">
+            <label>Confirm new password</label>
+            <input type="password" id="newPw2">
+          </div>
+          <button class="btn" id="changePwBtn">Update Password</button>
+          <div id="pwStatus"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Passkeys</h2>
+          <div class="desc">Sign in with Face ID, Touch ID, Windows Hello, or a security key instead of typing your password.</div>
+          <div id="passkeyUnsupported" style="display:none;">Passkeys aren't available on this device/browser.</div>
+          <button class="btn" id="addPasskeyBtn">+ Add a Passkey</button>
+          <div id="passkeyStatus"></div>
+          <div id="passkeyEmpty" style="display:none;">No passkeys registered yet.</div>
+          <div class="passkey-list" id="passkeyList"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const signedOutMsg = document.getElementById('signedOutMsg');
+    const settingsContent = document.getElementById('settingsContent');
+    const pwStatus = document.getElementById('pwStatus');
+    const passkeyStatus = document.getElementById('passkeyStatus');
+    const passkeyList = document.getElementById('passkeyList');
+    const passkeyEmpty = document.getElementById('passkeyEmpty');
+    const addPasskeyBtn = document.getElementById('addPasskeyBtn');
+
+    function formatDate(iso) {
+      if (!iso) return '';
+      return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    async function refreshPasskeys() {
+      const passkeys = await CloudSync.listPasskeys();
+      passkeyList.innerHTML = '';
+      passkeyEmpty.style.display = passkeys.length ? 'none' : 'block';
+      for (const pk of passkeys) {
+        const row = document.createElement('div');
+        row.className = 'passkey-row';
+        row.innerHTML = `
+          <span class="passkey-icon">🔑</span>
+          <div class="passkey-info">
+            <div class="passkey-name">${pk.friendly_name || pk.name || 'Passkey'}</div>
+            <div class="passkey-meta">added ${formatDate(pk.created_at)}</div>
+          </div>
+          <button class="btn danger small">Remove</button>
+        `;
+        row.querySelector('button').onclick = async () => {
+          if (!confirm('Remove this passkey?')) return;
+          await CloudSync.deletePasskey(pk.id);
+          refreshPasskeys();
+        };
+        passkeyList.appendChild(row);
+      }
+    }
+
+    document.getElementById('changePwBtn').onclick = async () => {
+      const cur = document.getElementById('curPw').value;
+      const p1 = document.getElementById('newPw1').value;
+      const p2 = document.getElementById('newPw2').value;
+      if (!cur) { pwStatus.textContent = 'Enter your current password.'; return; }
+      if (p1.length < 6) { pwStatus.textContent = 'New password must be at least 6 characters.'; return; }
+      if (p1 !== p2) { pwStatus.textContent = "New passwords don't match."; return; }
+      pwStatus.textContent = 'Updating…';
+      const { error } = await CloudSync.changePassword(cur, p1);
+      if (error) { pwStatus.textContent = error.message; return; }
+      pwStatus.textContent = 'Password updated.';
+      document.getElementById('curPw').value = '';
+      document.getElementById('newPw1').value = '';
+      document.getElementById('newPw2').value = '';
+    };
+
+    addPasskeyBtn.onclick = async () => {
+      passkeyStatus.textContent = 'Follow your device\'s prompt…';
+      const { error } = await CloudSync.registerPasskey();
+      if (error) { passkeyStatus.textContent = error.message; return; }
+      passkeyStatus.textContent = 'Passkey added.';
+      refreshPasskeys();
+    };
+
+    function renderAuthState() {
+      const session = CloudSync.getSession();
+      if (session) {
+        signedOutMsg.style.display = 'none';
+        settingsContent.style.display = 'block';
+        if (!CloudSync.passkeysSupported()) {
+          document.getElementById('passkeyUnsupported').style.display = 'block';
+          addPasskeyBtn.style.display = 'none';
+        }
+        refreshPasskeys();
+      } else {
+        signedOutMsg.style.display = 'block';
+        settingsContent.style.display = 'none';
+      }
+    }
+    CloudSync.subscribe(renderAuthState);
+  </script>
+</body>
+</html>

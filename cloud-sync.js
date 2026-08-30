@@ -32,9 +32,14 @@
     quickdraw: 'quickdrawSave',
   };
 
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // passkeys are still a Supabase beta feature (opt-in required); harmless
+  // to request even before it's enabled on the project.
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { experimental: { passkey: true } },
+  });
   let session = null;
   let ready = false;
+  let recoveryMode = false;
   const listeners = [];
 
   function notify() { listeners.forEach(fn => fn(session)); }
@@ -58,7 +63,11 @@
   }
 
   sb.auth.getSession().then(({ data }) => { session = data.session; ready = true; notify(); });
-  sb.auth.onAuthStateChange((_event, s) => { session = s; ready = true; notify(); });
+  sb.auth.onAuthStateChange((event, s) => {
+    session = s; ready = true;
+    if (event === 'PASSWORD_RECOVERY') recoveryMode = true;
+    notify();
+  });
 
   // wipes every known game's local save + resets its opt-out flag, so a
   // real account sign-out (from the menu) leaves no account data behind
@@ -124,6 +133,33 @@
 
       const signedInHere = gameId ? (!!session && !isOptedOut(gameId)) : !!session;
       const signedInElsewhereOnly = gameId && !!session && isOptedOut(gameId);
+
+      // password recovery wins over everything, including "signed in" (the
+      // recovery link itself creates a session) -- otherwise clicking a
+      // reset-password email would just look like a normal sign-in and
+      // never actually offer to set a new password.
+      if (recoveryMode) {
+        b.innerHTML = `<div class="cloudSyncStack">
+          <span class="cloudSyncMsg">set a new password</span>
+          <div class="cloudSyncRow">
+            <input id="${boxId}_rpw1" type="password" placeholder="new password" style="width:110px">
+            <input id="${boxId}_rpw2" type="password" placeholder="confirm" style="width:100px">
+            <button id="${boxId}_rpwsave">Save</button>
+          </div>
+          ${errorMsg ? `<span class="cloudSyncMsg">${errorMsg}</span>` : ''}
+        </div>`;
+        document.getElementById(boxId + '_rpwsave').onclick = async () => {
+          const p1 = val(boxId + '_rpw1'), p2 = val(boxId + '_rpw2');
+          if (p1.length < 6) { errorMsg = 'Password must be at least 6 characters.'; render(); return; }
+          if (p1 !== p2) { errorMsg = "Passwords don't match."; render(); return; }
+          errorMsg = 'Saving…'; render();
+          const { error } = await global.CloudSync.completePasswordRecovery(p1);
+          if (error) { errorMsg = error.message; render(); return; }
+          errorMsg = '';
+          render();
+        };
+        return;
+      }
 
       // 'setpw' must win even though verifyOtp() already created a real session —
       // otherwise a freshly-verified sign-up jumps straight to "signed in" and the
@@ -214,8 +250,31 @@
         };
         document.getElementById(boxId + '_toSignin').onclick = () => { pendingEmail = ''; errorMsg = ''; mode = 'signin'; render(); };
         document.getElementById(boxId + '_close').onclick = () => { resetTransient(); render(); };
+      } else if (mode === 'forgotpw') {
+        b.innerHTML = `<div class="cloudSyncStack">
+          <div class="cloudSyncRow">
+            <input id="${boxId}_email" type="email" placeholder="email" value="${pendingEmail}" style="width:140px">
+            <button id="${boxId}_sendreset">Send reset link</button>
+          </div>
+          <div class="cloudSyncRow">
+            <button id="${boxId}_close" class="cloudSyncLink">&times;</button>
+          </div>
+          ${errorMsg ? `<span class="cloudSyncMsg">${errorMsg}</span>` : ''}
+        </div>`;
+        document.getElementById(boxId + '_sendreset').onclick = async () => {
+          const email = val(boxId + '_email');
+          if (!email) return;
+          errorMsg = 'Sending…'; render();
+          const { error } = await global.CloudSync.requestPasswordReset(email);
+          errorMsg = error ? error.message : 'Check your email for a reset link.';
+          render();
+        };
+        document.getElementById(boxId + '_close').onclick = () => { resetTransient(); render(); };
       } else {
         // mode === 'signin'
+        const passkeyBtn = global.CloudSync.passkeysSupported()
+          ? `<button id="${boxId}_passkey" class="cloudSyncLink">use a passkey instead</button>`
+          : '';
         b.innerHTML = `<div class="cloudSyncStack">
           <div class="cloudSyncRow">
             <input id="${boxId}_email" type="email" placeholder="email" value="${pendingEmail}" style="width:120px">
@@ -224,6 +283,8 @@
           </div>
           <div class="cloudSyncRow">
             <button id="${boxId}_toSignup" class="cloudSyncLink">new here? sign up</button>
+            <button id="${boxId}_forgot" class="cloudSyncLink">forgot password?</button>
+            ${passkeyBtn}
             <button id="${boxId}_close" class="cloudSyncLink">&times;</button>
           </div>
           ${errorMsg ? `<span class="cloudSyncMsg">${errorMsg}</span>` : ''}
@@ -238,7 +299,15 @@
           resetTransient();
         };
         document.getElementById(boxId + '_toSignup').onclick = () => { pendingEmail = val(boxId + '_email'); mode = 'signup'; errorMsg = ''; render(); };
+        document.getElementById(boxId + '_forgot').onclick = () => { pendingEmail = val(boxId + '_email'); mode = 'forgotpw'; errorMsg = ''; render(); };
         document.getElementById(boxId + '_close').onclick = () => { resetTransient(); render(); };
+        const passkeyEl = document.getElementById(boxId + '_passkey');
+        if (passkeyEl) passkeyEl.onclick = async () => {
+          errorMsg = 'Waiting for passkey…'; render();
+          const { error } = await global.CloudSync.signInWithPasskey();
+          if (error) { errorMsg = error.message; render(); return; }
+          resetTransient();
+        };
       }
 
       if (!isWidgetHidden(gameId || 'menu')) {
@@ -274,6 +343,40 @@
     setOptOut,
     isWidgetHidden,
     setWidgetHidden,
+
+    // --- account recovery / settings ---
+    isRecoveryMode() { return recoveryMode; },
+    requestPasswordReset(email) {
+      return sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+    },
+    async completePasswordRecovery(newPassword) {
+      const { error } = await sb.auth.updateUser({ password: newPassword });
+      if (!error) recoveryMode = false;
+      return { error };
+    },
+    async changePassword(currentPassword, newPassword) {
+      if (!session) return { error: { message: 'Not signed in' } };
+      // re-verify identity with the current password before allowing the change
+      const { error: reauthError } = await sb.auth.signInWithPassword({
+        email: session.user.email, password: currentPassword,
+      });
+      if (reauthError) return { error: reauthError };
+      return sb.auth.updateUser({ password: newPassword });
+    },
+
+    // --- passkeys (Supabase Auth beta) ---
+    passkeysSupported() {
+      return !!(window.PublicKeyCredential) && typeof sb.auth.registerPasskey === 'function';
+    },
+    registerPasskey() { return sb.auth.registerPasskey(); },
+    signInWithPasskey() { return sb.auth.signInWithPasskey(); },
+    async listPasskeys() {
+      if (!sb.auth.passkey) return [];
+      const { data, error } = await sb.auth.passkey.list();
+      if (error) { console.warn('list passkeys failed:', error.message); return []; }
+      return data || [];
+    },
+    deletePasskey(id) { return sb.auth.passkey.delete(id); },
     isGameActive(gameId) { return !!session && !isOptedOut(gameId); },
 
     mountAuthWidget,

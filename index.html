@@ -220,6 +220,25 @@
     backdrop-filter: blur(6px);
     box-shadow: 0 4px 20px rgba(124,77,255,0.15);
   }
+  #settingsLink {
+    position: fixed;
+    top: 58px;
+    right: 16px;
+    z-index: 999;
+    display: none;
+    font-family: 'Courier New', ui-monospace, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #a8a8d0;
+    text-decoration: none;
+    border: 1px solid var(--card-border);
+    border-radius: 999px;
+    padding: 0.35em 0.9em;
+    background: var(--card-bg);
+    backdrop-filter: blur(6px);
+  }
+  #settingsLink:hover { color: var(--neon2); border-color: var(--neon2); }
   #gAuthBox input {
     background: rgba(5,5,15,0.6);
     border: 1px solid var(--card-border);
@@ -256,6 +275,7 @@
   <div class="glow-orb b"></div>
 
   <div id="gAuthBox"></div>
+  <a id="settingsLink" href="settings.html">⚙ Settings</a>
 
   <header>
     <div class="badge">// gallery.exe online</div>
@@ -306,6 +326,9 @@
     //  one game out locally — it never touches the session created here.
     // -----------------------------------------------------------------
     CloudSync.mountAuthWidget('gAuthBox', null);
+    CloudSync.subscribe((session) => {
+      document.getElementById('settingsLink').style.display = session ? 'block' : 'none';
+    });
 
     const canvas = document.getElementById('grid');
     const ctx = canvas.getContext('2d');
