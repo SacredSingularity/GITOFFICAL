@@ -407,12 +407,14 @@
     mountAuthWidget,
 
     async pushSave(gameId, data) {
-      if (!this.isGameActive(gameId)) return;
-      // set BEFORE attempting the network call: if the request never even
-      // completes (e.g. the domain is blocked), this stays '1' on disk and
-      // is what tells the next sign-in to push this data up rather than
-      // pull and overwrite it.
+      // set BEFORE the isGameActive check (and before attempting the
+      // network call): a save made while fully signed out — not just
+      // signed in with the network blocked — still needs to be flagged,
+      // since it's the same "local is ahead of cloud" situation once the
+      // user signs back in. Harmless to set this even when nobody's
+      // signed in at all; it's only ever read right after a sign-in event.
       setPending(gameId, true);
+      if (!this.isGameActive(gameId)) return;
       try {
         const { error } = await sb.from('game_saves').upsert({
           user_id: session.user.id,
