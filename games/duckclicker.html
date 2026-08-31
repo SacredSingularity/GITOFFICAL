@@ -1481,23 +1481,6 @@ dcAuthBar.innerHTML = `
 `;
 document.body.appendChild(dcAuthBar);
 
-function dcResetLocalState() {
-  breadcrumbs = 0;
-  totalClicks = 0;
-  activeSkinId = 'default';
-  for (const k in upgradeLevels) delete upgradeLevels[k];
-  for (const k in claimedAchievements) delete claimedAchievements[k];
-  for (const k in cosmeticsOwned) delete cosmeticsOwned[k];
-  for (const k in cosmeticsEquipped) delete cosmeticsEquipped[k];
-  recomputeClickValue();
-  updateHUD();
-  renderShop();
-  renderAchievements();
-  renderDucksTab();
-  renderCosmeticsTab();
-  writeSave();
-}
-
 function dcApplyCloudSave(data) {
   breadcrumbs = data.breadcrumbs || 0;
   Object.assign(upgradeLevels, data.upgradeLevels || {});
@@ -1529,7 +1512,6 @@ function dcGetLocalState() {
 }
 
 CloudSync.mountAuthWidget('dcAuthBox', DC_GAME_ID, {
-  resetLocalState: dcResetLocalState,
   syncFromCloud: dcSyncFromCloud,
   getLocalState: dcGetLocalState,
 });

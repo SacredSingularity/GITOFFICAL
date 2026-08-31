@@ -2660,12 +2660,6 @@
     '</style><div id="bwAuthWrap"><div id="bwAuthHint">If data does not appear, sign out and back in.</div><div id="bwAuthBox"></div></div>';
   document.body.appendChild(bwAuthBar);
 
-  function bwResetLocalState(){
-    bwState = bwDefaultState();
-    bwSaveState();
-    bwRenderAll();
-  }
-
   function bwSyncFromCloud(){
     CloudSync.pullSave(BW_GAME_ID).then(function(data){
       if(data){
@@ -2677,7 +2671,6 @@
   }
 
   CloudSync.mountAuthWidget("bwAuthBox", BW_GAME_ID, {
-    resetLocalState: bwResetLocalState,
     syncFromCloud: bwSyncFromCloud,
     getLocalState: function(){ return bwState; },
   });

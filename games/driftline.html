@@ -2072,17 +2072,6 @@ function dlNormalizeSave(raw) {
   };
 }
 
-function dlResetLocalState() {
-  save = dlNormalizeSave({});
-  document.getElementById('money').textContent = save.money;
-  dayNightBtn.textContent = SCENE_ICONS[save.sceneMode];
-  renderInventory();
-  renderStatUpgrades();
-  renderRodGrid();
-  updateGambleButtonVisibility();
-  writeSave();
-}
-
 async function dlSyncFromCloud() {
   const data = await CloudSync.pullSave(DL_GAME_ID);
   if (!data) return;
@@ -2097,7 +2086,6 @@ async function dlSyncFromCloud() {
 }
 
 CloudSync.mountAuthWidget('dlAuthBox', DL_GAME_ID, {
-  resetLocalState: dlResetLocalState,
   syncFromCloud: dlSyncFromCloud,
   getLocalState: function(){ return save; },
 });

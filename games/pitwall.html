@@ -2306,12 +2306,6 @@
     '</style><div id="pwAuthWrap"><div id="pwAuthHint">If data does not appear, sign out and back in.</div><div id="pwAuthBox"></div></div>';
   document.body.appendChild(pwAuthBar);
 
-  function pwResetLocalState(){
-    pwState = pwDefaultState();
-    pwSaveState();
-    pwRenderAll();
-  }
-
   function pwSyncFromCloud(){
     CloudSync.pullSave(PW_GAME_ID).then(function(data){
       if(data){
@@ -2323,7 +2317,6 @@
   }
 
   CloudSync.mountAuthWidget("pwAuthBox", PW_GAME_ID, {
-    resetLocalState: pwResetLocalState,
     syncFromCloud: pwSyncFromCloud,
     getLocalState: function(){ return pwState; },
   });

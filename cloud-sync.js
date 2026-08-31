@@ -84,18 +84,17 @@
     notify();
   });
 
-  // wipes every known game's local save + resets its opt-out flag, so a
-  // real account sign-out (from the menu) leaves no account data behind
-  // in any game, not just the page the sign-out happened on.
-  function wipeAllGameLocalData() {
-    Object.keys(KNOWN_GAME_SAVE_KEYS).forEach((gameId) => {
-      try { localStorage.removeItem(KNOWN_GAME_SAVE_KEYS[gameId]); } catch (e) { /* ignore */ }
-      setOptOut(gameId, false);
-      setPending(gameId, false);
-    });
+  // Signing out — anywhere, per-game or the real account sign-out — is
+  // just "stop syncing to the cloud from here." It never deletes local
+  // progress: sign-in/out is a sync toggle, not what makes your data
+  // exist. Local saves only ever change because you played the game;
+  // whatever's pending stays pending so the next sign-in still pushes it
+  // up instead of finding nothing to reconcile.
+  function resetAllOptOutFlags() {
+    Object.keys(KNOWN_GAME_SAVE_KEYS).forEach((gameId) => setOptOut(gameId, false));
   }
   function realSignOut() {
-    wipeAllGameLocalData();
+    resetAllOptOutFlags();
     return sb.auth.signOut();
   }
 
@@ -117,15 +116,15 @@
   //  mountAuthWidget — builds and owns the entire sign-in UI for one box.
   //  boxId: id of an existing empty container element, already CSS-themed
   //  by the page (colors/fonts/border) via `#<boxId> input`, `#<boxId>
-  //  button` selectors. gameId: null for the menu (real sign-in/out,
-  //  no per-game opt-out or local-data wipe); a string for a game (its
-  //  "sign out" only opts that game out + wipes its local data).
-  //  hooks: { resetLocalState(), syncFromCloud() } — only meaningful
+  //  button` selectors. gameId: null for the menu (real sign-in/out);
+  //  a string for a game (its "sign out" only opts that game out of
+  //  cloud sync — local progress is never touched by sign-in/out either
+  //  way, it's just what a game already has regardless of account state).
+  //  hooks: { syncFromCloud(), getLocalState() } — only meaningful
   //  (and only called) when gameId is set.
   // -------------------------------------------------------------------
   function mountAuthWidget(boxId, gameId, hooks) {
     hooks = hooks || {};
-    const resetLocalState = hooks.resetLocalState || function () {};
     const syncFromCloud = hooks.syncFromCloud || function () {};
     const getLocalState = hooks.getLocalState || null;
 
@@ -205,12 +204,12 @@
       } else if (signedInHere) {
         b.innerHTML = `<button id="${boxId}_signout">Sign out</button>`;
         document.getElementById(boxId + '_signout').onclick = () => {
-          if (gameId) {
-            setOptOut(gameId, true);
-            resetLocalState();
-          } else {
-            realSignOut();
-          }
+          // sign-out is purely "stop syncing to the cloud" — it never
+          // touches local progress, so this device keeps working exactly
+          // as if offline, and any unconfirmed changes stay pending so a
+          // later sign-in still pushes them up.
+          if (gameId) setOptOut(gameId, true);
+          else realSignOut();
           render();
         };
       } else if (signedInElsewhereOnly) {

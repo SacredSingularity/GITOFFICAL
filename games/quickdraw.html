@@ -1424,12 +1424,6 @@ function qdNormalizeSave(raw) {
   };
 }
 
-function qdResetLocalState() {
-  save = qdNormalizeSave({});
-  writeSave();
-  renderMenu();
-}
-
 async function qdSyncFromCloud() {
   const data = await CloudSync.pullSave(QD_GAME_ID);
   if (!data) return;
@@ -1439,7 +1433,6 @@ async function qdSyncFromCloud() {
 }
 
 CloudSync.mountAuthWidget('qdAuthBox', QD_GAME_ID, {
-  resetLocalState: qdResetLocalState,
   syncFromCloud: qdSyncFromCloud,
   getLocalState: function(){ return save; },
 });
