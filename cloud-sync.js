@@ -62,6 +62,21 @@
     try { localStorage.setItem(widgetHiddenKey(gameId), val ? '1' : '0'); } catch (e) { /* ignore */ }
   }
 
+  // tracks "this game has local changes that haven't been confirmed saved
+  // to the cloud yet" — set optimistically before every push attempt,
+  // cleared only once that push actually succeeds. This is what lets a
+  // blocked/offline network (e.g. a school firewall) be recovered from
+  // safely: if the page reloads while still pending, sign-in must push
+  // the (newer) local save up instead of blindly pulling and overwriting
+  // it with the older cloud copy.
+  function pendingKey(gameId) { return 'cloudSyncPending_' + gameId; }
+  function isPending(gameId) {
+    try { return localStorage.getItem(pendingKey(gameId)) === '1'; } catch (e) { return false; }
+  }
+  function setPending(gameId, val) {
+    try { localStorage.setItem(pendingKey(gameId), val ? '1' : '0'); } catch (e) { /* ignore */ }
+  }
+
   sb.auth.getSession().then(({ data }) => { session = data.session; ready = true; notify(); });
   sb.auth.onAuthStateChange((event, s) => {
     session = s; ready = true;
@@ -76,6 +91,7 @@
     Object.keys(KNOWN_GAME_SAVE_KEYS).forEach((gameId) => {
       try { localStorage.removeItem(KNOWN_GAME_SAVE_KEYS[gameId]); } catch (e) { /* ignore */ }
       setOptOut(gameId, false);
+      setPending(gameId, false);
     });
   }
   function realSignOut() {
@@ -111,6 +127,7 @@
     hooks = hooks || {};
     const resetLocalState = hooks.resetLocalState || function () {};
     const syncFromCloud = hooks.syncFromCloud || function () {};
+    const getLocalState = hooks.getLocalState || null;
 
     let mode = 'closed'; // 'closed' | 'signin' | 'signup' | 'code' | 'setpw'
     let pendingEmail = '';
@@ -329,7 +346,15 @@
       hadSession = !!s;
       resetTransient();
       render();
-      if (justSignedIn && gameId && !isOptedOut(gameId)) syncFromCloud();
+      if (justSignedIn && gameId && !isOptedOut(gameId)) {
+        // if local progress changed while a push couldn't reach the cloud
+        // (e.g. a blocked school network), pulling now would silently
+        // throw that progress away — push it up instead, once, then let
+        // normal saves take over from here.
+        const localData = isPending(gameId) && getLocalState ? getLocalState() : null;
+        if (localData) global.CloudSync.pushSave(gameId, localData);
+        else syncFromCloud();
+      }
     });
     if (ready) render();
   }
@@ -383,13 +408,23 @@
 
     async pushSave(gameId, data) {
       if (!this.isGameActive(gameId)) return;
-      const { error } = await sb.from('game_saves').upsert({
-        user_id: session.user.id,
-        game_id: gameId,
-        data,
-        updated_at: new Date().toISOString(),
-      });
-      if (error) console.warn('cloud save failed:', error.message);
+      // set BEFORE attempting the network call: if the request never even
+      // completes (e.g. the domain is blocked), this stays '1' on disk and
+      // is what tells the next sign-in to push this data up rather than
+      // pull and overwrite it.
+      setPending(gameId, true);
+      try {
+        const { error } = await sb.from('game_saves').upsert({
+          user_id: session.user.id,
+          game_id: gameId,
+          data,
+          updated_at: new Date().toISOString(),
+        });
+        if (error) { console.warn('cloud save failed:', error.message); return; }
+        setPending(gameId, false);
+      } catch (e) {
+        console.warn('cloud save failed:', e.message);
+      }
     },
     async pullSave(gameId) {
       if (!session) return null;

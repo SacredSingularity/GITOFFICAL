@@ -2325,6 +2325,7 @@
   CloudSync.mountAuthWidget("pwAuthBox", PW_GAME_ID, {
     resetLocalState: pwResetLocalState,
     syncFromCloud: pwSyncFromCloud,
+    getLocalState: function(){ return pwState; },
   });
 </script>
 </body>

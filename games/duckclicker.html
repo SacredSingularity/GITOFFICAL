@@ -1524,9 +1524,14 @@ function dcPushCloudSave(payload) {
   CloudSync.pushSave(DC_GAME_ID, payload);
 }
 
+function dcGetLocalState() {
+  return { breadcrumbs, upgradeLevels, totalClicks, claimedAchievements, activeSkinId, cosmeticsOwned, cosmeticsEquipped };
+}
+
 CloudSync.mountAuthWidget('dcAuthBox', DC_GAME_ID, {
   resetLocalState: dcResetLocalState,
   syncFromCloud: dcSyncFromCloud,
+  getLocalState: dcGetLocalState,
 });
 </script>
 </body>

@@ -2099,6 +2099,7 @@ async function dlSyncFromCloud() {
 CloudSync.mountAuthWidget('dlAuthBox', DL_GAME_ID, {
   resetLocalState: dlResetLocalState,
   syncFromCloud: dlSyncFromCloud,
+  getLocalState: function(){ return save; },
 });
 </script>
 </body>

@@ -2679,6 +2679,7 @@
   CloudSync.mountAuthWidget("bwAuthBox", BW_GAME_ID, {
     resetLocalState: bwResetLocalState,
     syncFromCloud: bwSyncFromCloud,
+    getLocalState: function(){ return bwState; },
   });
 </script>
 </body></html>

@@ -1441,6 +1441,7 @@ async function qdSyncFromCloud() {
 CloudSync.mountAuthWidget('qdAuthBox', QD_GAME_ID, {
   resetLocalState: qdResetLocalState,
   syncFromCloud: qdSyncFromCloud,
+  getLocalState: function(){ return save; },
 });
 </script>
 </body>
