@@ -137,6 +137,18 @@
 
     function resetTransient() { mode = 'closed'; pendingEmail = ''; errorMsg = ''; }
 
+    // the one place that decides, whenever this game's cloud sync becomes
+    // active again (fresh sign-in, reactivating after having opted out,
+    // finishing sign-up), whether to push local progress up or pull the
+    // cloud copy down. Anywhere that skips this and calls syncFromCloud()
+    // directly risks silently overwriting newer local changes.
+    function reconcileSync() {
+      if (!gameId) return;
+      const localData = isPending(gameId) && getLocalState ? getLocalState() : null;
+      if (localData) global.CloudSync.pushSave(gameId, localData);
+      else syncFromCloud();
+    }
+
     function render() {
       const b = box();
       if (!b) return;
@@ -199,7 +211,7 @@
           if (error) { errorMsg = error.message; render(); return; }
           resetTransient();
           render();
-          if (gameId && !isOptedOut(gameId)) syncFromCloud();
+          if (gameId && !isOptedOut(gameId)) reconcileSync();
         };
       } else if (signedInHere) {
         b.innerHTML = `<button id="${boxId}_signout">Sign out</button>`;
@@ -217,7 +229,7 @@
         document.getElementById(boxId + '_reactivate').onclick = async () => {
           setOptOut(gameId, false);
           render();
-          await syncFromCloud();
+          reconcileSync();
         };
       } else if (mode === 'closed') {
         b.innerHTML = `<button id="${boxId}_open">Sign in</button>`;
@@ -345,15 +357,7 @@
       hadSession = !!s;
       resetTransient();
       render();
-      if (justSignedIn && gameId && !isOptedOut(gameId)) {
-        // if local progress changed while a push couldn't reach the cloud
-        // (e.g. a blocked school network), pulling now would silently
-        // throw that progress away — push it up instead, once, then let
-        // normal saves take over from here.
-        const localData = isPending(gameId) && getLocalState ? getLocalState() : null;
-        if (localData) global.CloudSync.pushSave(gameId, localData);
-        else syncFromCloud();
-      }
+      if (justSignedIn && gameId && !isOptedOut(gameId)) reconcileSync();
     });
     if (ready) render();
   }
