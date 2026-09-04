@@ -2220,18 +2220,25 @@
   }
 
   // Only meaningful for a single book (need one target page count to count
-  // down to) -- "All books" has no one length to estimate against, so this
-  // stays blank until the tracker's own book filter narrows to one title.
+  // down to) -- "All books" has no one length to estimate against. Rather
+  // than just going silent when it can't show a number, every dead end
+  // here says exactly what's missing, since a blank row and a broken
+  // feature look identical otherwise.
   function bwTrackerFinishEstimateRow(avgPpm){
-    if(!bwTrackerBookFilter) return "";
+    var hint = function(msg){
+      return '<div class="bw-log-summary-row"><span>Estimated time to finish</span>' +
+        '<span class="bw-stat-value" style="opacity:0.6;font-style:italic;">' + msg + '</span></div>';
+    };
+    if(!bwTrackerBookFilter) return hint('pick a book above to see this');
     var book = bwBookById(bwTrackerBookFilter);
-    if(!book || book.totalPages == null) return "";
+    if(!book) return "";
+    if(book.totalPages == null) return hint('set "' + book.title + '"\'s total pages (Library) to see this');
     var pagesRemaining = Math.max(0, book.totalPages - (book.currentPage || 0));
     if(pagesRemaining === 0){
       return '<div class="bw-log-summary-row"><span>Pages left in "' + book.title +
         '"</span><span class="bw-stat-value">Finished!</span></div>';
     }
-    if(avgPpm <= 0) return "";
+    if(avgPpm <= 0) return hint('no pace data yet for this book');
     var estMinutes = Math.round(pagesRemaining / avgPpm);
     return '<div class="bw-log-summary-row"><span>Estimated time to finish "' + book.title +
       '"</span><span class="bw-stat-value">' + bwFormatDuration(estMinutes) +
