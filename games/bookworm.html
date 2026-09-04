@@ -2219,6 +2219,25 @@
     select.value = current;
   }
 
+  // Only meaningful for a single book (need one target page count to count
+  // down to) -- "All books" has no one length to estimate against, so this
+  // stays blank until the tracker's own book filter narrows to one title.
+  function bwTrackerFinishEstimateRow(avgPpm){
+    if(!bwTrackerBookFilter) return "";
+    var book = bwBookById(bwTrackerBookFilter);
+    if(!book || book.totalPages == null) return "";
+    var pagesRemaining = Math.max(0, book.totalPages - (book.currentPage || 0));
+    if(pagesRemaining === 0){
+      return '<div class="bw-log-summary-row"><span>Pages left in "' + book.title +
+        '"</span><span class="bw-stat-value">Finished!</span></div>';
+    }
+    if(avgPpm <= 0) return "";
+    var estMinutes = Math.round(pagesRemaining / avgPpm);
+    return '<div class="bw-log-summary-row"><span>Estimated time to finish "' + book.title +
+      '"</span><span class="bw-stat-value">' + bwFormatDuration(estMinutes) +
+      ' &middot; ' + pagesRemaining + ' page' + (pagesRemaining === 1 ? "" : "s") + ' left</span></div>';
+  }
+
   function bwRenderTrackerSpeed(){
     var container = document.getElementById("bw-tracker-speed-content");
 
@@ -2281,6 +2300,7 @@
       bwFormatDuration(Math.round(avgSessionLen)) + '</span></div>';
     html += '<div class="bw-log-summary-row"><span>Typical progress per session</span><span class="bw-stat-value">' +
       Math.round(avgProgress * 10) / 10 + ' pages</span></div>';
+    html += bwTrackerFinishEstimateRow(avgPpm);
     html += '</div>';
 
     if(smallSample){
