@@ -30,6 +30,7 @@
     pitwall: 'pitwall_state_v1',
     driftline: 'driftlineSave',
     quickdraw: 'quickdrawSave',
+    quill: 'quill_state_v1',
   };
 
   // passkeys are still a Supabase beta feature (opt-in required); harmless
