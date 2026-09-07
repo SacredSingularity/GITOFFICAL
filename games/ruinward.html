@@ -153,7 +153,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
       <div class="stat-item"><div class="stat-num" id="menuBest">0:00</div><div class="stat-label">Best Time</div></div>
       <div class="stat-item"><div class="stat-num" id="menuGold">0</div><div class="stat-label">Banked Gold</div></div>
     </div>
-    <div class="subtitle" style="margin-bottom:16px;">WASD / Arrows to move &bull; melee auto-swings toward the nearest foe in front of you &bull; ranged weapons auto-fire at the nearest threat</div>
+    <div class="subtitle" style="margin-bottom:16px;">WASD / Arrows to move &bull; melee auto-swings toward the nearest foe in front of you &bull; ranged weapons auto-fire at the nearest threat &bull; E opens/closes safehouse doors</div>
     <div class="btn btn-play" id="playBtn">▸ Enter the City</div>
   </div>
 
@@ -247,8 +247,9 @@ const PASSIVE_DEFS = {
 const ENEMY_DEFS = {
   wisp:    { name: "Will-o'-the-Wisp", color: '#8fe6c8', r: 10, hp: 8,  speed: 70,  dmg: 5,  xp: 3, gold: 1, erratic: true, tier: 1 },
   ghoul:   { name: 'Ghoul',            color: '#9ec25a', r: 12, hp: 15, speed: 130, dmg: 6,  xp: 4, gold: 1, tier: 1 },
-  redcap:  { name: 'Redcap',           color: '#c94f4f', r: 13, hp: 28, speed: 95,  dmg: 10, xp: 7, gold: 2, rushBuff: true, tier: 2 },
-  banshee: { name: 'Banshee',          color: '#b28fe6', r: 14, hp: 42, speed: 55,  dmg: 9,  xp: 10, gold: 3, ranged: true, tier: 2 }
+  redcap:  { name: 'Redcap',           color: '#c94f4f', r: 13, hp: 28, speed: 95,  dmg: 10, xp: 7, gold: 2, rushBuff: true, breacher: true, tier: 2 },
+  banshee: { name: 'Banshee',          color: '#b28fe6', r: 14, hp: 42, speed: 55,  dmg: 9,  xp: 10, gold: 3, ranged: true, tier: 2 },
+  boggart: { name: 'Boggart',          color: '#5a4a6b', r: 11, hp: 22, speed: 115, dmg: 8,  xp: 6, gold: 2, tier: 1 }
 };
 
 // -------------------------------------------------------------------
@@ -256,6 +257,8 @@ const ENEMY_DEFS = {
 // -------------------------------------------------------------------
 const WORLD_W = 3200, WORLD_H = 3200;
 const SAVE_KEY = 'ruinward-save-v1';
+const WALL = 14, DOORW = 56, DOOR_FIT_R = 15, DOOR_INTERACT_RANGE = 60;
+const BOGGART_DWELL_TIME = 25, BREACH_TIME = 6;
 
 let save = { bestTime: 0, bankedGold: 0 };
 try {
@@ -272,7 +275,11 @@ let runGold = 0;
 let declineCounts = {};
 
 const keys = {};
-window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if (k === 'e' && !e.repeat && state === 'playing') tryToggleDoor();
+});
 window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
 function freshPlayer() {
@@ -292,14 +299,43 @@ function freshPlayer() {
 let player = freshPlayer();
 
 let enemies = [], projectiles = [], gems = [], popups = [], goldPickups = [];
-let safehouses = [];
+let buildings = [], safehouses = [];
+let staticSolids = [], solidsSmall = [], solidsLarge = [];
 let camera = { x: 0, y: 0 };
 let spawnTimer = 0, eliteTimer = 0;
 
-// decorative static rubble (no collision yet — pure backdrop)
+// decorative static rubble (no collision — pure backdrop)
 let rubble = [];
+
+function safehouseDoorGap(sh) {
+  const doorX1 = sh.x + sh.w / 2 - DOORW / 2;
+  return { x: doorX1, y: sh.y + sh.h - WALL, w: DOORW, h: WALL };
+}
+function safehouseWallRects(sh) {
+  const gap = safehouseDoorGap(sh);
+  return {
+    doorGap: gap,
+    wallRects: [
+      { x: sh.x, y: sh.y, w: sh.w, h: WALL },
+      { x: sh.x, y: sh.y, w: WALL, h: sh.h },
+      { x: sh.x + sh.w - WALL, y: sh.y, w: WALL, h: sh.h },
+      { x: sh.x, y: sh.y + sh.h - WALL, w: gap.x - sh.x, h: WALL },
+      { x: gap.x + gap.w, y: sh.y + sh.h - WALL, w: sh.x + sh.w - (gap.x + gap.w), h: WALL }
+    ]
+  };
+}
+function makeSafehouse(x, y, w, h) {
+  return { x, y, w, h, doorOpen: false, breached: false, breachT: 0, dwellT: 0, boggartAlive: false };
+}
+function pointInSafehouse(sh, x, y) {
+  return x > sh.x + 2 && x < sh.x + sh.w - 2 && y > sh.y + 2 && y < sh.y + sh.h - 2;
+}
+function pointInsideAnyRect(x, y, rects) {
+  return rects.some((r) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h);
+}
+
 function genWorld() {
-  rubble = [];
+  rubble = []; buildings = []; safehouses = [];
   let rng = mulberry32(1337);
   for (let i = 0; i < 220; i++) {
     rubble.push({
@@ -308,15 +344,87 @@ function genWorld() {
       shade: 0.3 + rng() * 0.25
     });
   }
-  safehouses = [];
-  for (let i = 0; i < 14; i++) {
-    safehouses.push({
-      x: 150 + rng() * (WORLD_W - 300),
-      y: 150 + rng() * (WORLD_H - 300),
-      r: 70
-    });
+
+  const BLOCK = 220, MARGIN = 140, clearR = 260;
+  const cx = WORLD_W / 2, cy = WORLD_H / 2;
+  for (let bx = MARGIN; bx < WORLD_W - MARGIN; bx += BLOCK) {
+    for (let by = MARGIN; by < WORLD_H - MARGIN; by += BLOCK) {
+      const cxx = bx + BLOCK / 2 + (rng() - 0.5) * 40;
+      const cyy = by + BLOCK / 2 + (rng() - 0.5) * 40;
+      if (dist(cxx, cyy, cx, cy) < clearR) continue;
+      const roll = rng();
+      if (roll < 0.5) {
+        const w = 130 + rng() * 50, h = 130 + rng() * 50;
+        buildings.push({ x: cxx - w / 2, y: cyy - h / 2, w, h });
+      } else if (roll < 0.72) {
+        const w = 120, h = 100;
+        safehouses.push(makeSafehouse(cxx - w / 2, cyy - h / 2, w, h));
+      }
+    }
+  }
+
+  staticSolids = buildings.slice();
+  for (const sh of safehouses) {
+    const { wallRects } = safehouseWallRects(sh);
+    for (const wr of wallRects) staticSolids.push(wr);
   }
 }
+
+function computeDoorSolids() {
+  solidsSmall = staticSolids.slice();
+  solidsLarge = staticSolids.slice();
+  for (const sh of safehouses) {
+    if (sh.breached) continue;
+    const gap = safehouseDoorGap(sh);
+    if (!sh.doorOpen) { solidsSmall.push(gap); solidsLarge.push(gap); }
+    else { solidsLarge.push(gap); }
+  }
+}
+function getSolidsForRadius(r) { return r <= DOOR_FIT_R ? solidsSmall : solidsLarge; }
+
+function circleRectPush(e, rect) {
+  if (e.x < rect.x - e.r - 2 || e.x > rect.x + rect.w + e.r + 2 ||
+      e.y < rect.y - e.r - 2 || e.y > rect.y + rect.h + e.r + 2) return;
+  const closestX = clamp(e.x, rect.x, rect.x + rect.w);
+  const closestY = clamp(e.y, rect.y, rect.y + rect.h);
+  const dx = e.x - closestX, dy = e.y - closestY;
+  const distSq = dx * dx + dy * dy;
+  if (distSq < e.r * e.r) {
+    const d = Math.sqrt(distSq) || 0.0001;
+    const overlap = e.r - d;
+    e.x += (dx / d) * overlap;
+    e.y += (dy / d) * overlap;
+  }
+}
+function resolveCollisions(e, solids) {
+  for (let i = 0; i < 2; i++) for (const r of solids) circleRectPush(e, r);
+  e.x = clamp(e.x, e.r, WORLD_W - e.r);
+  e.y = clamp(e.y, e.r, WORLD_H - e.r);
+}
+
+function tryToggleDoor() {
+  for (const sh of safehouses) {
+    if (sh.breached) continue;
+    const gap = safehouseDoorGap(sh);
+    if (dist(player.x, player.y, gap.x + gap.w / 2, gap.y + gap.h / 2) < DOOR_INTERACT_RANGE) {
+      sh.doorOpen = !sh.doorOpen;
+      return;
+    }
+  }
+}
+
+function spawnBoggart(sh) {
+  const def = ENEMY_DEFS.boggart;
+  enemies.push({
+    x: sh.x + sh.w / 2 + (Math.random() - 0.5) * 20,
+    y: sh.y + sh.h / 2 + (Math.random() - 0.5) * 20,
+    def, id: 'boggart', r: def.r, hp: def.hp,
+    contactCd: 0, rushCd: 0, speedBuff: 1, elite: false, eliteMul: null,
+    isBoggart: true, homeSafehouse: sh
+  });
+  sh.boggartAlive = true;
+}
+
 function mulberry32(a) {
   return function () {
     a |= 0; a = (a + 0x6D2B79F5) | 0;
@@ -389,15 +497,18 @@ function update(dt) {
   if (state !== 'playing') return;
   elapsed += dt;
 
+  computeDoorSolids();
   handleMovement(dt);
   handleSafehouse(dt);
   handleWeapons(dt);
   updateEnemies(dt);
+  updateBreach(dt);
   updateProjectiles(dt);
   updateGems(dt);
   updateGoldPickups(dt);
   updatePopups(dt);
   spawnLogic(dt);
+  updateInteractHint();
 
   if (player.invuln > 0) player.invuln -= dt;
   if (player.swingFlash > 0) player.swingFlash -= dt;
@@ -426,15 +537,59 @@ function handleMovement(dt) {
     dx /= len; dy /= len;
     player.facing = { x: dx, y: dy };
     const spd = playerSpeed();
-    player.x = clamp(player.x + dx * spd * dt, player.r, WORLD_W - player.r);
-    player.y = clamp(player.y + dy * spd * dt, player.r, WORLD_H - player.r);
+    player.x += dx * spd * dt;
+    player.y += dy * spd * dt;
+    resolveCollisions(player, getSolidsForRadius(player.r));
   }
 }
 
 function handleSafehouse(dt) {
-  player.inSafehouse = safehouses.some((sh) => dist(player.x, player.y, sh.x, sh.y) < sh.r - player.r);
-  document.getElementById('safeHint').style.display = player.inSafehouse ? 'block' : 'none';
-  if (player.inSafehouse) player.hp = Math.min(player.maxHp, player.hp + 4 * dt);
+  const inside = safehouses.find((sh) => pointInSafehouse(sh, player.x, player.y)) || null;
+  player.inSafehouse = !!inside;
+  for (const sh of safehouses) {
+    if (sh === inside) {
+      sh.dwellT += dt;
+      if (sh.dwellT > BOGGART_DWELL_TIME && !sh.boggartAlive) { spawnBoggart(sh); sh.dwellT = 0; }
+    } else {
+      sh.dwellT = 0;
+    }
+  }
+  if (inside) player.hp = Math.min(player.maxHp, player.hp + 4 * dt);
+}
+
+function updateBreach(dt) {
+  for (const sh of safehouses) {
+    if (sh.breached) continue;
+    if (sh.doorOpen) { sh.breachT = 0; continue; }
+    const gap = safehouseDoorGap(sh);
+    const gx = gap.x + gap.w / 2, gy = gap.y + gap.h / 2;
+    const near = enemies.some((en) => !en.dead && en.def.breacher && dist(en.x, en.y, gx, gy) < 46);
+    if (near) {
+      sh.breachT += dt / BREACH_TIME;
+      if (sh.breachT >= 1) { sh.breached = true; sh.doorOpen = true; sh.breachT = 1; }
+    } else {
+      sh.breachT = Math.max(0, sh.breachT - dt * 0.4);
+    }
+  }
+}
+
+function updateInteractHint() {
+  const hintEl = document.getElementById('safeHint');
+  if (player.inSafehouse) {
+    hintEl.style.display = 'block';
+    hintEl.textContent = "Inside a safehouse — regenerating. Don't linger too long.";
+    return;
+  }
+  for (const sh of safehouses) {
+    if (sh.breached) continue;
+    const gap = safehouseDoorGap(sh);
+    if (dist(player.x, player.y, gap.x + gap.w / 2, gap.y + gap.h / 2) < DOOR_INTERACT_RANGE) {
+      hintEl.style.display = 'block';
+      hintEl.textContent = 'Press E to ' + (sh.doorOpen ? 'close' : 'open') + ' the door';
+      return;
+    }
+  }
+  hintEl.style.display = 'none';
 }
 
 function handleWeapons(dt) {
@@ -487,6 +642,7 @@ function dealDamage(en, amount) {
 
 function killEnemy(en) {
   en.dead = true;
+  if (en.isBoggart && en.homeSafehouse) en.homeSafehouse.boggartAlive = false;
   gems.push({ x: en.x, y: en.y, val: en.xp, r: 4 });
   if (Math.random() < 0.5) goldPickups.push({ x: en.x + (Math.random() - 0.5) * 10, y: en.y + (Math.random() - 0.5) * 10, val: en.gold, r: 4 });
 }
@@ -524,10 +680,7 @@ function updateEnemies(dt) {
       en.knockX *= 0.85; en.knockY *= 0.85;
       if (Math.abs(en.knockX) < 1) en.knockX = 0;
     }
-    en.x = clamp(en.x, en.r, WORLD_W - en.r);
-    en.y = clamp(en.y, en.r, WORLD_H - en.r);
-
-    if (safehouses.some((sh) => dist(en.x, en.y, sh.x, sh.y) < sh.r)) continue;
+    resolveCollisions(en, getSolidsForRadius(en.r));
 
     if (en.def.ranged) {
       en.fireCd = (en.fireCd || 0) - dt;
@@ -570,6 +723,7 @@ function updateProjectiles(dt) {
   for (const p of projectiles) {
     p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
     if (p.life <= 0) { p.dead = true; continue; }
+    if (pointInsideAnyRect(p.x, p.y, solidsSmall)) { p.dead = true; continue; }
     if (p.from === 'player') {
       for (const en of enemies) {
         if (p.hitSet && p.hitSet.has(en)) continue;
@@ -660,10 +814,14 @@ function spawnEnemy(elite) {
   const pool = unlockedTypes();
   const id = pool[Math.floor(Math.random() * pool.length)];
   const def = ENEMY_DEFS[id];
-  const angle = Math.random() * Math.PI * 2;
-  const radius = 480 + Math.random() * 120;
-  const x = clamp(player.x + Math.cos(angle) * radius, 20, WORLD_W - 20);
-  const y = clamp(player.y + Math.sin(angle) * radius, 20, WORLD_H - 20);
+  let x, y;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 480 + Math.random() * 120;
+    x = clamp(player.x + Math.cos(angle) * radius, 20, WORLD_W - 20);
+    y = clamp(player.y + Math.sin(angle) * radius, 20, WORLD_H - 20);
+    if (!pointInsideAnyRect(x, y, solidsLarge)) break;
+  }
   const eliteMul = elite ? { hp: 2.6, dmg: 1.5, speed: 1.05 } : null;
   enemies.push({
     x, y, def, id,
@@ -823,13 +981,32 @@ function draw() {
     ctx.fillRect(r.x, r.y, r.w, r.h);
   }
 
+  for (const b of buildings) {
+    if (b.x + b.w < camera.x - 40 || b.x > camera.x + VW + 40 || b.y + b.h < camera.y - 40 || b.y > camera.y + VH + 40) continue;
+    ctx.fillStyle = '#1c1f1a';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.strokeStyle = 'rgba(90,100,85,0.4)'; ctx.lineWidth = 2;
+    ctx.strokeRect(b.x, b.y, b.w, b.h);
+  }
+
   for (const sh of safehouses) {
-    ctx.fillStyle = 'rgba(127,214,138,0.06)';
-    ctx.beginPath(); ctx.arc(sh.x, sh.y, sh.r, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(127,214,138,0.35)';
-    ctx.setLineDash([6, 5]);
-    ctx.beginPath(); ctx.arc(sh.x, sh.y, sh.r, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
+    if (sh.x + sh.w < camera.x - 40 || sh.x > camera.x + VW + 40 || sh.y + sh.h < camera.y - 40 || sh.y > camera.y + VH + 40) continue;
+    ctx.fillStyle = 'rgba(127,214,138,0.08)';
+    ctx.fillRect(sh.x, sh.y, sh.w, sh.h);
+    const { wallRects, doorGap } = safehouseWallRects(sh);
+    ctx.fillStyle = '#2a3a28';
+    for (const wr of wallRects) ctx.fillRect(wr.x, wr.y, wr.w, wr.h);
+    if (sh.breached) ctx.fillStyle = 'rgba(217,92,92,0.5)';
+    else if (sh.doorOpen) ctx.fillStyle = 'rgba(127,214,138,0.18)';
+    else ctx.fillStyle = '#6e4424';
+    ctx.fillRect(doorGap.x, doorGap.y, doorGap.w, doorGap.h);
+    if (sh.breachT > 0 && !sh.breached) {
+      const bw = 46;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(doorGap.x + doorGap.w / 2 - bw / 2, doorGap.y - 10, bw, 4);
+      ctx.fillStyle = '#d95c5c';
+      ctx.fillRect(doorGap.x + doorGap.w / 2 - bw / 2, doorGap.y - 10, bw * sh.breachT, 4);
+    }
   }
 
   for (const g of gems) {
