@@ -1,46 +1,57 @@
 # Quill visual assets
 
-Drop PNGs (or sprite sheets) here. `learning-platform/quill.html` will reference files
-in this folder by name to replace the current hand-drawn SVG mascot/icons.
+Cropped from the reference sprite sheet and wired into
+`learning-platform/quill.html`. Drop replacement/additional PNGs here using
+the same names to update the app — no code changes needed for a like-for-like
+swap.
 
-Based on the reference sheet, here's what I'm expecting — confirm/adjust
-filenames as files actually arrive:
+## In use
 
-## Mascot poses (`mascot-*.png`)
-- `mascot-idle.png` — default standing pose (home screen / greeting)
-- `mascot-wink.png` / `mascot-celebrate.png` — happy, one eye closed
-- `mascot-thinking.png` — wing to chin
-- `mascot-pointing.png` — wing extended out
-- `mascot-correct.png` — "Great job!" reaction
-- `mascot-incorrect.png` — "Try again" reaction, gentle
-- (sleeping / surprised poses if you have them — not in the sheet but in the
-  original brief's expression list)
+**Mascot** (`mascot-*.png`) — only one real pose exists so far:
+- `mascot-happy.png` — winking/celebrating. Used for the home-screen mascot,
+  and for the in-lesson coach on a correct answer and a perfect-score finish.
 
-## World islands (`island-*.png`)
-- `island-numbers-forest.png` (Maths)
-- `island-reading-retreat.png` (English)
-- `island-space-station.png` (Science)
-- `island-history-hills.png` (History)
-- `island-creative-cove.png` (Art)
+**Islands** (`island-*.png`) — all 5, used on the Home journey map and the
+Subjects grid:
+- `island-numbers-forest.png`, `island-reading-retreat.png`,
+  `island-space-station.png`, `island-history-hills.png`,
+  `island-creative-cove.png`
 
-## Subject icons (`icon-subject-*.png`)
+**Subject pills** (`icon-subject-*.png`) — cropped, cut out (not yet used in
+the app UI, but ready — a subject quick-switcher row would use these as-is,
+background+label baked in):
 - `icon-subject-maths.png`, `icon-subject-english.png`,
   `icon-subject-science.png`, `icon-subject-history.png`,
   `icon-subject-art.png`
 
-## Badges / achievements (`badge-*.png`)
-- `badge-trophy.png` (Maths Master), `badge-star.png` (Bright Mind),
-  `badge-streak.png` (Streak Keeper)
+**Decorative** (`deco-*.png`) — used for the low-opacity ambient background
+scatter (stars, sparkles, cloud, flowers, leaf, moon, heart, pencil, books,
+trophy, scroll):
+- `deco-star-pair.png`, `deco-sparkle-small.png`, `deco-sparkle-tiny.png`,
+  `deco-star-blue.png`, `deco-cloud.png`, `deco-flower1.png`,
+  `deco-flower2.png`, `deco-leaf.png`, `deco-moon.png`, `deco-heart.png`,
+  `deco-pencil.png`, `deco-books.png`, `deco-trophy.png`, `deco-scroll.png`
 
-## Decorative elements (`deco-*.png`)
-sparkle-stars, clouds, pencil, books, trophy, scroll, flowers, leaves,
-moon, heart — low-opacity background scatter.
+**Achievement badges** (`badge-*.png`) — cropped but not yet wired in
+(Achievements view still uses emoji, since the sheet only had one badge
+icon design, not distinct trophy/star/flame badges):
+- `badge-earned.png`, `badge-locked.png` (greyed, question-mark)
 
-## Buttons / UI chrome
-The button/pill states (Normal/Hover/Pressed) in the reference look like a
-component spec rather than assets to embed directly — I'll rebuild those as
-CSS states using your color/shape as reference, not as image files, unless
-you say otherwise.
+**Toolbar icons** (`icon-toolbar-*.png`, `icon-star.png`,
+`icon-sparkle-blob.png`) — cropped but not yet wired in; there's no "Tools"
+menu in the app yet (design brief calls for collapsing secondary tools into
+one, not built this pass):
+- `icon-toolbar-book.png`, `icon-toolbar-calculator.png`,
+  `icon-toolbar-pencil.png`, `icon-toolbar-flask.png`,
+  `icon-toolbar-palette.png`
 
-Once files land here, tell me what's in each (or I'll infer from filenames
-if you name them per the pattern above) and I'll wire them into the app.
+## Still missing
+
+The sheet only supplied one mascot expression (the winking/celebrating
+pose, reused for both its "Great job" and "Try again" reaction cards). The
+app still uses hand-drawn SVG for every other pose — idle, wave, encourage
+(incorrect answer), thinking, sleeping, surprised, pointing — because using
+the same cheerful face for a wrong answer would read as celebrating the
+mistake. If you get a genuine "gentle/encouraging" pose (not winking) for
+incorrect answers, or art for the other poses, drop it in as `mascot-<mood>.png`
+and it'll slot into `QUILL_MASCOT_ART` in quill.html.

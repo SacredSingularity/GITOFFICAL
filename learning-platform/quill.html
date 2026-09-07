@@ -57,10 +57,7 @@
 
   /* ---------- ambient decoration ---------- */
   #ambient{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
-  .amb{position:absolute;opacity:0.07;}
-  .amb.cloud{width:140px;}
-  .amb.star{width:22px;}
-  .amb.blob{border-radius:50%;filter:blur(2px);}
+  .amb{position:absolute;opacity:0.09;}
 
   /* ---------- app shell ---------- */
   #app{position:relative;z-index:1;display:flex;min-height:100vh;}
@@ -179,7 +176,7 @@
   }
   .island:hover{transform:translateY(-4px) scale(1.03);}
   .island .isleArt{width:104px;height:104px;margin:0 auto;position:relative;}
-  .island .isleArt svg{width:100%;height:100%;filter:drop-shadow(0 10px 14px rgba(90,70,150,0.18));}
+  .island .isleArt svg,.island .isleArt img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 10px 14px rgba(90,70,150,0.18));}
   .island .badge{
     margin-top:6px;background:#fff;border-radius:16px;padding:6px 10px;
     box-shadow:var(--shadow-sm);display:inline-flex;flex-direction:column;align-items:center;gap:2px;
@@ -233,7 +230,8 @@
   .subjGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;}
   .subjCard{border-radius:var(--r-card);padding:18px;box-shadow:var(--shadow-md);border:1px solid var(--card-border);position:relative;overflow:hidden;}
   .subjCard .top{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
-  .subjCard .ic{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;}
+  .subjCard .ic{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;overflow:hidden;}
+  .subjCard .ic img{width:100%;height:100%;object-fit:contain;}
   .subjCard h4{margin:0;font-size:1.02rem;}
   .subjCard .muted{margin:0 0 12px;font-size:0.8rem;color:var(--ink-soft);}
   .subjCard.locked{opacity:0.62;}
@@ -685,11 +683,11 @@ function levelFromXp(xp){
 
 /* ---------------- Subject / world data ---------------- */
 const SUBJECTS = [
-  { id:'maths', name:'Maths', world:'Numbers Forest', color:'maths', icon:'icoTree', unlocked:true, pos:{left:'6%',top:'52%'} },
-  { id:'english', name:'English', world:'Reading Retreat', color:'english', icon:'icoCastlePurple', unlocked:false, pos:{left:'26%',top:'6%'} },
-  { id:'science', name:'Science', world:'Space Station', color:'science', icon:'icoRocket', unlocked:false, pos:{left:'52%',top:'46%'} },
-  { id:'history', name:'History', world:'History Hills', color:'history', icon:'icoCastleOrange', unlocked:false, pos:{left:'70%',top:'8%'} },
-  { id:'art', name:'Art', world:'Creative Cove', color:'art', icon:'icoPalette', unlocked:false, pos:{left:'82%',top:'50%'} },
+  { id:'maths', name:'Maths', world:'Numbers Forest', color:'maths', island:'numbers-forest', subjectIcon:'maths', unlocked:true, pos:{left:'6%',top:'52%'} },
+  { id:'english', name:'English', world:'Reading Retreat', color:'english', island:'reading-retreat', subjectIcon:'english', unlocked:false, pos:{left:'26%',top:'6%'} },
+  { id:'science', name:'Science', world:'Space Station', color:'science', island:'space-station', subjectIcon:'science', unlocked:false, pos:{left:'52%',top:'46%'} },
+  { id:'history', name:'History', world:'History Hills', color:'history', island:'history-hills', subjectIcon:'history', unlocked:false, pos:{left:'70%',top:'8%'} },
+  { id:'art', name:'Art', world:'Creative Cove', color:'art', island:'creative-cove', subjectIcon:'art', unlocked:false, pos:{left:'82%',top:'50%'} },
 ];
 
 /* ---------------- Lesson content: Numbers Forest (Maths) ---------------- */
@@ -779,15 +777,11 @@ const ACHIEVEMENTS = [
 ];
 
 /* ---------------- Icons (subject worlds) ---------------- */
-function svgIsland(kind){
-  const arts = {
-    icoTree: `<svg viewBox="0 0 104 104"><ellipse cx="52" cy="92" rx="40" ry="8" fill="#8FE3C0" opacity="0.5"/><path d="M30 60 L52 20 L74 60 Z" fill="#4FCB93"/><path d="M26 76 L52 38 L78 76 Z" fill="#6FDB9F"/><rect x="47" y="76" width="10" height="16" fill="#B5824A"/><circle cx="35" cy="34" r="6" fill="#FFD36B"/><circle cx="70" cy="30" r="4" fill="#FFB13D"/></svg>`,
-    icoCastlePurple: `<svg viewBox="0 0 104 104"><ellipse cx="52" cy="92" rx="40" ry="8" fill="#D9C6F5" opacity="0.5"/><rect x="30" y="46" width="44" height="38" rx="4" fill="#B79AE8"/><polygon points="52,20 66,46 38,46" fill="#8F6BD6"/><rect x="46" y="62" width="12" height="22" fill="#6E4CB8"/><circle cx="52" cy="30" r="4" fill="#FFE29A"/></svg>`,
-    icoRocket: `<svg viewBox="0 0 104 104"><ellipse cx="52" cy="92" rx="40" ry="8" fill="#B7F0D9" opacity="0.5"/><path d="M52 18c10 12 12 34 6 50h-12c-6-16-4-38 6-50z" fill="#8FD8FF"/><circle cx="52" cy="40" r="6" fill="#fff"/><path d="M40 60l-10 16 14-4z" fill="#FF9FC0"/><path d="M64 60l10 16-14-4z" fill="#FF9FC0"/><path d="M46 68h12l-6 16z" fill="#FFB13D"/></svg>`,
-    icoCastleOrange: `<svg viewBox="0 0 104 104"><ellipse cx="52" cy="92" rx="40" ry="8" fill="#FFD9B0" opacity="0.5"/><rect x="28" y="48" width="48" height="36" rx="4" fill="#F2A94C"/><rect x="22" y="60" width="12" height="24" fill="#E08F30"/><rect x="70" y="60" width="12" height="24" fill="#E08F30"/><polygon points="52,22 64,48 40,48" fill="#D97B1E"/></svg>`,
-    icoPalette: `<svg viewBox="0 0 104 104"><ellipse cx="52" cy="92" rx="40" ry="8" fill="#FFC9E0" opacity="0.5"/><path d="M52 24a34 34 0 100 68c6 0 8-4 8-8s-4-6-4-10 4-4 8-4a14 14 0 000-28 34 34 0 00-12-18z" fill="#FF9FC7"/><circle cx="38" cy="52" r="5" fill="#FF5FA2"/><circle cx="52" cy="42" r="5" fill="#FFD36B"/><circle cx="66" cy="52" r="5" fill="#8FD8FF"/><circle cx="48" cy="66" r="5" fill="#8FE3C0"/></svg>`,
-  };
-  return arts[kind] || arts.icoTree;
+function islandImg(id, alt){
+  return `<img src="quill-assets/island-${id}.png" alt="${alt||''}" loading="lazy">`;
+}
+function subjectPillImg(id){
+  return `<img src="quill-assets/icon-subject-${id}.png" alt="">`;
 }
 
 /* ---------------- Quill mascot: expression poses ---------------- */
@@ -868,6 +862,20 @@ function quillSvg(mood){
     ${face()}
   </svg>`;
 }
+/* Real mascot art only covers one cheerful pose so far (the supplied sheet
+   reuses it for both its "great job" and "try again" cards) — using it for
+   an incorrect answer too would read as celebrating the wrong answer, so
+   'encourage' and every other mood still use the procedural SVG poses until
+   a distinct sad/thinking/etc. pose is supplied. */
+const QUILL_MASCOT_ART = {
+  celebrate: 'mascot-happy.png',
+  surprised: 'mascot-happy.png',
+};
+function quillCoachHtml(mood){
+  const art = QUILL_MASCOT_ART[mood];
+  if(art) return `<img src="quill-assets/${art}" alt="Quill" style="width:96px;height:auto;">`;
+  return quillSvg(mood);
+}
 
 /* ---------------- KaTeX helper ---------------- */
 function renderMathIn(el){
@@ -938,7 +946,7 @@ function renderIslands(){
       : `<svg class="lockIcon" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" stroke-width="2.4"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>`;
     el.innerHTML = `
       <div class="islandCardRow">
-        <div class="isleArt">${svgIsland(s.icon)}</div>
+        <div class="isleArt">${islandImg(s.island, s.world)}</div>
         <div class="badge">
           <div>${s.world}</div>
           <div class="sub">${statusIcon} ${s.name}</div>
@@ -950,7 +958,7 @@ function renderIslands(){
     };
     wrap.appendChild(el);
   });
-  document.getElementById('quillMascotHome').innerHTML = quillSvg('wave');
+  document.getElementById('quillMascotHome').innerHTML = `<img src="quill-assets/mascot-happy.png" alt="Quill" style="width:96px;height:auto;">`;
 }
 
 function renderRoadmap(){
@@ -983,7 +991,7 @@ function renderSubjects(){
     return `
       <div class="subjCard ${s.unlocked ? '' : 'locked'}" style="background:linear-gradient(160deg,#fff,var(--${s.color}) 220%)">
         <div class="top">
-          <div class="ic" style="background:var(--${s.color})">${svgIsland(s.icon)}</div>
+          <div class="ic" style="background:var(--${s.color})">${islandImg(s.island, s.world)}</div>
           <div>
             <h4>${s.world}</h4>
             <div class="muted" style="margin:0;">${s.name}</div>
@@ -1085,7 +1093,7 @@ function renderSlide(){
 
   card.innerHTML = html + `<div id="quillCoach"></div>`;
   const startMood = isGraded(b) ? 'pointing' : (b.type === 'reveal' ? 'thinking' : 'idle');
-  document.getElementById('quillCoach').innerHTML = quillSvg(startMood);
+  document.getElementById('quillCoach').innerHTML = quillCoachHtml(startMood);
   renderMathIn(card);
   wireSlideInteractions(b);
 
@@ -1140,7 +1148,7 @@ function wireSlideInteractions(b){
   if(b.type === 'reveal'){
     document.getElementById('revealToggle').onclick = () => {
       document.getElementById('revealBody').classList.toggle('open');
-      document.getElementById('quillCoach').innerHTML = quillSvg('thinking');
+      document.getElementById('quillCoach').innerHTML = quillCoachHtml('thinking');
       playSound('click');
     };
   }
@@ -1154,12 +1162,12 @@ function showFeedback(correct){
     fb.textContent = '✅ Nice work! That\'s correct.';
     fireConfetti();
     playSound('correct');
-    document.getElementById('quillCoach').innerHTML = quillSvg('celebrate');
+    document.getElementById('quillCoach').innerHTML = quillCoachHtml('celebrate');
   } else {
     fb.className = 'feedbackMsg bad';
     fb.textContent = '💭 Not quite — you\'ll get the next one!';
     playSound('incorrect');
-    document.getElementById('quillCoach').innerHTML = quillSvg('encourage');
+    document.getElementById('quillCoach').innerHTML = quillCoachHtml('encourage');
   }
 }
 
@@ -1194,7 +1202,7 @@ function finishLesson(){
   checkAchievements();
   saveState();
 
-  document.getElementById('quillCoach').innerHTML = quillSvg(perfect ? 'surprised' : 'celebrate');
+  document.getElementById('quillCoach').innerHTML = quillCoachHtml(perfect ? 'surprised' : 'celebrate');
   playSound('complete');
   showToast(`✨ +${xpEarned} XP earned!`);
   fireConfetti(60);
@@ -1251,22 +1259,17 @@ function fireConfetti(count){
 /* ambient decoration */
 (function ambient(){
   const host = document.getElementById('ambient');
-  const shapes = [];
-  for(let i=0;i<10;i++){
+  const decos = [
+    'deco-star-pair.png','deco-sparkle-small.png','deco-cloud.png','deco-star-blue.png',
+    'deco-sparkle-tiny.png','deco-flower1.png','deco-flower2.png','deco-leaf.png',
+    'deco-moon.png','deco-heart.png',
+  ];
+  for(let i=0;i<12;i++){
     const el = document.createElement('div');
-    const kind = Math.random();
-    if(kind < 0.4){
-      el.className = 'amb star';
-      el.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2l2.6 6.6L22 10l-5.5 4.4L18 22l-6-4-6 4 1.5-7.6L2 10l7.4-1.4z" fill="#B79AE8"/></svg>`;
-    } else if(kind < 0.7){
-      el.className = 'amb blob';
-      const s = 60 + Math.random()*100;
-      el.style.width = s+'px'; el.style.height = s+'px';
-      el.style.background = ['#AEE1FF','#FFC9E0','#D9C6F5','#B7F0D9'][Math.floor(Math.random()*4)];
-    } else {
-      el.className = 'amb cloud';
-      el.innerHTML = `<svg viewBox="0 0 140 70"><ellipse cx="40" cy="45" rx="35" ry="22" fill="#8AB4D8"/><ellipse cx="80" cy="35" rx="42" ry="26" fill="#8AB4D8"/><ellipse cx="110" cy="48" rx="28" ry="18" fill="#8AB4D8"/></svg>`;
-    }
+    el.className = 'amb';
+    const file = decos[i % decos.length];
+    const s = 50 + Math.random()*50;
+    el.innerHTML = `<img src="quill-assets/${file}" alt="" style="width:${s}px;height:auto;display:block;">`;
     el.style.left = Math.random()*100 + '%';
     el.style.top = Math.random()*100 + '%';
     host.appendChild(el);
