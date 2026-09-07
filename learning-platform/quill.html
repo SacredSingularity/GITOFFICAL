@@ -150,11 +150,13 @@
   /* journey map */
   #journeyMap{
     position:relative;border-radius:var(--r-card);
-    background:linear-gradient(160deg,#EAF7FF,#F6EEFF 60%,#FFF1F7);
+    background:
+      url('quill-assets/deco-mountains.png') repeat-x bottom center / 340px auto,
+      linear-gradient(160deg,#EAF7FF,#F6EEFF 60%,#FFF1F7);
     box-shadow:var(--shadow-md);border:1px solid var(--card-border);
-    padding:26px;min-height:460px;overflow:hidden;
+    padding:26px;min-height:500px;overflow:hidden;
   }
-  #journeyMap .mapHead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;}
+  #journeyMap .mapHead{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;}
   #journeyMap .mapHead h2{margin:0;font-size:1.15rem;}
   #journeyMap .mapHead p{margin:4px 0 0;color:var(--ink-soft);font-size:0.85rem;max-width:320px;}
 
@@ -366,7 +368,7 @@
     #content{padding:0 14px 24px;}
     #topbar{padding:12px 14px;justify-content:space-between;}
     #moreMenuBtn{display:flex;}
-    #journeyMap{padding:18px;min-height:auto;}
+    #journeyMap{padding:18px;min-height:auto;background:linear-gradient(160deg,#EAF7FF,#F6EEFF 60%,#FFF1F7);}
     #quillHost{display:none;}
     #islands{height:auto;position:static;display:flex;flex-direction:column;gap:12px;}
     .island{position:static;width:100%;}
