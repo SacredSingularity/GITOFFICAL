@@ -497,6 +497,14 @@
             <button class="btn btn-primary" id="saveNameBtn" style="width:auto;">Save</button>
           </div>
           <div class="card" style="max-width:420px;margin-bottom:16px;">
+            <h3>Sound effects</h3>
+            <p class="muted">Correct/incorrect chimes, lesson-complete fanfare, and badge unlocks.</p>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.9rem;cursor:pointer;">
+              <input id="soundToggle" type="checkbox" style="width:18px;height:18px;">
+              Enabled
+            </label>
+          </div>
+          <div class="card" style="max-width:420px;margin-bottom:16px;">
             <h3>Account</h3>
             <p class="muted">Sign in to sync progress across devices.</p>
             <div id="quillAuthBox"></div>
@@ -578,7 +586,7 @@
 </div>
 
 <div id="confettiLayer"></div>
-<div id="xpToast">✨ <span id="xpToastText">+10 XP</span></div>
+<div id="xpToast"><span id="xpToastText">+10 XP</span></div>
 
 <script>
 /* =========================================================
@@ -602,7 +610,36 @@ function defaultState(){
     todayGoalDate: null,
     completedLessons: [],
     achievements: [],
+    soundEnabled: true,
   };
+}
+
+/* ---------------- Sound effects ----------------
+   Drop matching MP3 files into games/quill-sounds/ using these exact
+   filenames. Missing files fail silently (no console spam, no crash) —
+   see games/quill-sounds/README.md for the full list and suggested tone. */
+const SOUND_FILES = {
+  correct: 'quill-sounds/correct.mp3',
+  incorrect: 'quill-sounds/incorrect.mp3',
+  complete: 'quill-sounds/complete.mp3',
+  achievement: 'quill-sounds/achievement.mp3',
+  click: 'quill-sounds/click.mp3',
+};
+const soundCache = {};
+function getSound(name){
+  if(!soundCache[name]){
+    const a = new Audio(SOUND_FILES[name]);
+    a.preload = 'auto';
+    a.onerror = () => {}; // missing file until MP3s are supplied — ignore
+    soundCache[name] = a;
+  }
+  return soundCache[name];
+}
+function playSound(name){
+  if(!state.soundEnabled || !SOUND_FILES[name]) return;
+  const node = getSound(name).cloneNode(true);
+  node.volume = 0.7;
+  node.play().catch(() => {});
 }
 
 let state = loadState();
@@ -752,22 +789,82 @@ function svgIsland(kind){
   return arts[kind] || arts.icoTree;
 }
 
-function quillSvg(mood){
-  return `<svg viewBox="0 0 120 130" width="96" height="104">
-    <ellipse cx="60" cy="122" rx="30" ry="6" fill="#B79AE8" opacity="0.25"/>
+/* ---------------- Quill mascot: expression poses ---------------- */
+function quillBodyBase(){
+  return `<ellipse cx="60" cy="122" rx="30" ry="6" fill="#B79AE8" opacity="0.25"/>
     <ellipse cx="60" cy="76" rx="34" ry="40" fill="#8AB4D8"/>
     <ellipse cx="60" cy="80" rx="24" ry="30" fill="#EAF6FF"/>
     <path d="M60 55 L44 90 L60 82 L76 90 Z" fill="#F4C177" opacity="0.5"/>
-    <circle cx="46" cy="66" r="13" fill="#fff"/>
-    <circle cx="74" cy="66" r="13" fill="#fff"/>
-    <circle cx="46" cy="67" r="6" fill="#3A3552"/>
-    <circle cx="74" cy="67" r="6" fill="#3A3552"/>
-    <path d="M55 76 L60 82 L65 76" stroke="#F2A94C" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="M18 30 L60 12 L102 30 L60 30 Z" fill="#3A3552"/>
     <rect x="57" y="30" width="6" height="18" fill="#3A3552"/>
-    <circle cx="63" cy="50" r="4" fill="#FFD36B"/>
+    <circle cx="63" cy="50" r="4" fill="#FFD36B"/>`;
+}
+const QUILL_MOODS = {
+  idle: () => `
+    <circle cx="46" cy="66" r="13" fill="#fff"/><circle cx="74" cy="66" r="13" fill="#fff"/>
+    <circle cx="46" cy="67" r="6" fill="#3A3552"/><circle cx="74" cy="67" r="6" fill="#3A3552"/>
+    <path d="M55 76 L60 82 L65 76" stroke="#F2A94C" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M30 92c-10 6-14 16-10 22 8-2 16-10 18-18z" fill="#B79AE8"/>
+    <path d="M90 92c10 6 14 16 10 22-8-2-16-10-18-18z" fill="#B79AE8"/>`,
+  wave: () => `
+    <circle cx="46" cy="66" r="13" fill="#fff"/><circle cx="74" cy="66" r="13" fill="#fff"/>
+    <circle cx="46" cy="67" r="6" fill="#3A3552"/><circle cx="74" cy="67" r="6" fill="#3A3552"/>
+    <path d="M53 78c3 4 11 4 14 0" stroke="#F2A94C" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M30 92c-10 6-14 16-10 22 8-2 16-10 18-18z" fill="#B79AE8"/>
+    <path d="M92 88c14-2 24 2 26 10-6 6-18 8-28 4z" fill="#B79AE8" style="transform-origin:92px 90px;animation:quillWave 1.1s ease-in-out infinite;"/>`,
+  celebrate: () => `
+    <path d="M39 64q7-7 14 0" stroke="#3A3552" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M67 64q7-7 14 0" stroke="#3A3552" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <ellipse cx="60" cy="80" rx="9" ry="7" fill="#F2A94C"/>
+    <path d="M18 78c-14-6-24 2-24 14 10 4 24 0 30-8z" fill="#B79AE8"/>
+    <path d="M102 78c14-6 24 2 24 14-10 4-24 0-30-8z" fill="#B79AE8"/>
+    <text x="24" y="34" font-size="14">✨</text><text x="88" y="40" font-size="12">✨</text>`,
+  encourage: () => `
+    <circle cx="46" cy="66" r="13" fill="#fff"/><circle cx="74" cy="66" r="13" fill="#fff"/>
+    <circle cx="46" cy="68" r="6" fill="#3A3552"/><circle cx="74" cy="68" r="6" fill="#3A3552"/>
+    <path d="M38 58q8-5 16 0" stroke="#3A3552" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.55"/>
+    <path d="M66 58q8-5 16 0" stroke="#3A3552" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.55"/>
+    <path d="M54 78q6 4 12 0" stroke="#F2A94C" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M30 92c-10 6-14 16-10 22 8-2 16-10 18-18z" fill="#B79AE8"/>
+    <path d="M88 86c14 2 22 12 20 22-9-1-20-8-24-16z" fill="#B79AE8"/>`,
+  thinking: () => `
+    <circle cx="46" cy="66" r="13" fill="#fff"/><circle cx="74" cy="66" r="13" fill="#fff"/>
+    <circle cx="49" cy="63" r="5" fill="#3A3552"/><circle cx="77" cy="63" r="5" fill="#3A3552"/>
+    <path d="M40 57q8-6 16-1" stroke="#3A3552" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M68 55q8-4 16 1" stroke="#3A3552" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.5"/>
+    <path d="M56 79q4 2 8 0" stroke="#F2A94C" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M90 90c10-2 20 2 22 10-6 6-18 6-24 0z" fill="#B79AE8"/>
+    <path d="M30 92c-10 6-14 16-10 22 8-2 16-10 18-18z" fill="#B79AE8"/>
+    <circle cx="98" cy="46" r="2.4" fill="#B79AE8"/><circle cx="104" cy="38" r="3.2" fill="#B79AE8"/><circle cx="112" cy="28" r="4" fill="#B79AE8"/>`,
+  sleeping: () => `
+    <path d="M38 66q8 6 16 0" stroke="#3A3552" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M66 66q8 6 16 0" stroke="#3A3552" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <ellipse cx="60" cy="80" rx="5" ry="3" fill="#F2A94C"/>
     <path d="M30 92c-10 6-14 16-10 22 8-2 16-10 18-18z" fill="#B79AE8"/>
     <path d="M90 92c10 6 14 16 10 22-8-2-16-10-18-18z" fill="#B79AE8"/>
+    <text x="86" y="34" font-size="13" fill="#7C6FA8" font-weight="800">z</text>
+    <text x="96" y="24" font-size="17" fill="#7C6FA8" font-weight="800">Z</text>`,
+  surprised: () => `
+    <circle cx="46" cy="66" r="14" fill="#fff"/><circle cx="74" cy="66" r="14" fill="#fff"/>
+    <circle cx="46" cy="67" r="5" fill="#3A3552"/><circle cx="74" cy="67" r="5" fill="#3A3552"/>
+    <path d="M37 52q9-6 18 0" stroke="#3A3552" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M65 52q9-6 18 0" stroke="#3A3552" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <ellipse cx="60" cy="81" rx="7" ry="9" fill="#F2A94C"/>
+    <path d="M30 92c-10 6-14 16-10 22 8-2 16-10 18-18z" fill="#B79AE8"/>
+    <path d="M90 92c10 6 14 16 10 22-8-2-16-10-18-18z" fill="#B79AE8"/>`,
+  pointing: () => `
+    <circle cx="46" cy="66" r="13" fill="#fff"/><circle cx="74" cy="66" r="13" fill="#fff"/>
+    <circle cx="46" cy="67" r="6" fill="#3A3552"/><circle cx="74" cy="67" r="6" fill="#3A3552"/>
+    <path d="M55 76 L60 82 L65 76" stroke="#F2A94C" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M30 92c-10 6-14 16-10 22 8-2 16-10 18-18z" fill="#B79AE8"/>
+    <path d="M88 84c18 4 30-2 34-14-8-6-22-6-30 2z" fill="#B79AE8"/>`,
+};
+function quillSvg(mood){
+  const face = QUILL_MOODS[mood] || QUILL_MOODS.idle;
+  return `<svg viewBox="0 0 120 130" width="96" height="104">
+    <style>@keyframes quillWave{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-18deg);}}</style>
+    ${quillBodyBase()}
+    ${face()}
   </svg>`;
 }
 
@@ -919,12 +1016,15 @@ function switchView(view){
   if(view === 'journey') renderRoadmap();
   if(view === 'subjects') renderSubjects();
   if(view === 'achievements') renderAchievements();
-  if(view === 'settings') document.getElementById('nameInput').value = state.name || '';
+  if(view === 'settings'){
+    document.getElementById('nameInput').value = state.name || '';
+    document.getElementById('soundToggle').checked = state.soundEnabled !== false;
+  }
   window.scrollTo(0,0);
 }
 
 document.querySelectorAll('.navItem, #tabbar .tab').forEach(el => {
-  el.addEventListener('click', () => switchView(el.dataset.view));
+  el.addEventListener('click', () => { playSound('click'); switchView(el.dataset.view); });
 });
 
 /* ================= Lesson player ================= */
@@ -937,6 +1037,7 @@ function openLesson(id){
   if(!activeLesson) return;
   slideIndex = 0;
   answers = {};
+  playSound('click');
   document.getElementById('playerOverlay').classList.add('open');
   renderSlide();
 }
@@ -982,7 +1083,8 @@ function renderSlide(){
   }
 
   card.innerHTML = html + `<div id="quillCoach"></div>`;
-  document.getElementById('quillCoach').innerHTML = quillSvg('idle');
+  const startMood = isGraded(b) ? 'pointing' : (b.type === 'reveal' ? 'thinking' : 'idle');
+  document.getElementById('quillCoach').innerHTML = quillSvg(startMood);
   renderMathIn(card);
   wireSlideInteractions(b);
 
@@ -1037,6 +1139,8 @@ function wireSlideInteractions(b){
   if(b.type === 'reveal'){
     document.getElementById('revealToggle').onclick = () => {
       document.getElementById('revealBody').classList.toggle('open');
+      document.getElementById('quillCoach').innerHTML = quillSvg('thinking');
+      playSound('click');
     };
   }
 }
@@ -1048,10 +1152,12 @@ function showFeedback(correct){
     fb.className = 'feedbackMsg good';
     fb.textContent = '✅ Nice work! That\'s correct.';
     fireConfetti();
+    playSound('correct');
     document.getElementById('quillCoach').innerHTML = quillSvg('celebrate');
   } else {
     fb.className = 'feedbackMsg bad';
     fb.textContent = '💭 Not quite — you\'ll get the next one!';
+    playSound('incorrect');
     document.getElementById('quillCoach').innerHTML = quillSvg('encourage');
   }
 }
@@ -1075,6 +1181,7 @@ document.getElementById('playerExit').addEventListener('click', closeLesson);
 function finishLesson(){
   const gradedIds = Object.keys(answers);
   const correctCount = gradedIds.filter(id => answers[id].correct).length;
+  const perfect = gradedIds.length > 0 && correctCount === gradedIds.length;
   const xpEarned = 20 + correctCount * 5;
 
   touchDailyProgress();
@@ -1083,21 +1190,38 @@ function finishLesson(){
   }
   state.xp += xpEarned;
   if(state.todayGoalDate === todayStr()) state.todayGoalDone += 1;
+  checkAchievements();
   saveState();
 
-  showXpToast(xpEarned);
+  document.getElementById('quillCoach').innerHTML = quillSvg(perfect ? 'surprised' : 'celebrate');
+  playSound('complete');
+  showToast(`✨ +${xpEarned} XP earned!`);
   fireConfetti(60);
   closeLesson();
   refreshHeader();
   switchView('home');
 }
 
+function checkAchievements(){
+  const earnedIds = ACHIEVEMENTS.filter(a => a.test(state)).map(a => a.id);
+  const newly = earnedIds.filter(id => !state.achievements.includes(id));
+  state.achievements = earnedIds;
+  newly.forEach((id, i) => {
+    const a = ACHIEVEMENTS.find(x => x.id === id);
+    setTimeout(() => {
+      playSound('achievement');
+      showToast(`${a.icon} ${a.name} unlocked!`);
+    }, 1600 + i * 1600);
+  });
+}
+
 /* ================= FX ================= */
-function showXpToast(amount){
+function showToast(text){
   const t = document.getElementById('xpToast');
-  document.getElementById('xpToastText').textContent = `+${amount} XP earned!`;
+  document.getElementById('xpToastText').textContent = text;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2200);
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
 function fireConfetti(count){
@@ -1154,6 +1278,11 @@ document.getElementById('saveNameBtn').addEventListener('click', () => {
   state.name = val || 'Explorer';
   saveState();
   refreshHeader();
+});
+document.getElementById('soundToggle').addEventListener('change', (e) => {
+  state.soundEnabled = e.target.checked;
+  saveState();
+  if(state.soundEnabled) playSound('click');
 });
 document.getElementById('resetBtn').addEventListener('click', () => {
   if(!confirm('Reset all Quill progress on this device?')) return;
