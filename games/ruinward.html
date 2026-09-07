@@ -707,7 +707,7 @@ function updateEnemies(dt) {
 }
 
 function damagePlayer(amount) {
-  if (player.invuln > 0 || player.inSafehouse) return;
+  if (player.invuln > 0) return;
   const dmg = Math.max(1, amount - playerArmor());
   player.hp -= dmg;
   player.invuln = 0.4;
