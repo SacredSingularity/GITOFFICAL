@@ -1,6 +1,6 @@
 # Quill visual assets
 
-Drop PNGs (or sprite sheets) here. `games/quill.html` will reference files
+Drop PNGs (or sprite sheets) here. `learning-platform/quill.html` will reference files
 in this folder by name to replace the current hand-drawn SVG mascot/icons.
 
 Based on the reference sheet, here's what I'm expecting — confirm/adjust

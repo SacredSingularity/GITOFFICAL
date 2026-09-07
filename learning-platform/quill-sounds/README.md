@@ -1,6 +1,6 @@
 # Quill sound effects
 
-Drop MP3 files into this folder using these exact filenames. `games/quill.html`
+Drop MP3 files into this folder using these exact filenames. `learning-platform/quill.html`
 references them by name and silently skips playback if a file is missing, so
 the app works with none, some, or all of them present.
 
