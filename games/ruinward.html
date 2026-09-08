@@ -1162,9 +1162,15 @@ function draw() {
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
   }
 
+  const facingAngle = Math.atan2(player.facing.y, player.facing.x);
   if (player.swingFlash > 0) {
-    ctx.strokeStyle = 'rgba(240,230,200,0.6)'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(player.x, player.y, 50, 0, Math.PI * 2); ctx.stroke();
+    const heldWeapon = player.weapons.find((w) => WEAPON_DEFS[w.id].type === 'melee');
+    const arcDeg = heldWeapon ? WEAPON_DEFS[heldWeapon.id].arcDeg[heldWeapon.level] : 100;
+    const halfArc = (arcDeg / 2) * Math.PI / 180;
+    ctx.strokeStyle = 'rgba(240,230,200,0.8)'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, 42, facingAngle - halfArc, facingAngle + halfArc);
+    ctx.stroke();
   }
   ctx.globalAlpha = (player.invuln > 0 && Math.floor(player.invuln * 20) % 2 === 0) ? 0.5 : 1;
   const drewSprite = drawCharSprite(
@@ -1177,12 +1183,12 @@ function draw() {
     ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#2a3a2a'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = '#f0e6a8'; ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(player.x, player.y);
-    ctx.lineTo(player.x + player.facing.x * (player.r + 10), player.y + player.facing.y * (player.r + 10));
-    ctx.stroke();
   }
+  ctx.strokeStyle = '#f0e6a8'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(player.x, player.y);
+  ctx.lineTo(player.x + player.facing.x * (player.r + 14), player.y + player.facing.y * (player.r + 14));
+  ctx.stroke();
 
   ctx.font = '11px monospace'; ctx.textAlign = 'center';
   for (const p of popups) {
