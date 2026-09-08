@@ -233,8 +233,8 @@ const WEAPON_DEFS = {
     name: 'Baseball Bat', icon: '🏏', type: 'melee', maxLevel: 4,
     damage:   [10, 14, 19, 25],
     cooldown: [0.55, 0.5, 0.46, 0.4],
-    range:    [46, 50, 55, 60],
-    arcDeg:   [100, 110, 125, 140],
+    range:    [62, 68, 75, 84],
+    arcDeg:   [120, 132, 146, 160],
     knockback:[60, 80, 100, 130],
     desc: (lv) => `Cleaving melee swing. Requires facing the target.\nDmg ${WEAPON_DEFS.bat.damage[lv]} · Range ${WEAPON_DEFS.bat.range[lv]}`
   },
@@ -275,7 +275,7 @@ const ENEMY_DEFS = {
   redcap:  { name: 'Redcap',           color: '#c94f4f', r: 13, hp: 28, speed: 95,  dmg: 10, xp: 7, gold: 2, rushBuff: true, breacher: true, tier: 2 },
   banshee: { name: 'Banshee',          color: '#b28fe6', r: 14, hp: 42, speed: 55,  dmg: 9,  xp: 10, gold: 3, ranged: true, tier: 2 },
   boggart: { name: 'Boggart',          color: '#5a4a6b', r: 11, hp: 22, speed: 115, dmg: 8,  xp: 6, gold: 2, tier: 1 },
-  wendigo: { name: 'Wendigo',          color: '#c9c2b0', r: 15, hp: 75, speed: 78,  dmg: 15, xp: 20, gold: 5, tier: 3, predator: true, sprite: 'wendigo' }
+  wendigo: { name: 'Wendigo',          color: '#c9c2b0', r: 22, hp: 75, speed: 230, dmg: 15, xp: 20, gold: 5, tier: 3, predator: true, momentum: true, sprite: 'wendigo' }
 };
 
 // -------------------------------------------------------------------
@@ -387,7 +387,7 @@ function drawPlayerWeapons(facingAngle) {
     let angle;
     if (player.swingFlash > 0) {
       const progress = 1 - player.swingFlash / SWING_DURATION;
-      angle = facingAngle - halfArc + halfArc * 2 * progress;
+      angle = player.swingAngle - halfArc + halfArc * 2 * progress;
     } else {
       angle = facingAngle - halfArc * 0.7;
     }
@@ -461,6 +461,7 @@ function freshPlayer() {
     invuln: 0,
     inSafehouse: false,
     swingFlash: 0,
+    swingAngle: 0,
     moving: false,
     animT: 0
   };
@@ -525,7 +526,7 @@ function genWorld() {
       if (roll < 0.5) {
         const w = 130 + rng() * 50, h = 130 + rng() * 50;
         buildings.push({ x: cxx - w / 2, y: cyy - h / 2, w, h });
-      } else if (roll < 0.72) {
+      } else if (roll < 0.58) {
         const w = 120, h = 100;
         safehouses.push(makeSafehouse(cxx - w / 2, cyy - h / 2, w, h));
       }
@@ -857,6 +858,7 @@ function performMeleeSwing(w) {
     en.knockY = (en.y - player.y) / (d || 1) * kb;
   }
   player.swingFlash = SWING_DURATION;
+  player.swingAngle = Math.atan2(player.facing.y, player.facing.x);
   w.cd = def.cooldown[w.level];
 }
 
@@ -921,8 +923,25 @@ function updateEnemies(dt) {
       const pd = dist(en.x, en.y, player.x, player.y);
       if (pd < 220) spd *= 0.3;
     }
-    if (en.def.predator && player.hp / player.maxHp < 0.4) spd *= 1.7;
-    const moveX = (tx - en.x) / d * spd * dt, moveY = (ty - en.y) / d * spd * dt;
+    if (en.def.predator && player.hp / player.maxHp < 0.4) spd *= 1.25;
+
+    let dirX = (tx - en.x) / d, dirY = (ty - en.y) / d;
+    if (en.def.momentum) {
+      if (!en.heading) en.heading = { x: dirX, y: dirY };
+      const curAngle = Math.atan2(en.heading.y, en.heading.x);
+      const desiredAngle = Math.atan2(dirY, dirX);
+      let diff = desiredAngle - curAngle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      const turnRate = 2.6; // rad/s — fast but not instant, so sharp turns cost speed
+      const maxTurn = turnRate * dt;
+      const newAngle = curAngle + clamp(diff, -maxTurn, maxTurn);
+      en.heading = { x: Math.cos(newAngle), y: Math.sin(newAngle) };
+      const alignment = en.heading.x * dirX + en.heading.y * dirY;
+      spd *= 0.35 + 0.65 * ((alignment + 1) / 2);
+      dirX = en.heading.x; dirY = en.heading.y;
+    }
+    const moveX = dirX * spd * dt, moveY = dirY * spd * dt;
     en.x += moveX; en.y += moveY;
     if (Math.hypot(moveX, moveY) > 0.01) {
       en.facing = { x: moveX, y: moveY };
@@ -1330,7 +1349,7 @@ function draw() {
     const halfArc = (arcDeg / 2) * Math.PI / 180;
     ctx.strokeStyle = 'rgba(240,230,200,0.8)'; ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(player.x, player.y, 28, facingAngle - halfArc, facingAngle + halfArc);
+    ctx.arc(player.x, player.y, 28, player.swingAngle - halfArc, player.swingAngle + halfArc);
     ctx.stroke();
   }
   ctx.globalAlpha = (player.invuln > 0 && Math.floor(player.invuln * 20) % 2 === 0) ? 0.5 : 1;
