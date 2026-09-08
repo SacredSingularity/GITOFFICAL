@@ -353,6 +353,41 @@ function drawCharSprite(sprite, x, y, facing, animName, animT, dispW, dispH) {
   return true;
 }
 
+const SWING_DURATION = 0.12;
+function drawPlayerWeapons(facingAngle) {
+  const meleeHeld = player.weapons.find((w) => WEAPON_DEFS[w.id].type === 'melee');
+  if (meleeHeld) {
+    const def = WEAPON_DEFS[meleeHeld.id];
+    const halfArc = (def.arcDeg[meleeHeld.level] / 2) * Math.PI / 180;
+    let angle;
+    if (player.swingFlash > 0) {
+      const progress = 1 - player.swingFlash / SWING_DURATION;
+      angle = facingAngle - halfArc + halfArc * 2 * progress;
+    } else {
+      angle = facingAngle - halfArc * 0.7;
+    }
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(angle);
+    ctx.strokeStyle = '#4a3520'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(20, 0); ctx.stroke();
+    ctx.strokeStyle = '#c8a45c'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(19, 0); ctx.lineTo(38, 0); ctx.stroke();
+    ctx.restore();
+  }
+  const rangedHeld = player.weapons.find((w) => WEAPON_DEFS[w.id].type === 'ranged');
+  if (rangedHeld) {
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(facingAngle);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(10, -4, 18, 7);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(24, -2, 6, 3);
+    ctx.restore();
+  }
+}
+
 // -------------------------------------------------------------------
 //  STATE
 // -------------------------------------------------------------------
@@ -1184,11 +1219,7 @@ function draw() {
     ctx.strokeStyle = '#2a3a2a'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.stroke();
   }
-  ctx.strokeStyle = '#f0e6a8'; ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(player.x, player.y);
-  ctx.lineTo(player.x + player.facing.x * (player.r + 14), player.y + player.facing.y * (player.r + 14));
-  ctx.stroke();
+  drawPlayerWeapons(facingAngle);
 
   ctx.font = '11px monospace'; ctx.textAlign = 'center';
   for (const p of popups) {
