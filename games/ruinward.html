@@ -92,7 +92,10 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 .btn:hover { background: rgba(127,214,138,0.22); color: #eafcea; box-shadow: 0 0 20px rgba(127,214,138,0.35); }
 .btn-play { font-size: 16px; padding: 14px 48px; background: rgba(127,214,138,0.18); border: 2px solid #7fd68a; color: #eafcea; }
 .btn-play:hover { box-shadow: 0 0 26px rgba(127,214,138,0.5); }
+.btn-run { background: rgba(217,92,92,0.12); border-color: rgba(217,92,92,0.5); color: #e8a0a0; }
+.btn-run:hover { background: rgba(217,92,92,0.24); color: #ffd0d0; box-shadow: 0 0 20px rgba(217,92,92,0.4); }
 .btn-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+#stage.run-mode #barWrap, #stage.run-mode #goldChip { display: none; }
 
 .card-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-bottom: 4px; }
 .card {
@@ -152,11 +155,13 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
     <div class="stat-box">
       <div class="stat-item"><div class="stat-num" id="menuBest">0:00</div><div class="stat-label">Best Time</div></div>
       <div class="stat-item"><div class="stat-num" id="menuGold">0</div><div class="stat-label">Banked Gold</div></div>
+      <div class="stat-item"><div class="stat-num" id="menuBestRun">0:00</div><div class="stat-label">Best Escape</div></div>
     </div>
     <div class="subtitle" style="margin-bottom:16px;">WASD / Arrows to move &bull; click / tap to swing your melee weapon toward the cursor &bull; ranged weapons auto-fire at the nearest threat &bull; E opens/closes safehouse doors</div>
     <div class="btn-row">
       <div class="btn btn-play" id="playBtn">▸ Enter the City</div>
       <div class="btn" id="shopBtn">⚒ Shop</div>
+      <div class="btn btn-run" id="runBtn">☠ RUN</div>
     </div>
   </div>
 
@@ -177,13 +182,14 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   </div>
 
   <div class="overlay" id="deathScreen">
-    <div class="death-msg">You Didn't Make It</div>
+    <div class="death-msg" id="deathMsg">You Didn't Make It</div>
     <div class="subtitle" id="deathCause">— overwhelmed —</div>
     <div class="stat-box">
       <div class="stat-item"><div class="stat-num" id="deathTime">0:00</div><div class="stat-label">Survived</div></div>
       <div class="stat-item"><div class="stat-num" id="deathLevel">1</div><div class="stat-label">Level</div></div>
       <div class="stat-item"><div class="stat-num" id="deathGold">0</div><div class="stat-label">Gold Banked</div></div>
       <div class="stat-item"><div class="stat-num" id="deathBest">0:00</div><div class="stat-label">Best Time</div></div>
+      <div class="stat-item"><div class="stat-num" id="deathBestRun">0:00</div><div class="stat-label">Best Escape</div></div>
     </div>
     <div class="btn-row">
       <div class="btn btn-play" id="retryBtn">↺ Try Again</div>
@@ -275,7 +281,8 @@ const ENEMY_DEFS = {
   redcap:  { name: 'Redcap',           color: '#c94f4f', r: 13, hp: 28, speed: 95,  dmg: 10, xp: 7, gold: 2, rushBuff: true, breacher: true, tier: 2 },
   banshee: { name: 'Banshee',          color: '#b28fe6', r: 14, hp: 42, speed: 55,  dmg: 9,  xp: 10, gold: 3, ranged: true, tier: 2 },
   boggart: { name: 'Boggart',          color: '#5a4a6b', r: 11, hp: 22, speed: 115, dmg: 8,  xp: 6, gold: 2, tier: 1 },
-  wendigo: { name: 'Wendigo',          color: '#c9c2b0', r: 22, hp: 75, speed: 230, dmg: 15, xp: 20, gold: 5, tier: 3, predator: true, momentum: true, sprite: 'wendigo' }
+  wendigo: { name: 'Wendigo',          color: '#c9c2b0', r: 22, hp: 75, speed: 230, dmg: 15, xp: 20, gold: 5, tier: 3, predator: true, momentum: true, turnRate: 2.6, speedFloor: 0.35, sprite: 'wendigo' },
+  wendigoChase: { name: 'The Wendigo', color: '#c9c2b0', r: 24, hp: 999999, speed: 340, dmg: 999, xp: 0, gold: 0, tier: 3, momentum: true, turnRate: 3.4, speedFloor: 0.55, sprite: 'wendigo', invincible: true, instaKill: true }
 };
 
 // -------------------------------------------------------------------
@@ -421,7 +428,7 @@ const SAVE_KEY = 'ruinward-save-v1';
 const WALL = 14, DOORW = 56, DOOR_FIT_R = 15, DOOR_INTERACT_RANGE = 60;
 const BOGGART_DWELL_TIME = 25, BREACH_TIME = 6;
 
-let save = { bestTime: 0, bankedGold: 0, meta: {} };
+let save = { bestTime: 0, bankedGold: 0, bestRunTime: 0, meta: {} };
 try {
   const raw = localStorage.getItem(SAVE_KEY);
   if (raw) save = Object.assign(save, JSON.parse(raw));
@@ -436,6 +443,7 @@ function metaCost(id) { const d = META_DEFS[id]; return Math.round(d.baseCost * 
 function goldMul() { return 1 + metaBonus('greed'); }
 
 let state = 'menu'; // menu | playing | levelup | dead
+let mode = 'city'; // city | run
 let elapsed = 0;
 let runGold = 0;
 let declineCounts = {};
@@ -504,7 +512,7 @@ function pointInsideAnyRect(x, y, rects) {
   return rects.some((r) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h);
 }
 
-function genWorld() {
+function genWorld(genMode) {
   rubble = []; buildings = []; safehouses = [];
   let rng = mulberry32(1337);
   for (let i = 0; i < 220; i++) {
@@ -526,7 +534,7 @@ function genWorld() {
       if (roll < 0.5) {
         const w = 130 + rng() * 50, h = 130 + rng() * 50;
         buildings.push({ x: cxx - w / 2, y: cyy - h / 2, w, h });
-      } else if (roll < 0.58) {
+      } else if (genMode !== 'run' && roll < 0.58) {
         const w = 120, h = 100;
         safehouses.push(makeSafehouse(cxx - w / 2, cyy - h / 2, w, h));
       }
@@ -538,6 +546,75 @@ function genWorld() {
     const { wallRects } = safehouseWallRects(sh);
     for (const wr of wallRects) staticSolids.push(wr);
   }
+  buildFlowGrid();
+}
+
+// -------------------------------------------------------------------
+//  FLOW-FIELD PATHFINDING — lets enemies route around buildings toward
+//  the player instead of walking straight into walls
+// -------------------------------------------------------------------
+const FLOW_CELL = 48;
+let flowCols = 0, flowRows = 0, flowBlocked = null, flowDist = null, flowTimer = 0;
+
+function buildFlowGrid() {
+  flowCols = Math.ceil(WORLD_W / FLOW_CELL);
+  flowRows = Math.ceil(WORLD_H / FLOW_CELL);
+  flowBlocked = new Uint8Array(flowCols * flowRows);
+  flowDist = new Float32Array(flowCols * flowRows).fill(Infinity);
+  for (const r of staticSolids) {
+    const cx0 = Math.max(0, Math.floor(r.x / FLOW_CELL));
+    const cy0 = Math.max(0, Math.floor(r.y / FLOW_CELL));
+    const cx1 = Math.min(flowCols - 1, Math.floor((r.x + r.w) / FLOW_CELL));
+    const cy1 = Math.min(flowRows - 1, Math.floor((r.y + r.h) / FLOW_CELL));
+    for (let gy = cy0; gy <= cy1; gy++) {
+      for (let gx = cx0; gx <= cx1; gx++) flowBlocked[gy * flowCols + gx] = 1;
+    }
+  }
+  flowTimer = 0;
+}
+
+function updateFlowField() {
+  if (!flowBlocked) return;
+  const startX = clamp(Math.floor(player.x / FLOW_CELL), 0, flowCols - 1);
+  const startY = clamp(Math.floor(player.y / FLOW_CELL), 0, flowRows - 1);
+  flowDist.fill(Infinity);
+  const startIdx = startY * flowCols + startX;
+  flowDist[startIdx] = 0;
+  const queue = [startIdx];
+  let qi = 0;
+  while (qi < queue.length) {
+    const idx = queue[qi++];
+    const cx = idx % flowCols, cy = (idx / flowCols) | 0;
+    const d = flowDist[idx];
+    if (cx + 1 < flowCols) { const n = idx + 1; if (!flowBlocked[n] && flowDist[n] > d + 1) { flowDist[n] = d + 1; queue.push(n); } }
+    if (cx - 1 >= 0) { const n = idx - 1; if (!flowBlocked[n] && flowDist[n] > d + 1) { flowDist[n] = d + 1; queue.push(n); } }
+    if (cy + 1 < flowRows) { const n = idx + flowCols; if (!flowBlocked[n] && flowDist[n] > d + 1) { flowDist[n] = d + 1; queue.push(n); } }
+    if (cy - 1 >= 0) { const n = idx - flowCols; if (!flowBlocked[n] && flowDist[n] > d + 1) { flowDist[n] = d + 1; queue.push(n); } }
+  }
+}
+
+function flowWaypoint(ex, ey) {
+  if (!flowBlocked) return null;
+  const gx = clamp(Math.floor(ex / FLOW_CELL), 0, flowCols - 1);
+  const gy = clamp(Math.floor(ey / FLOW_CELL), 0, flowRows - 1);
+  // Search a small ring rather than just the current cell — an enemy pressed
+  // right up against a wall sits in a cell that itself reads as "blocked"
+  // (the wall overlaps part of it), which would otherwise make it fall back
+  // to a blind straight line into that same wall and freeze in place.
+  let bestX = -1, bestY = -1, bestD = Infinity;
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const nx = gx + dx, ny = gy + dy;
+      if (nx < 0 || ny < 0 || nx >= flowCols || ny >= flowRows) continue;
+      const nIdx = ny * flowCols + nx;
+      if (flowBlocked[nIdx]) continue;
+      const nd = flowDist[nIdx];
+      if (!isFinite(nd)) continue;
+      if (nd < bestD) { bestD = nd; bestX = nx; bestY = ny; }
+    }
+  }
+  if (bestX < 0) return null;
+  return { x: (bestX + 0.5) * FLOW_CELL, y: (bestY + 0.5) * FLOW_CELL };
 }
 
 function computeDoorSolids() {
@@ -614,22 +691,27 @@ function fmtTime(t) {
 // -------------------------------------------------------------------
 //  START / RESET
 // -------------------------------------------------------------------
-function startRun() {
+function startGame(m) {
+  mode = m;
   player = freshPlayer();
+  if (mode === 'run') player.weapons = [];
   enemies = []; projectiles = []; gems = []; popups = []; goldPickups = [];
   elapsed = 0; runGold = 0; spawnTimer = 0; eliteTimer = 0;
   wendigoTimer = 120 + Math.random() * 60;
   declineCounts = {};
-  genWorld();
+  genWorld(mode);
+  if (mode === 'run') spawnChaseWendigo();
   state = 'playing';
+  document.getElementById('stage').classList.toggle('run-mode', mode === 'run');
   hide('menuScreen'); hide('deathScreen'); hide('levelUpScreen');
   updateHud();
 }
 function show(id) { document.getElementById(id).classList.add('show'); }
 function hide(id) { document.getElementById(id).classList.remove('show'); }
 
-document.getElementById('playBtn').addEventListener('click', startRun);
-document.getElementById('retryBtn').addEventListener('click', startRun);
+document.getElementById('playBtn').addEventListener('click', () => startGame('city'));
+document.getElementById('runBtn').addEventListener('click', () => startGame('run'));
+document.getElementById('retryBtn').addEventListener('click', () => startGame(mode));
 document.getElementById('shopBtn').addEventListener('click', () => { hide('menuScreen'); renderShop(); show('shopScreen'); });
 document.getElementById('shopBackBtn').addEventListener('click', () => { hide('shopScreen'); show('menuScreen'); });
 
@@ -674,6 +756,7 @@ function buyMeta(id) {
 
 document.getElementById('menuBest').textContent = fmtTime(save.bestTime);
 document.getElementById('menuGold').textContent = save.bankedGold;
+document.getElementById('menuBestRun').textContent = fmtTime(save.bestRunTime);
 document.getElementById('bestVal').textContent = fmtTime(save.bestTime);
 
 // -------------------------------------------------------------------
@@ -711,6 +794,8 @@ function update(dt) {
   elapsed += dt;
 
   computeDoorSolids();
+  flowTimer -= dt;
+  if (flowTimer <= 0) { flowTimer = 0.15; updateFlowField(); }
   handleMovement(dt);
   handleSafehouse(dt);
   handleWeapons(dt);
@@ -885,6 +970,7 @@ canvas.addEventListener('touchstart', (e) => {
 }, { passive: false });
 
 function dealDamage(en, amount) {
+  if (en.def.invincible) return;
   en.hp -= amount;
   popups.push({ x: en.x, y: en.y - en.r - 6, text: String(Math.round(amount)), life: 0.6, color: '#fff2c8' });
   if (en.hp <= 0) killEnemy(en);
@@ -915,6 +1001,12 @@ function updateEnemies(dt) {
       ty = en.y + Math.sin(en.wanderAngle) * 100;
       const toPlayer = dist(en.x, en.y, player.x, player.y);
       if (toPlayer > 260) { tx = player.x; ty = player.y; }
+    } else {
+      const directDist = dist(en.x, en.y, player.x, player.y);
+      if (directDist > FLOW_CELL * 1.5) {
+        const waypoint = flowWaypoint(en.x, en.y);
+        if (waypoint) { tx = waypoint.x; ty = waypoint.y; }
+      }
     }
 
     const d = dist(en.x, en.y, tx, ty) || 1;
@@ -933,12 +1025,13 @@ function updateEnemies(dt) {
       let diff = desiredAngle - curAngle;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      const turnRate = 2.6; // rad/s — fast but not instant, so sharp turns cost speed
+      const turnRate = en.def.turnRate || 2.6; // rad/s — fast but not instant, so sharp turns cost speed
       const maxTurn = turnRate * dt;
       const newAngle = curAngle + clamp(diff, -maxTurn, maxTurn);
       en.heading = { x: Math.cos(newAngle), y: Math.sin(newAngle) };
       const alignment = en.heading.x * dirX + en.heading.y * dirY;
-      spd *= 0.35 + 0.65 * ((alignment + 1) / 2);
+      const floor = en.def.speedFloor != null ? en.def.speedFloor : 0.35;
+      spd *= floor + (1 - floor) * ((alignment + 1) / 2);
       dirX = en.heading.x; dirY = en.heading.y;
     }
     const moveX = dirX * spd * dt, moveY = dirY * spd * dt;
@@ -970,10 +1063,15 @@ function updateEnemies(dt) {
     } else {
       const pd = dist(en.x, en.y, player.x, player.y);
       if (pd < en.r + player.r + 2 && en.contactCd <= 0) {
-        damagePlayer(en.def.dmg * (en.eliteMul ? en.eliteMul.dmg : 1));
-        en.contactCd = 0.6;
-        en.attackFlash = 0.35;
-        if (en.def.rushBuff && en.rushCd <= 0) { en.speedBuff = 1.5; en.rushCd = 3; setTimeout(() => { en.speedBuff = 1; }, 1400); }
+        if (en.def.instaKill) {
+          en.contactCd = 999;
+          killPlayer('caught');
+        } else {
+          damagePlayer(en.def.dmg * (en.eliteMul ? en.eliteMul.dmg : 1));
+          en.contactCd = 0.6;
+          en.attackFlash = 0.35;
+          if (en.def.rushBuff && en.rushCd <= 0) { en.speedBuff = 1.5; en.rushCd = 3; setTimeout(() => { en.speedBuff = 1; }, 1400); }
+        }
       }
     }
   }
@@ -1071,6 +1169,7 @@ function unlockedTypes() {
   return ids;
 }
 function spawnLogic(dt) {
+  if (mode === 'run') return; // the chase wendigo is a single persistent spawn
   spawnTimer -= dt;
   const interval = Math.max(0.35, 1.6 - elapsed / 90);
   if (spawnTimer <= 0 && enemies.length < 150) {
@@ -1124,6 +1223,19 @@ function spawnWendigoHerald() {
     if (!pointInsideAnyRect(x, y, solidsLarge)) break;
   }
   spawnEnemyAt('wendigo', x, y, false);
+  try { WENDIGO_ROAR.currentTime = 0; WENDIGO_ROAR.play().catch(() => {}); } catch (e) {}
+}
+
+function spawnChaseWendigo() {
+  let x, y;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 900 + Math.random() * 300;
+    x = clamp(player.x + Math.cos(angle) * radius, 20, WORLD_W - 20);
+    y = clamp(player.y + Math.sin(angle) * radius, 20, WORLD_H - 20);
+    if (!pointInsideAnyRect(x, y, solidsLarge)) break;
+  }
+  spawnEnemyAt('wendigoChase', x, y, false);
   try { WENDIGO_ROAR.currentTime = 0; WENDIGO_ROAR.play().catch(() => {}); } catch (e) {}
 }
 
@@ -1219,17 +1331,27 @@ function applyChoice(c) {
 // -------------------------------------------------------------------
 //  DEATH
 // -------------------------------------------------------------------
-function killPlayer() {
+function killPlayer(cause) {
+  if (state === 'dead') return;
   state = 'dead';
-  save.bankedGold += runGold;
-  if (elapsed > save.bestTime) save.bestTime = elapsed;
+  const isRun = mode === 'run';
+  if (isRun) {
+    if (elapsed > save.bestRunTime) save.bestRunTime = elapsed;
+  } else {
+    save.bankedGold += runGold;
+    if (elapsed > save.bestTime) save.bestTime = elapsed;
+  }
   persist();
+  document.getElementById('deathMsg').textContent = isRun ? 'The Wendigo Caught You' : "You Didn't Make It";
+  document.getElementById('deathCause').textContent = cause === 'caught' ? '— it ran you down —' : '— overwhelmed —';
   document.getElementById('deathTime').textContent = fmtTime(elapsed);
-  document.getElementById('deathLevel').textContent = player.level;
-  document.getElementById('deathGold').textContent = runGold;
+  document.getElementById('deathLevel').textContent = isRun ? '—' : player.level;
+  document.getElementById('deathGold').textContent = isRun ? '—' : runGold;
   document.getElementById('deathBest').textContent = fmtTime(save.bestTime);
+  document.getElementById('deathBestRun').textContent = fmtTime(save.bestRunTime);
   document.getElementById('menuBest').textContent = fmtTime(save.bestTime);
   document.getElementById('menuGold').textContent = save.bankedGold;
+  document.getElementById('menuBestRun').textContent = fmtTime(save.bestRunTime);
   document.getElementById('bestVal').textContent = fmtTime(save.bestTime);
   show('deathScreen');
 }
