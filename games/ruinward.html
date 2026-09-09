@@ -289,10 +289,10 @@ WENDIGO_ROAR.volume = 0.6;
 
 const ENEMY_DEFS = {
   wisp:    { name: "Will-o'-the-Wisp", color: '#8fe6c8', r: 10, hp: 8,  speed: 70,  dmg: 5,  xp: 3, gold: 1, erratic: true, tier: 1, sprite: 'ghost' },
-  ghoul:   { name: 'Ghoul',            color: '#9ec25a', r: 12, hp: 15, speed: 130, dmg: 6,  xp: 4, gold: 1, tier: 1, sprite: 'zombie' },
+  ghoul:   { name: 'Ghoul',            color: '#9ec25a', r: 15, hp: 15, speed: 130, dmg: 6,  xp: 4, gold: 1, tier: 1, sprite: 'zombie' },
   redcap:  { name: 'Redcap',           color: '#c94f4f', r: 13, hp: 28, speed: 95,  dmg: 10, xp: 7, gold: 2, rushBuff: true, breacher: true, tier: 2 },
   banshee: { name: 'Banshee',          color: '#b28fe6', r: 14, hp: 42, speed: 55,  dmg: 9,  xp: 10, gold: 3, ranged: true, tier: 2 },
-  boggart: { name: 'Boggart',          color: '#5a4a6b', r: 11, hp: 22, speed: 115, dmg: 8,  xp: 6, gold: 2, tier: 1 },
+  boggart: { name: 'Boggart',          color: '#5a4a6b', r: 11, hp: 55, speed: 115, dmg: 8,  xp: 6, gold: 2, tier: 1 },
   wendigo: { name: 'Wendigo',          color: '#c9c2b0', r: 22, hp: 75, speed: 230, dmg: 15, xp: 20, gold: 5, tier: 3, predator: true, momentum: true, turnRate: 5.0, speedFloor: 0.25, sprite: 'wendigo' },
   wendigoChase: { name: 'The Wendigo', color: '#c9c2b0', r: 24, hp: 999999, speed: 340, dmg: 999, xp: 0, gold: 0, tier: 3, momentum: true, turnRate: 5.5, speedFloor: 0.3, sprite: 'wendigo', invincible: true, instaKill: true }
 };
@@ -991,7 +991,7 @@ function screenToWorld(clientX, clientY) {
   };
 }
 
-function performMeleeSwing(w) {
+function performMeleeSwing(w, swingAngle) {
   const def = WEAPON_DEFS[w.id];
   const range = def.range[w.level];
   // Hits everything within range in a full circle around the player rather than
@@ -1007,7 +1007,7 @@ function performMeleeSwing(w) {
     en.knockY = (en.y - player.y) / (d || 1) * kb;
   }
   player.swingFlash = SWING_DURATION;
-  player.swingAngle = Math.atan2(player.facing.y, player.facing.x);
+  player.swingAngle = swingAngle;
   w.cd = def.cooldown[w.level];
 }
 
@@ -1018,8 +1018,10 @@ function tryMeleeAttack(clientX, clientY) {
   const world = screenToWorld(clientX, clientY);
   const dx = world.x - player.x, dy = world.y - player.y;
   const len = Math.hypot(dx, dy) || 1;
-  player.facing = { x: dx / len, y: dy / len };
-  performMeleeSwing(w);
+  // Only the swing's cosmetic sweep aims at the cursor/tap — the hit itself
+  // is already omnidirectional, and the character's body keeps facing
+  // whichever way it's actually moving instead of snapping toward the click.
+  performMeleeSwing(w, Math.atan2(dy / len, dx / len));
 }
 
 canvas.addEventListener('mousedown', (e) => {
@@ -1087,8 +1089,11 @@ function updateEnemies(dt) {
       }
       tx = en.x + Math.cos(en.wanderAngle) * 100;
       ty = en.y + Math.sin(en.wanderAngle) * 100;
+      // Hysteresis between wander/chase avoids a visible stutter where an
+      // enemy sitting right at the threshold flips target every frame.
       const toPlayer = dist(en.x, en.y, player.x, player.y);
-      if (toPlayer > 260) { tx = player.x; ty = player.y; }
+      if (en.chasing ? toPlayer > 180 : toPlayer > 260) { en.chasing = true; tx = player.x; ty = player.y; }
+      else en.chasing = false;
     } else {
       const directDist = dist(en.x, en.y, player.x, player.y);
       if (directDist > FLOW_CELL * 1.5) {
