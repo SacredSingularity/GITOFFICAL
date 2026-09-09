@@ -61,3 +61,17 @@ The comment directly above `GRAPHCALC_HTML_B64` in `lessoncanvas.html` records t
 ## The `</script>` escaping gotcha
 
 Any literal `</script>` substring inside a `<script>` tag's raw text — even nested inside a JS string or JSON value — prematurely terminates the *outer* `<script>` tag, because HTML parsing doesn't understand JS string context. This bites hardest when re-splicing lesson content that contains `custom` blocks with real `<script>` tags (interactive widgets), since `JSON.stringify` does not escape `/`. Fix: replace `</script` with `<\/script` (a backslash dropped at the JS-string level, but enough to break the raw HTML match) in the final assembled text. Re-verify with a syntax check on the extracted `<script>` contents after any such splice — a syntax error there means this bug resurfaced.
+
+# Ruinward
+
+- `ruinward.html` — top-down survivor-like, self-contained single file (sprites and audio embedded as base64 data URIs, no build step, no external assets).
+- `import-lpc-sprite.js` — imports a [Universal LPC Spritesheet Character Generator](https://liberatedpixelcup.github.io/Universal-LPC-Spritesheet-Character-Generator/) "individual frames" zip export directly into `ruinward.html`'s `CHAR_ASSETS` table, composited and formatted to match what `buildCharSprite()`/`drawCharSprite()` expect. Use this for every new LPC character/enemy sprite — it replaces what used to be a one-off manual pixel-boundary-detection-and-splice job per sprite.
+
+  ```bash
+  npm install sharp adm-zip   # once, wherever you run this from
+  node games/import-lpc-sprite.js <frames.zip> <spriteKey> games/ruinward.html
+  ```
+
+  Then set `sprite: '<spriteKey>'` on the relevant `ENEMY_DEFS` (or player) entry — the rendering pipeline (direction-picking, animation, idle fallback) picks it up automatically.
+
+  LPC exports are 4-directional (no diagonals — `pickDirection` just snaps to the nearest of up/left/down/right), which is a limitation of the source asset format, not the importer. Default animation pulled is `walk` (LPC) → `Running` (in-game); pass `--anim=`/`--lpc-anim=` for a different one. Re-running against the same `spriteKey` **merges**: it decodes the existing sheet, appends the newly-requested animation's 4 direction rows below it, and updates the JSON in place — that's how a sprite picks up a second animation, e.g. import `walk` as `Running` first, then `slash` as `Lead Jab` (the name the enemy draw code already switches to automatically while `en.attackFlash > 0`) on a second run against the same key. Pass `--overwrite` to rebuild the entry from scratch with just the one animation instead of merging. Run with no arguments for the full option list.
