@@ -51,12 +51,6 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 }
 .bar-fill { height: 100%; width: 0%; transition: width 0.15s; }
 #hpFill { background: linear-gradient(90deg,#7a2323,#d95c5c); }
-#xpFill { background: linear-gradient(90deg,#2a5c30,#7fd68a); }
-#lvlTag {
-  position: absolute; top: -2px; right: -34px; font-size: 10px; color: #7fd68a;
-  background: rgba(10,14,10,0.7); border: 1px solid rgba(120,180,140,0.3);
-  border-radius: 4px; padding: 1px 5px;
-}
 
 .overlay {
   position: absolute; inset: 0; z-index: 20;
@@ -95,7 +89,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 .btn-run { background: rgba(217,92,92,0.12); border-color: rgba(217,92,92,0.5); color: #e8a0a0; }
 .btn-run:hover { background: rgba(217,92,92,0.24); color: #ffd0d0; box-shadow: 0 0 20px rgba(217,92,92,0.4); }
 .btn-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-#stage.run-mode #barWrap, #stage.run-mode #goldChip { display: none; }
+#stage.run-mode #barWrap, #stage.run-mode #goldChip, #stage.run-mode #xpChip { display: none; }
 
 .card-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-bottom: 4px; }
 .card {
@@ -121,6 +115,24 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   background: rgba(10,14,10,0.7); border: 1px solid rgba(120,180,140,0.3);
   border-radius: 6px; padding: 6px 12px;
 }
+#toastMsg {
+  position: absolute; bottom: 46px; left: 50%; transform: translateX(-50%);
+  z-index: 30; pointer-events: none; opacity: 0; transition: opacity 0.3s;
+  font-size: 13px; letter-spacing: 1px; color: #ffd0d0; font-style: italic;
+  background: rgba(40,10,10,0.75); border: 1px solid rgba(217,92,92,0.4);
+  border-radius: 6px; padding: 8px 16px; max-width: 80%; text-align: center;
+}
+#toastMsg.show { opacity: 1; }
+#joystick {
+  position: absolute; left: 22px; bottom: 22px; width: 100px; height: 100px;
+  border-radius: 50%; background: rgba(127,214,138,0.08); border: 2px solid rgba(127,214,138,0.28);
+  z-index: 25; touch-action: none; display: none;
+}
+#joystick.show { display: block; }
+#joystickKnob {
+  position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px;
+  border-radius: 50%; background: rgba(127,214,138,0.32); border: 2px solid rgba(127,214,138,0.6);
+}
 </style>
 </head>
 <body>
@@ -130,16 +142,13 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 
   <div id="barWrap">
     <div class="bar-track"><div class="bar-fill" id="hpFill"></div></div>
-    <div class="bar-track" style="height:6px;position:relative;">
-      <div class="bar-fill" id="xpFill"></div>
-      <div id="lvlTag">Lv 1</div>
-    </div>
   </div>
 
   <div id="hud">
     <div class="hud-left">
       <div class="hud-chip" id="timeChip">⏱ <b id="timeVal">0:00</b></div>
       <div class="hud-chip" id="goldChip">◆ <b id="goldVal">0</b></div>
+      <div class="hud-chip" id="xpChip">✦ <b id="xpVal">0</b></div>
     </div>
     <div class="hud-right">
       <div class="hud-chip" id="hpChip">HP <b id="hpVal">100</b>/<span id="hpMax">100</span></div>
@@ -148,6 +157,9 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   </div>
 
   <div id="safeHint">Inside a safehouse — regenerating, monsters can't follow</div>
+  <div id="toastMsg"></div>
+
+  <div id="joystick"><div id="joystickKnob"></div></div>
 
   <div class="overlay show" id="menuScreen">
     <div class="title">Ruinward</div>
@@ -242,7 +254,7 @@ const WEAPON_DEFS = {
     range:    [62, 68, 75, 84],
     arcDeg:   [120, 132, 146, 160],
     knockback:[60, 80, 100, 130],
-    desc: (lv) => `Cleaving melee swing. Requires facing the target.\nDmg ${WEAPON_DEFS.bat.damage[lv]} · Range ${WEAPON_DEFS.bat.range[lv]}`
+    desc: (lv) => `Strikes every foe in range, in every direction around you.\nDmg ${WEAPON_DEFS.bat.damage[lv]} · Range ${WEAPON_DEFS.bat.range[lv]}`
   },
   glock: {
     name: 'Glock', icon: '🔫', type: 'ranged', maxLevel: 4,
@@ -281,8 +293,8 @@ const ENEMY_DEFS = {
   redcap:  { name: 'Redcap',           color: '#c94f4f', r: 13, hp: 28, speed: 95,  dmg: 10, xp: 7, gold: 2, rushBuff: true, breacher: true, tier: 2 },
   banshee: { name: 'Banshee',          color: '#b28fe6', r: 14, hp: 42, speed: 55,  dmg: 9,  xp: 10, gold: 3, ranged: true, tier: 2 },
   boggart: { name: 'Boggart',          color: '#5a4a6b', r: 11, hp: 22, speed: 115, dmg: 8,  xp: 6, gold: 2, tier: 1 },
-  wendigo: { name: 'Wendigo',          color: '#c9c2b0', r: 22, hp: 75, speed: 230, dmg: 15, xp: 20, gold: 5, tier: 3, predator: true, momentum: true, turnRate: 2.6, speedFloor: 0.35, sprite: 'wendigo' },
-  wendigoChase: { name: 'The Wendigo', color: '#c9c2b0', r: 24, hp: 999999, speed: 340, dmg: 999, xp: 0, gold: 0, tier: 3, momentum: true, turnRate: 3.4, speedFloor: 0.55, sprite: 'wendigo', invincible: true, instaKill: true }
+  wendigo: { name: 'Wendigo',          color: '#c9c2b0', r: 22, hp: 75, speed: 230, dmg: 15, xp: 20, gold: 5, tier: 3, predator: true, momentum: true, turnRate: 5.0, speedFloor: 0.25, sprite: 'wendigo' },
+  wendigoChase: { name: 'The Wendigo', color: '#c9c2b0', r: 24, hp: 999999, speed: 340, dmg: 999, xp: 0, gold: 0, tier: 3, momentum: true, turnRate: 5.5, speedFloor: 0.3, sprite: 'wendigo', invincible: true, instaKill: true }
 };
 
 // -------------------------------------------------------------------
@@ -456,6 +468,47 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
+// -------------------------------------------------------------------
+//  VIRTUAL JOYSTICK — movement on touch devices (WASD doesn't exist there)
+// -------------------------------------------------------------------
+let touchMoveVec = { x: 0, y: 0 };
+const joystickEl = document.getElementById('joystick');
+const joystickKnob = document.getElementById('joystickKnob');
+const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+if (isTouchDevice) joystickEl.classList.add('show');
+
+let joyPointerId = null, joyCenter = { x: 0, y: 0 };
+const JOY_RADIUS = 40, JOY_DEADZONE = 8;
+function updateJoystick(clientX, clientY) {
+  const dx = clientX - joyCenter.x, dy = clientY - joyCenter.y;
+  const len = Math.hypot(dx, dy);
+  const clamped = Math.min(len, JOY_RADIUS);
+  const nx = len > 0 ? dx / len : 0, ny = len > 0 ? dy / len : 0;
+  joystickKnob.style.transform = `translate(${nx * clamped}px, ${ny * clamped}px)`;
+  touchMoveVec = len < JOY_DEADZONE ? { x: 0, y: 0 } : { x: nx, y: ny };
+}
+function endJoystick(e) {
+  if (e.pointerId !== joyPointerId) return;
+  joyPointerId = null;
+  touchMoveVec = { x: 0, y: 0 };
+  joystickKnob.style.transform = 'translate(0px, 0px)';
+}
+joystickEl.addEventListener('pointerdown', (e) => {
+  joyPointerId = e.pointerId;
+  const rect = joystickEl.getBoundingClientRect();
+  joyCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  joystickEl.setPointerCapture(e.pointerId);
+  updateJoystick(e.clientX, e.clientY);
+  e.preventDefault();
+});
+joystickEl.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== joyPointerId) return;
+  updateJoystick(e.clientX, e.clientY);
+  e.preventDefault();
+});
+joystickEl.addEventListener('pointerup', endJoystick);
+joystickEl.addEventListener('pointercancel', endJoystick);
+
 function freshPlayer() {
   const maxHp = 100 + metaBonus('vitality');
   return {
@@ -476,11 +529,13 @@ function freshPlayer() {
 }
 let player = freshPlayer();
 
-let enemies = [], projectiles = [], gems = [], popups = [], goldPickups = [];
+let enemies = [], projectiles = [], popups = [], goldPickups = [];
 let buildings = [], safehouses = [];
 let staticSolids = [], solidsSmall = [], solidsLarge = [];
 let camera = { x: 0, y: 0 };
-let spawnTimer = 0, eliteTimer = 0, wendigoTimer = 0;
+let spawnTimer = 0, eliteTimer = 0, wendigoTimer = 0, runWendigoTimer = 0;
+let wendigoGenCount = 0, bigWendigoSpawned = false;
+let lastOrbitTauntTime = -999;
 
 // decorative static rubble (no collision — pure backdrop)
 let rubble = [];
@@ -695,9 +750,12 @@ function startGame(m) {
   mode = m;
   player = freshPlayer();
   if (mode === 'run') player.weapons = [];
-  enemies = []; projectiles = []; gems = []; popups = []; goldPickups = [];
+  enemies = []; projectiles = []; popups = []; goldPickups = [];
   elapsed = 0; runGold = 0; spawnTimer = 0; eliteTimer = 0;
   wendigoTimer = 120 + Math.random() * 60;
+  runWendigoTimer = 120;
+  wendigoGenCount = 0; bigWendigoSpawned = false;
+  lastOrbitTauntTime = -999;
   declineCounts = {};
   genWorld(mode);
   if (mode === 'run') spawnChaseWendigo();
@@ -802,7 +860,6 @@ function update(dt) {
   updateEnemies(dt);
   updateBreach(dt);
   updateProjectiles(dt);
-  updateGems(dt);
   updateGoldPickups(dt);
   updatePopups(dt);
   spawnLogic(dt);
@@ -830,6 +887,9 @@ function handleMovement(dt) {
   if (keys['s'] || keys['arrowdown']) dy += 1;
   if (keys['a'] || keys['arrowleft']) dx -= 1;
   if (keys['d'] || keys['arrowright']) dx += 1;
+  if (dx === 0 && dy === 0 && (touchMoveVec.x !== 0 || touchMoveVec.y !== 0)) {
+    dx = touchMoveVec.x; dy = touchMoveVec.y;
+  }
   player.moving = dx !== 0 || dy !== 0;
   if (player.moving) {
     const len = Math.hypot(dx, dy);
@@ -929,14 +989,13 @@ function screenToWorld(clientX, clientY) {
 function performMeleeSwing(w) {
   const def = WEAPON_DEFS[w.id];
   const range = def.range[w.level];
-  const arcCos = Math.cos((def.arcDeg[w.level] / 2) * Math.PI / 180);
+  // Hits everything within range in a full circle around the player rather than
+  // a directional arc — a facing-gated arc kept desyncing from what it looked
+  // like you hit whenever movement changed player.facing mid-swing.
   for (const en of enemies) {
     if (en.dead) continue;
     const d = dist(player.x, player.y, en.x, en.y);
     if (d > range + en.r) continue;
-    const toEn = { x: (en.x - player.x) / (d || 1), y: (en.y - player.y) / (d || 1) };
-    const dot = toEn.x * player.facing.x + toEn.y * player.facing.y;
-    if (dot < arcCos) continue;
     dealDamage(en, def.damage[w.level]);
     const kb = def.knockback[w.level];
     en.knockX = (en.x - player.x) / (d || 1) * kb;
@@ -979,8 +1038,8 @@ function dealDamage(en, amount) {
 function killEnemy(en) {
   en.dead = true;
   if (en.isBoggart && en.homeSafehouse) en.homeSafehouse.boggartAlive = false;
-  gems.push({ x: en.x, y: en.y, val: en.xp, r: 4 });
-  if (Math.random() < 0.5) goldPickups.push({ x: en.x + (Math.random() - 0.5) * 10, y: en.y + (Math.random() - 0.5) * 10, val: en.gold, r: 4 });
+  gainXp(en.def.xp);
+  if (Math.random() < 0.5) goldPickups.push({ x: en.x + (Math.random() - 0.5) * 10, y: en.y + (Math.random() - 0.5) * 10, val: en.def.gold, r: 4 });
 }
 
 function updateEnemies(dt) {
@@ -989,6 +1048,30 @@ function updateEnemies(dt) {
     if (en.contactCd > 0) en.contactCd -= dt;
     if (en.rushCd > 0) en.rushCd -= dt;
     if (en.attackFlash > 0) en.attackFlash -= dt;
+
+    if (en.def.momentum) {
+      // Catches a player kiting it in a stable circle (the pivot tuning below
+      // mostly prevents this, but this is the backstop): if the angle from
+      // this enemy to the player keeps winding steadily for 10s, it's not
+      // random movement — call it out and send in reinforcements.
+      const relAngle = Math.atan2(player.y - en.y, player.x - en.x);
+      const pdReal = dist(en.x, en.y, player.x, player.y);
+      if (en.lastRelAngle != null && pdReal > 70) {
+        let dAng = relAngle - en.lastRelAngle;
+        while (dAng > Math.PI) dAng -= Math.PI * 2;
+        while (dAng < -Math.PI) dAng += Math.PI * 2;
+        const angVel = Math.abs(dAng / dt);
+        en.orbitTime = angVel > 0.9 ? (en.orbitTime || 0) + dt : Math.max(0, (en.orbitTime || 0) - dt * 2);
+      } else {
+        en.orbitTime = Math.max(0, (en.orbitTime || 0) - dt * 2);
+      }
+      en.lastRelAngle = relAngle;
+      if (en.orbitTime > 10 && elapsed - lastOrbitTauntTime > 20) {
+        lastOrbitTauntTime = elapsed;
+        en.orbitTime = 0;
+        triggerOrbitTaunt();
+      }
+    }
 
     let tx = player.x, ty = player.y;
     if (en.def.erratic) {
@@ -1116,20 +1199,6 @@ function updateProjectiles(dt) {
   projectiles = projectiles.filter((p) => !p.dead);
 }
 
-function updateGems(dt) {
-  const magnet = playerMagnet();
-  for (const g of gems) {
-    const d = dist(g.x, g.y, player.x, player.y);
-    if (d < magnet) {
-      const pull = d < 4 ? 4 : d;
-      g.x += (player.x - g.x) / pull * 260 * dt;
-      g.y += (player.y - g.y) / pull * 260 * dt;
-    }
-    if (d < player.r + g.r + 6) { gainXp(g.val); g.dead = true; }
-  }
-  gems = gems.filter((g) => !g.dead);
-}
-
 function updateGoldPickups(dt) {
   const magnet = playerMagnet();
   for (const g of goldPickups) {
@@ -1150,13 +1219,9 @@ function updatePopups(dt) {
 }
 
 function gainXp(v) {
+  // Leveling is disabled for now — XP is earned on kill and tracked, but
+  // doesn't spend against a threshold or trigger a level-up yet.
   player.xp += v;
-  while (player.xp >= player.xpNext) {
-    player.xp -= player.xpNext;
-    player.level++;
-    player.xpNext = Math.floor(8 * Math.pow(player.level, 1.28) + 6);
-    triggerLevelUp();
-  }
 }
 
 // -------------------------------------------------------------------
@@ -1169,7 +1234,14 @@ function unlockedTypes() {
   return ids;
 }
 function spawnLogic(dt) {
-  if (mode === 'run') return; // the chase wendigo is a single persistent spawn
+  if (mode === 'run') {
+    runWendigoTimer -= dt;
+    if (runWendigoTimer <= 0) {
+      runWendigoTimer = 120;
+      spawnChaseWendigo();
+    }
+    return;
+  }
   spawnTimer -= dt;
   const interval = Math.max(0.35, 1.6 - elapsed / 90);
   if (spawnTimer <= 0 && enemies.length < 150) {
@@ -1182,61 +1254,76 @@ function spawnLogic(dt) {
     eliteTimer = 90;
     spawnEnemy(true);
   }
+  if (!bigWendigoSpawned && elapsed >= 720) {
+    bigWendigoSpawned = true;
+    spawnWendigoHerald();
+    spawnMassiveWendigo();
+  }
   wendigoTimer -= dt;
   if (wendigoTimer <= 0) {
     wendigoTimer = 150 + Math.random() * 60;
     spawnWendigoHerald();
   }
 }
-function spawnEnemyAt(id, x, y, elite) {
+function findSpawnPos(minRadius, maxRadius) {
+  let x, y;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = minRadius + Math.random() * (maxRadius - minRadius);
+    x = clamp(player.x + Math.cos(angle) * radius, 20, WORLD_W - 20);
+    y = clamp(player.y + Math.sin(angle) * radius, 20, WORLD_H - 20);
+    if (!pointInsideAnyRect(x, y, solidsLarge)) break;
+  }
+  return { x, y };
+}
+function spawnEnemyAt(id, x, y, elite, mul) {
   const def = ENEMY_DEFS[id];
-  const eliteMul = elite ? { hp: 2.6, dmg: 1.5, speed: 1.05 } : null;
+  const base = elite ? { hp: 2.6, dmg: 1.5, speed: 1.05, size: 1.5 } : { hp: 1, dmg: 1, speed: 1, size: 1 };
+  const m = mul ? { hp: base.hp * (mul.hp || 1), dmg: base.dmg * (mul.dmg || 1), speed: base.speed * (mul.speed || 1), size: base.size * (mul.size || 1) } : base;
   enemies.push({
     x, y, def, id,
-    r: def.r * (elite ? 1.5 : 1),
-    hp: def.hp * (eliteMul ? eliteMul.hp : 1),
+    r: def.r * m.size,
+    hp: def.hp * m.hp,
     contactCd: 0, rushCd: 0, speedBuff: 1,
     facing: { x: 0, y: 1 }, animT: 0, attackFlash: 0,
-    elite, eliteMul
+    elite, eliteMul: m
   });
 }
 function spawnEnemy(elite) {
   const pool = unlockedTypes();
   const id = pool[Math.floor(Math.random() * pool.length)];
-  let x, y;
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const angle = Math.random() * Math.PI * 2;
-    const radius = 480 + Math.random() * 120;
-    x = clamp(player.x + Math.cos(angle) * radius, 20, WORLD_W - 20);
-    y = clamp(player.y + Math.sin(angle) * radius, 20, WORLD_H - 20);
-    if (!pointInsideAnyRect(x, y, solidsLarge)) break;
-  }
+  const { x, y } = findSpawnPos(480, 600);
   spawnEnemyAt(id, x, y, elite);
 }
 function spawnWendigoHerald() {
-  let x, y;
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const angle = Math.random() * Math.PI * 2;
-    const radius = 850 + Math.random() * 250;
-    x = clamp(player.x + Math.cos(angle) * radius, 20, WORLD_W - 20);
-    y = clamp(player.y + Math.sin(angle) * radius, 20, WORLD_H - 20);
-    if (!pointInsideAnyRect(x, y, solidsLarge)) break;
-  }
-  spawnEnemyAt('wendigo', x, y, false);
+  const { x, y } = findSpawnPos(850, 1100);
+  const gen = wendigoGenCount++;
+  const mul = { hp: 1 + gen * 0.35, dmg: 1 + gen * 0.15, speed: 1 + gen * 0.06, size: 1 + gen * 0.12 };
+  spawnEnemyAt('wendigo', x, y, false, mul);
+  try { WENDIGO_ROAR.currentTime = 0; WENDIGO_ROAR.play().catch(() => {}); } catch (e) {}
+}
+function spawnMassiveWendigo() {
+  const { x, y } = findSpawnPos(900, 1200);
+  spawnEnemyAt('wendigo', x, y, false, { hp: 6, dmg: 1.3, speed: 0.45, size: 2.2 });
   try { WENDIGO_ROAR.currentTime = 0; WENDIGO_ROAR.play().catch(() => {}); } catch (e) {}
 }
 
 function spawnChaseWendigo() {
-  let x, y;
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const angle = Math.random() * Math.PI * 2;
-    const radius = 900 + Math.random() * 300;
-    x = clamp(player.x + Math.cos(angle) * radius, 20, WORLD_W - 20);
-    y = clamp(player.y + Math.sin(angle) * radius, 20, WORLD_H - 20);
-    if (!pointInsideAnyRect(x, y, solidsLarge)) break;
-  }
+  const { x, y } = findSpawnPos(900, 1200);
   spawnEnemyAt('wendigoChase', x, y, false);
   try { WENDIGO_ROAR.currentTime = 0; WENDIGO_ROAR.play().catch(() => {}); } catch (e) {}
+}
+
+function showToast(text, duration) {
+  const el = document.getElementById('toastMsg');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove('show'), (duration || 4) * 1000);
+}
+function triggerOrbitTaunt() {
+  showToast("You think that's smart, don't you?");
+  if (mode === 'run') spawnChaseWendigo(); else spawnWendigoHerald();
 }
 
 // -------------------------------------------------------------------
@@ -1361,10 +1448,9 @@ function killPlayer(cause) {
 // -------------------------------------------------------------------
 function updateHud() {
   document.getElementById('hpFill').style.width = clamp((player.hp / player.maxHp) * 100, 0, 100) + '%';
-  document.getElementById('xpFill').style.width = clamp((player.xp / player.xpNext) * 100, 0, 100) + '%';
-  document.getElementById('lvlTag').textContent = 'Lv ' + player.level;
   document.getElementById('timeVal').textContent = fmtTime(elapsed);
   document.getElementById('goldVal').textContent = runGold;
+  document.getElementById('xpVal').textContent = player.xp;
   document.getElementById('hpVal').textContent = Math.max(0, Math.round(player.hp));
   document.getElementById('hpMax').textContent = player.maxHp;
 }
@@ -1426,10 +1512,6 @@ function draw() {
     }
   }
 
-  for (const g of gems) {
-    ctx.fillStyle = '#7fd68a';
-    ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2); ctx.fill();
-  }
   for (const g of goldPickups) {
     ctx.fillStyle = '#e6c65c';
     ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2); ctx.fill();
@@ -1467,11 +1549,11 @@ function draw() {
   const facingAngle = Math.atan2(player.facing.y, player.facing.x);
   if (player.swingFlash > 0) {
     const heldWeapon = player.weapons.find((w) => WEAPON_DEFS[w.id].type === 'melee');
-    const arcDeg = heldWeapon ? WEAPON_DEFS[heldWeapon.id].arcDeg[heldWeapon.level] : 100;
-    const halfArc = (arcDeg / 2) * Math.PI / 180;
-    ctx.strokeStyle = 'rgba(240,230,200,0.8)'; ctx.lineWidth = 3;
+    const range = heldWeapon ? WEAPON_DEFS[heldWeapon.id].range[heldWeapon.level] : 60;
+    const progress = 1 - player.swingFlash / SWING_DURATION;
+    ctx.strokeStyle = `rgba(240,230,200,${0.8 * (1 - progress)})`; ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(player.x, player.y, 28, player.swingAngle - halfArc, player.swingAngle + halfArc);
+    ctx.arc(player.x, player.y, range * (0.5 + 0.5 * progress), 0, Math.PI * 2);
     ctx.stroke();
   }
   ctx.globalAlpha = (player.invuln > 0 && Math.floor(player.invuln * 20) % 2 === 0) ? 0.5 : 1;
