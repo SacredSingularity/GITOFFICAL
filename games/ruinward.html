@@ -754,7 +754,7 @@ function fmtTime(t) {
 function startGame(m) {
   mode = m;
   player = freshPlayer();
-  if (mode === 'run') player.weapons = [];
+  if (mode === 'run') { player.weapons = []; player.baseSpeed *= 1.25; }
   enemies = []; projectiles = []; popups = []; goldPickups = [];
   elapsed = 0; runGold = 0; spawnTimer = 0; eliteTimer = 0;
   wendigoTimer = 120 + Math.random() * 60;
