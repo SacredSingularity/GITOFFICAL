@@ -62,19 +62,27 @@
     try { localStorage.setItem(widgetHiddenKey(gameId), val ? '1' : '0'); } catch (e) { /* ignore */ }
   }
 
-  // tracks "this game has local changes that haven't been confirmed saved
-  // to the cloud yet" — set optimistically before every push attempt,
-  // cleared only once that push actually succeeds. This is what lets a
-  // blocked/offline network (e.g. a school firewall) be recovered from
-  // safely: if the page reloads while still pending, sign-in must push
-  // the (newer) local save up instead of blindly pulling and overwriting
-  // it with the older cloud copy.
-  function pendingKey(gameId) { return 'cloudSyncPending_' + gameId; }
-  function isPending(gameId) {
-    try { return localStorage.getItem(pendingKey(gameId)) === '1'; } catch (e) { return false; }
+  // records the wall-clock moment this device's local save last actually
+  // changed — set on every local save attempt, regardless of whether it's
+  // signed in, opted out, or offline. This is compared against the cloud
+  // row's own `updated_at` (real server time) whenever sync turns back on
+  // for a game, so whichever side is genuinely more recent wins.
+  //
+  // A plain boolean ("has unconfirmed local changes") used to drive this
+  // instead, and it caused real data loss: it answers "did local change
+  // since its last successful push" but not "is local newer than what's
+  // in the cloud right now" — so a device with old, already-synced local
+  // data that just happened to autosave once (clearing nothing, since it
+  // was never signed in to push) would still push and clobber a genuinely
+  // newer cloud copy from another device. Comparing actual timestamps
+  // instead of a stale-or-not flag is what actually answers "which side
+  // is newer," which is the only question that matters here.
+  function lastChangeKey(gameId) { return 'cloudSyncLastChange_' + gameId; }
+  function getLastChange(gameId) {
+    try { return parseInt(localStorage.getItem(lastChangeKey(gameId)) || '0', 10) || 0; } catch (e) { return 0; }
   }
-  function setPending(gameId, val) {
-    try { localStorage.setItem(pendingKey(gameId), val ? '1' : '0'); } catch (e) { /* ignore */ }
+  function setLastChange(gameId) {
+    try { localStorage.setItem(lastChangeKey(gameId), String(Date.now())); } catch (e) { /* ignore */ }
   }
 
   sb.auth.getSession().then(({ data }) => { session = data.session; ready = true; notify(); });
@@ -87,15 +95,33 @@
   // Signing out — anywhere, per-game or the real account sign-out — is
   // just "stop syncing to the cloud from here." It never deletes local
   // progress: sign-in/out is a sync toggle, not what makes your data
-  // exist. Local saves only ever change because you played the game;
-  // whatever's pending stays pending so the next sign-in still pushes it
-  // up instead of finding nothing to reconcile.
+  // exist. Local saves only ever change because you played the game, and
+  // the recorded change time (above) is untouched by sign-out either, so
+  // a later sign-in still compares it against the cloud correctly.
   function resetAllOptOutFlags() {
     Object.keys(KNOWN_GAME_SAVE_KEYS).forEach((gameId) => setOptOut(gameId, false));
   }
   function realSignOut() {
     resetAllOptOutFlags();
     return sb.auth.signOut();
+  }
+
+  // Fetches the cloud row's save data AND its server-side updated_at in one
+  // call, so reconcileSync() can compare recency without a second round
+  // trip. Not exposed on CloudSync — pullSave() (below, public) stays
+  // data-only for the five games' own syncFromCloud() hooks, which were
+  // never written to expect anything else.
+  async function fetchCloudRow(gameId) {
+    if (!session) return null;
+    try {
+      const { data, error } = await sb.from('game_saves')
+        .select('data, updated_at').eq('user_id', session.user.id).eq('game_id', gameId).maybeSingle();
+      if (error) { console.warn('cloud fetch failed:', error.message); return null; }
+      return data;
+    } catch (e) {
+      console.warn('cloud fetch failed:', e.message);
+      return null;
+    }
   }
 
   // one shared stylesheet for the bits every widget's markup uses, so each
@@ -142,11 +168,24 @@
     // finishing sign-up), whether to push local progress up or pull the
     // cloud copy down. Anywhere that skips this and calls syncFromCloud()
     // directly risks silently overwriting newer local changes.
-    function reconcileSync() {
+    async function reconcileSync() {
       if (!gameId) return;
-      const localData = isPending(gameId) && getLocalState ? getLocalState() : null;
-      if (localData) global.CloudSync.pushSave(gameId, localData);
-      else syncFromCloud();
+      if (!getLocalState) { syncFromCloud(); return; }
+      const row = await fetchCloudRow(gameId);
+      const localChangedAt = getLastChange(gameId);
+      const cloudUpdatedAt = row ? new Date(row.updated_at).getTime() : 0;
+      // strictly newer, not >=: on the device that just pushed, its own
+      // recorded change time is a client timestamp taken slightly BEFORE
+      // the request went out, so the cloud's own (server-clock) updated_at
+      // for that same push comes back equal-or-later — treating a tie as
+      // "cloud wins" just re-pulls the identical data it already has, a
+      // harmless no-op, rather than risking a stale write winning a tie.
+      if (localChangedAt > cloudUpdatedAt) {
+        const localData = getLocalState();
+        if (localData) global.CloudSync.pushSave(gameId, localData);
+      } else if (row) {
+        syncFromCloud();
+      }
     }
 
     function render() {
@@ -410,13 +449,13 @@
     mountAuthWidget,
 
     async pushSave(gameId, data) {
-      // set BEFORE the isGameActive check (and before attempting the
-      // network call): a save made while fully signed out — not just
-      // signed in with the network blocked — still needs to be flagged,
-      // since it's the same "local is ahead of cloud" situation once the
-      // user signs back in. Harmless to set this even when nobody's
-      // signed in at all; it's only ever read right after a sign-in event.
-      setPending(gameId, true);
+      // record BEFORE the isGameActive check (and before attempting the
+      // network call): a save made while fully signed out, or offline, is
+      // still a real local change that needs to outrank whatever's in the
+      // cloud once sync turns back on. Harmless to record this even when
+      // nobody's signed in at all — it's only ever compared against the
+      // cloud's own updated_at right after a sign-in event.
+      setLastChange(gameId);
       if (!this.isGameActive(gameId)) return;
       try {
         const { error } = await sb.from('game_saves').upsert({
@@ -425,8 +464,7 @@
           data,
           updated_at: new Date().toISOString(),
         });
-        if (error) { console.warn('cloud save failed:', error.message); return; }
-        setPending(gameId, false);
+        if (error) console.warn('cloud save failed:', error.message);
       } catch (e) {
         console.warn('cloud save failed:', e.message);
       }
