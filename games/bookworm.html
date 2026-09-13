@@ -439,7 +439,7 @@
               <input type="number" class="bw-input" id="bw-book-lengthmin-input" min="0" max="59" step="1" placeholder="0"><span>m</span>
             </span>
           </label>
-          <label id="bw-book-currentlen-label" style="display:none;">Current position
+          <label id="bw-book-currentlen-label" style="display:none;">Time remaining
             <span class="bw-duration-pair">
               <input type="number" class="bw-input" id="bw-book-curhrs-input" min="0" step="1" placeholder="0"><span>h</span>
               <input type="number" class="bw-input" id="bw-book-curmin-input" min="0" max="59" step="1" placeholder="0"><span>m</span>
@@ -734,6 +734,19 @@
     return bwIsAudiobook(book) ? bwFormatDuration(n) : String(n);
   }
 
+  // Audiobooks track currentPage as MINUTES REMAINING, the opposite of print
+  // (where currentPage is pages already read). Saying "I'm at 12 hours" on a
+  // 16-hour audiobook means 12 hours left, not 12 hours consumed -- so
+  // "not started yet" (currentPage unset) means the full length still
+  // remains, not zero. bwAudiobookElapsed derives how much has actually
+  // been listened to, for the progress bar.
+  function bwAudiobookRemaining(book){
+    return book.currentPage != null ? book.currentPage : (book.totalPages || 0);
+  }
+  function bwAudiobookElapsed(book){
+    return Math.max(0, (book.totalPages || 0) - bwAudiobookRemaining(book));
+  }
+
   function bwFormatClock(ms){
     var totalSeconds = Math.floor(ms / 1000);
     var h = Math.floor(totalSeconds / 3600);
@@ -879,7 +892,11 @@
       progressEl.textContent = "";
     } else {
       titleEl.textContent = book.title;
-      if(book.totalPages){
+      if(bwIsAudiobook(book) && book.totalPages){
+        progressEl.textContent = bwFormatDuration(bwAudiobookRemaining(book)) + " left / " + bwFormatDuration(book.totalPages) + " total";
+      } else if(bwIsAudiobook(book) && book.currentPage != null){
+        progressEl.textContent = bwFormatDuration(book.currentPage) + " remaining";
+      } else if(book.totalPages){
         progressEl.textContent = "page " + (book.currentPage || 0) + " / " + book.totalPages;
       } else if(book.currentPage){
         progressEl.textContent = "page " + book.currentPage;
@@ -942,7 +959,7 @@
     if(bwActiveTimerSessionId && bwActiveTimerSessionId !== session.id) return;
     if(session.pageStart == null){
       var book = bwBookById(session.bookId);
-      session.pageStart = (book && book.currentPage) || 0;
+      session.pageStart = book && bwIsAudiobook(book) ? bwAudiobookRemaining(book) : ((book && book.currentPage) || 0);
     }
     session.timerStartedAt = Date.now();
     bwActiveTimerSessionId = session.id;
@@ -1015,22 +1032,22 @@
     wrap.className = "bw-stop-form";
 
     // Audiobooks don't ask for a page reached at all -- the timer already
-    // measured exactly how long was listened to, and position advances 1:1
-    // with that, so there's nothing to guess or type. Position only ever
-    // moves forward here (no "how far did you rewind" tracking), clamped to
-    // the book's total length once one is set.
+    // measured exactly how long was listened to, and time remaining counts
+    // down 1:1 with that, so there's nothing to guess or type. Remaining
+    // only ever moves down here (no "how far did you rewind" tracking),
+    // floored at 0 rather than clamped to a total, since it's counting down.
     var audioNewPosition = null;
     var pageInput = null;
     var pageLabel = document.createElement("label");
     if(isAudio){
-      audioNewPosition = (book.currentPage || 0) + (session.actualMinutes || 0);
-      if(book.totalPages != null) audioNewPosition = Math.min(audioNewPosition, book.totalPages);
-      pageLabel.textContent = "New position -- " + book.title;
+      var startingRemaining = session.pageStart != null ? session.pageStart : bwAudiobookRemaining(book);
+      audioNewPosition = Math.max(0, startingRemaining - (session.actualMinutes || 0));
+      pageLabel.textContent = "Time remaining -- " + book.title;
       var posDisplay = document.createElement("div");
       posDisplay.className = "bw-input";
       posDisplay.style.background = "transparent";
-      posDisplay.textContent = bwFormatDuration(audioNewPosition) +
-        (book.totalPages != null ? " / " + bwFormatDuration(book.totalPages) : "") +
+      posDisplay.textContent = bwFormatDuration(audioNewPosition) + " left" +
+        (book.totalPages != null ? " / " + bwFormatDuration(book.totalPages) + " total" : "") +
         " (auto -- " + bwFormatDuration(session.actualMinutes || 0) + " listened this session)";
       pageLabel.appendChild(posDisplay);
     } else {
@@ -1440,8 +1457,8 @@
     var lengthLabel = field("Total length", false, lengthPair.wrap);
     wrap.appendChild(lengthLabel);
 
-    var curLenPair = buildDurationPair(book.format === "audiobook" ? book.currentPage : null);
-    var curLenLabel = field("Current position", false, curLenPair.wrap);
+    var curLenPair = buildDurationPair(book.format === "audiobook" ? bwAudiobookRemaining(book) : null);
+    var curLenLabel = field("Time remaining", false, curLenPair.wrap);
     wrap.appendChild(curLenLabel);
 
     function syncEditFieldsToFormat(){
@@ -1493,13 +1510,13 @@
         currentPage = currentPageInput.value ? parseInt(currentPageInput.value, 10) : null;
       }
       if(currentPage != null && currentPage < 0){
-        pageError.textContent = isAudio ? "Current position can't be negative." : "Current page can't be negative.";
+        pageError.textContent = isAudio ? "Time remaining can't be negative." : "Current page can't be negative.";
         pageError.style.display = "block";
         return;
       }
       if(currentPage != null && pages && currentPage > pages){
         pageError.textContent = isAudio ?
-          "Current position can't be past the total length (" + bwFormatDuration(pages) + ")." :
+          "Time remaining can't be more than the total length (" + bwFormatDuration(pages) + ")." :
           "Current page can't be past the total page count (" + pages + ").";
         pageError.style.display = "block";
         return;
@@ -1689,7 +1706,10 @@
 
   function bwStartReading(book){
     if(!book.totalPages){
-      var input = window.prompt("Total pages for \"" + book.title + "\" (optional -- powers the progress bar):", "");
+      var promptText = bwIsAudiobook(book) ?
+        "Total length in minutes for \"" + book.title + "\" (optional -- e.g. 970 for 16h 10m):" :
+        "Total pages for \"" + book.title + "\" (optional -- powers the progress bar):";
+      var input = window.prompt(promptText, "");
       if(input !== null && input.trim() !== ""){
         var pages = parseInt(input, 10);
         if(!isNaN(pages) && pages > 0) book.totalPages = pages;
@@ -1697,7 +1717,9 @@
     }
     book.status = "reading";
     book.dateStarted = bwTodayKey();
-    if(book.currentPage == null) book.currentPage = 0;
+    // print: "just started" = 0 pages read. Audiobook: "just started" = the
+    // full length still remains, since currentPage counts down for these.
+    if(book.currentPage == null) book.currentPage = bwIsAudiobook(book) ? (book.totalPages || 0) : 0;
     bwSaveState();
     bwRenderAll();
   }
@@ -1717,9 +1739,9 @@
     var val;
     if(bwIsAudiobook(book)){
       var mins = window.prompt(
-        'New position for "' + book.title + '", in total minutes listened so far' +
-        (book.totalPages ? ' (out of ' + bwFormatDuration(book.totalPages) + '):' : ' (e.g. 225 for 3h 45m):'),
-        book.currentPage != null ? String(book.currentPage) : ""
+        'Time remaining for "' + book.title + '", in minutes' +
+        (book.totalPages ? ' (out of ' + bwFormatDuration(book.totalPages) + ' total):' : ' (e.g. 225 for 3h 45m):'),
+        String(bwAudiobookRemaining(book))
       );
       if(mins === null) return;
       val = parseInt(mins, 10);
@@ -1768,21 +1790,27 @@
     }
 
     if(book.totalPages){
-      var pct = Math.max(0, Math.min(100, ((book.currentPage || 0) / book.totalPages) * 100));
+      var pct, foreedgeLabel;
+      if(bwIsAudiobook(book)){
+        pct = Math.max(0, Math.min(100, (bwAudiobookElapsed(book) / book.totalPages) * 100));
+        foreedgeLabel = bwFormatDuration(bwAudiobookRemaining(book)) + ' left / ' + bwFormatDuration(book.totalPages) + ' total';
+      } else {
+        pct = Math.max(0, Math.min(100, ((book.currentPage || 0) / book.totalPages) * 100));
+        foreedgeLabel = bwFormatProgress(book, book.currentPage || 0) + ' / ' + bwFormatProgress(book, book.totalPages);
+      }
       var foreedge = document.createElement("div");
       foreedge.className = "bw-foreedge";
       foreedge.innerHTML =
         '<div class="bw-foreedge-bar">' +
           '<div class="bw-foreedge-read" style="width:' + pct + '%;"></div>' +
         '</div>' +
-        '<span class="bw-foreedge-pages">' + bwFormatProgress(book, book.currentPage || 0) +
-          ' / ' + bwFormatProgress(book, book.totalPages) + '</span>';
+        '<span class="bw-foreedge-pages">' + foreedgeLabel + '</span>';
       body.appendChild(foreedge);
     } else if(book.currentPage){
       var pageOnly = document.createElement("div");
       pageOnly.className = "bw-foreedge-pages";
       pageOnly.textContent = bwIsAudiobook(book) ?
-        (bwFormatDuration(book.currentPage) + " listened (no total length set)") :
+        (bwFormatDuration(book.currentPage) + " remaining (no total length set)") :
         ("page " + book.currentPage + " (no total page count set)");
       body.appendChild(pageOnly);
     }
@@ -2102,7 +2130,7 @@
     if(currentPage != null && currentPage < 0) currentPage = null;
     if(currentPage != null && pages && currentPage > pages){
       errorEl.textContent = (format === "audiobook" ?
-        "Current position can't be past the total length (" + bwFormatDuration(pages) + ")." :
+        "Time remaining can't be more than the total length (" + bwFormatDuration(pages) + ")." :
         "Current page can't be past the total page count (" + pages + ").");
       errorEl.style.display = "block";
       return;
