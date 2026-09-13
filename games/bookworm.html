@@ -163,6 +163,9 @@
   .bw-add-form label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-secondary);flex:1 1 140px;min-width:0;font-family:var(--font-title);font-style:italic;}
   .bw-add-form label.bw-field-wide{flex-basis:100%;}
   .bw-add-form .bw-btn-primary{align-self:flex-end;}
+  .bw-duration-pair{display:flex;align-items:center;gap:4px;}
+  .bw-duration-pair input{width:56px;flex:none;}
+  .bw-duration-pair span{font-size:11px;color:var(--text-secondary);}
 
   /* ---- today rows ---- */
   .bw-row{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:var(--bg-secondary);}
@@ -418,11 +421,29 @@
               <option value="low">Low</option>
             </select>
           </label>
-          <label>Total pages
+          <label>Format
+            <select class="bw-select" id="bw-book-format-input">
+              <option value="print" selected>Print</option>
+              <option value="audiobook">Audiobook</option>
+            </select>
+          </label>
+          <label id="bw-book-pages-label">Total pages
             <input type="number" class="bw-input" id="bw-book-pages-input" min="1" step="1">
           </label>
-          <label>Current page
+          <label id="bw-book-currentpage-label">Current page
             <input type="number" class="bw-input" id="bw-book-currentpage-input" min="0" step="1" placeholder="0 if just starting">
+          </label>
+          <label id="bw-book-length-label" style="display:none;">Total length
+            <span class="bw-duration-pair">
+              <input type="number" class="bw-input" id="bw-book-lengthhrs-input" min="0" step="1" placeholder="0"><span>h</span>
+              <input type="number" class="bw-input" id="bw-book-lengthmin-input" min="0" max="59" step="1" placeholder="0"><span>m</span>
+            </span>
+          </label>
+          <label id="bw-book-currentlen-label" style="display:none;">Current position
+            <span class="bw-duration-pair">
+              <input type="number" class="bw-input" id="bw-book-curhrs-input" min="0" step="1" placeholder="0"><span>h</span>
+              <input type="number" class="bw-input" id="bw-book-curmin-input" min="0" max="59" step="1" placeholder="0"><span>m</span>
+            </span>
           </label>
           <div class="bw-stop-form-error bw-field-wide" id="bw-book-add-error" style="display:none;"></div>
           <button type="submit" class="bw-btn bw-btn-primary">Add book</button>
@@ -698,6 +719,19 @@
     var m = minutes % 60;
     if(h === 0) return m + "m";
     return h + "h " + m + "m";
+  }
+
+  // Audiobooks reuse totalPages/currentPage/pageStart/pageEnd to hold
+  // MINUTES instead of pages -- same fields, same progress-bar math, same
+  // session log, just formatted differently. Keeping one unit under the
+  // hood (rather than a parallel totalMinutes/currentMinutes track through
+  // every function that already handles pages) is what makes this a small
+  // change instead of a rewrite of the progress bar, edit form, and log.
+  function bwIsAudiobook(book){
+    return !!(book && book.format === "audiobook");
+  }
+  function bwFormatProgress(book, n){
+    return bwIsAudiobook(book) ? bwFormatDuration(n) : String(n);
   }
 
   function bwFormatClock(ms){
@@ -976,22 +1010,43 @@
 
   function bwBuildStopForm(session){
     var book = bwBookById(session.bookId);
+    var isAudio = bwIsAudiobook(book);
     var wrap = document.createElement("div");
     wrap.className = "bw-stop-form";
 
+    // Audiobooks don't ask for a page reached at all -- the timer already
+    // measured exactly how long was listened to, and position advances 1:1
+    // with that, so there's nothing to guess or type. Position only ever
+    // moves forward here (no "how far did you rewind" tracking), clamped to
+    // the book's total length once one is set.
+    var audioNewPosition = null;
+    var pageInput = null;
     var pageLabel = document.createElement("label");
-    var pageInputId = "bw-stop-page-" + session.id;
-    pageLabel.setAttribute("for", pageInputId);
-    pageLabel.textContent = "Page reached" + (book ? " -- " + book.title : "");
-    var pageInput = document.createElement("input");
-    pageInput.type = "number";
-    pageInput.className = "bw-input";
-    pageInput.id = pageInputId;
-    pageInput.min = "0";
-    pageInput.step = "1";
-    if(book && book.totalPages) pageInput.max = String(book.totalPages);
-    pageInput.value = session.pageEnd != null ? session.pageEnd : (book ? (book.currentPage || "") : "");
-    pageLabel.appendChild(pageInput);
+    if(isAudio){
+      audioNewPosition = (book.currentPage || 0) + (session.actualMinutes || 0);
+      if(book.totalPages != null) audioNewPosition = Math.min(audioNewPosition, book.totalPages);
+      pageLabel.textContent = "New position -- " + book.title;
+      var posDisplay = document.createElement("div");
+      posDisplay.className = "bw-input";
+      posDisplay.style.background = "transparent";
+      posDisplay.textContent = bwFormatDuration(audioNewPosition) +
+        (book.totalPages != null ? " / " + bwFormatDuration(book.totalPages) : "") +
+        " (auto -- " + bwFormatDuration(session.actualMinutes || 0) + " listened this session)";
+      pageLabel.appendChild(posDisplay);
+    } else {
+      var pageInputId = "bw-stop-page-" + session.id;
+      pageLabel.setAttribute("for", pageInputId);
+      pageLabel.textContent = "Page reached" + (book ? " -- " + book.title : "");
+      pageInput = document.createElement("input");
+      pageInput.type = "number";
+      pageInput.className = "bw-input";
+      pageInput.id = pageInputId;
+      pageInput.min = "0";
+      pageInput.step = "1";
+      if(book && book.totalPages) pageInput.max = String(book.totalPages);
+      pageInput.value = session.pageEnd != null ? session.pageEnd : (book ? (book.currentPage || "") : "");
+      pageLabel.appendChild(pageInput);
+    }
     wrap.appendChild(pageLabel);
 
     var pageError = document.createElement("div");
@@ -1018,19 +1073,24 @@
     saveBtn.className = "bw-btn bw-btn-primary";
     saveBtn.textContent = "Save";
     saveBtn.addEventListener("click", function(){
-      var raw = pageInput.value.trim();
-      var pageVal = raw === "" ? null : parseInt(raw, 10);
+      var pageVal;
+      if(isAudio){
+        pageVal = audioNewPosition;
+      } else {
+        var raw = pageInput.value.trim();
+        pageVal = raw === "" ? null : parseInt(raw, 10);
 
-      if(pageVal != null && isNaN(pageVal)){ pageVal = null; }
-      if(pageVal != null && pageVal < 0){
-        pageError.textContent = "Page can't be negative.";
-        pageError.style.display = "block";
-        return;
-      }
-      if(pageVal != null && book && book.totalPages && pageVal > book.totalPages){
-        pageError.textContent = book.title + " only has " + book.totalPages + " pages -- can't be past that.";
-        pageError.style.display = "block";
-        return;
+        if(pageVal != null && isNaN(pageVal)){ pageVal = null; }
+        if(pageVal != null && pageVal < 0){
+          pageError.textContent = "Page can't be negative.";
+          pageError.style.display = "block";
+          return;
+        }
+        if(pageVal != null && book && book.totalPages && pageVal > book.totalPages){
+          pageError.textContent = book.title + " only has " + book.totalPages + " pages -- can't be past that.";
+          pageError.style.display = "block";
+          return;
+        }
       }
       pageError.style.display = "none";
 
@@ -1196,7 +1256,10 @@
         var delta = (session.actualMinutes || 0) - session.plannedMinutes;
         var deltaSpan = document.createElement("span");
         deltaSpan.className = "bw-log-delta";
-        var pagesText = (session.pageStart != null && session.pageEnd != null && session.pageEnd >= session.pageStart) ?
+        // audiobook page deltas always equal actualMinutes by construction,
+        // so showing them here would just repeat the number right before it
+        var pagesText = (session.pageStart != null && session.pageEnd != null &&
+          session.pageEnd >= session.pageStart && !bwIsAudiobook(book)) ?
           (", +" + (session.pageEnd - session.pageStart) + "p") : "";
         deltaSpan.textContent = session.actualMinutes + "m actual (planned " + session.plannedMinutes + "m, " +
           (delta >= 0 ? "+" : "") + delta + "m" + pagesText + ")";
@@ -1332,15 +1395,64 @@
     });
     wrap.appendChild(field("Priority", false, priorityInput));
 
+    var formatInput = document.createElement("select");
+    formatInput.className = "bw-select";
+    [["print","Print"],["audiobook","Audiobook"]].forEach(function(pair){
+      var opt = document.createElement("option");
+      opt.value = pair[0];
+      opt.textContent = pair[1];
+      if((book.format === "audiobook") === (pair[0] === "audiobook")) opt.selected = true;
+      formatInput.appendChild(opt);
+    });
+    wrap.appendChild(field("Format", false, formatInput));
+
     var pagesInput = document.createElement("input");
     pagesInput.type = "number"; pagesInput.className = "bw-input"; pagesInput.min = "1"; pagesInput.step = "1";
     if(book.totalPages) pagesInput.value = book.totalPages;
-    wrap.appendChild(field("Total pages", false, pagesInput));
+    var pagesLabel = field("Total pages", false, pagesInput);
+    wrap.appendChild(pagesLabel);
 
     var currentPageInput = document.createElement("input");
     currentPageInput.type = "number"; currentPageInput.className = "bw-input"; currentPageInput.min = "0"; currentPageInput.step = "1";
     if(book.currentPage != null) currentPageInput.value = book.currentPage;
-    wrap.appendChild(field("Current page", false, currentPageInput));
+    var currentPageLabel = field("Current page", false, currentPageInput);
+    wrap.appendChild(currentPageLabel);
+
+    // Duration pairs reuse the exact same totalPages/currentPage fields, just
+    // split into hours+minutes for display -- see bwIsAudiobook's comment.
+    function buildDurationPair(minutesVal){
+      var span = document.createElement("span");
+      span.className = "bw-duration-pair";
+      var hrsInput = document.createElement("input");
+      hrsInput.type = "number"; hrsInput.className = "bw-input"; hrsInput.min = "0"; hrsInput.step = "1"; hrsInput.placeholder = "0";
+      var hLabel = document.createElement("span"); hLabel.textContent = "h";
+      var minInput = document.createElement("input");
+      minInput.type = "number"; minInput.className = "bw-input"; minInput.min = "0"; minInput.max = "59"; minInput.step = "1"; minInput.placeholder = "0";
+      var mLabel = document.createElement("span"); mLabel.textContent = "m";
+      if(minutesVal != null){
+        hrsInput.value = Math.floor(minutesVal / 60);
+        minInput.value = minutesVal % 60;
+      }
+      span.appendChild(hrsInput); span.appendChild(hLabel); span.appendChild(minInput); span.appendChild(mLabel);
+      return { wrap: span, hrsInput: hrsInput, minInput: minInput };
+    }
+    var lengthPair = buildDurationPair(book.format === "audiobook" ? book.totalPages : null);
+    var lengthLabel = field("Total length", false, lengthPair.wrap);
+    wrap.appendChild(lengthLabel);
+
+    var curLenPair = buildDurationPair(book.format === "audiobook" ? book.currentPage : null);
+    var curLenLabel = field("Current position", false, curLenPair.wrap);
+    wrap.appendChild(curLenLabel);
+
+    function syncEditFieldsToFormat(){
+      var isAudio = formatInput.value === "audiobook";
+      pagesLabel.style.display = isAudio ? "none" : "";
+      currentPageLabel.style.display = isAudio ? "none" : "";
+      lengthLabel.style.display = isAudio ? "" : "none";
+      curLenLabel.style.display = isAudio ? "" : "none";
+    }
+    syncEditFieldsToFormat();
+    formatInput.addEventListener("change", syncEditFieldsToFormat);
 
     var pageError = document.createElement("div");
     pageError.className = "bw-stop-form-error bw-field-wide";
@@ -1371,15 +1483,24 @@
     function applyFieldsAndSave(){
       var title = titleInput.value.trim();
       if(!title) return;
-      var pages = pagesInput.value ? parseInt(pagesInput.value, 10) : null;
-      var currentPage = currentPageInput.value ? parseInt(currentPageInput.value, 10) : null;
+      var isAudio = formatInput.value === "audiobook";
+      var pages, currentPage;
+      if(isAudio){
+        pages = bwReadDurationPair(lengthPair.hrsInput, lengthPair.minInput);
+        currentPage = bwReadDurationPair(curLenPair.hrsInput, curLenPair.minInput);
+      } else {
+        pages = pagesInput.value ? parseInt(pagesInput.value, 10) : null;
+        currentPage = currentPageInput.value ? parseInt(currentPageInput.value, 10) : null;
+      }
       if(currentPage != null && currentPage < 0){
-        pageError.textContent = "Current page can't be negative.";
+        pageError.textContent = isAudio ? "Current position can't be negative." : "Current page can't be negative.";
         pageError.style.display = "block";
         return;
       }
       if(currentPage != null && pages && currentPage > pages){
-        pageError.textContent = "Current page can't be past the total page count (" + pages + ").";
+        pageError.textContent = isAudio ?
+          "Current position can't be past the total length (" + bwFormatDuration(pages) + ")." :
+          "Current page can't be past the total page count (" + pages + ").";
         pageError.style.display = "block";
         return;
       }
@@ -1388,6 +1509,7 @@
       book.author = authorInput.value.trim();
       book.readByDate = readbyInput.value || null;
       book.priority = priorityInput.value;
+      book.format = isAudio ? "audiobook" : "print";
       book.totalPages = (pages && pages > 0) ? pages : null;
       book.currentPage = currentPage;
       bwEditingBookIds[book.id] = false;
@@ -1587,6 +1709,37 @@
     bwRenderAll();
   }
 
+  // Quick manual progress bump for reading done away from the timer (e.g.
+  // offline) -- a plain prompt() rather than a full form, matching the
+  // existing "total pages" prompt used elsewhere in this file for the same
+  // kind of one-off numeric entry.
+  function bwUpdateProgressPrompt(book){
+    var val;
+    if(bwIsAudiobook(book)){
+      var mins = window.prompt(
+        'New position for "' + book.title + '", in total minutes listened so far' +
+        (book.totalPages ? ' (out of ' + bwFormatDuration(book.totalPages) + '):' : ' (e.g. 225 for 3h 45m):'),
+        book.currentPage != null ? String(book.currentPage) : ""
+      );
+      if(mins === null) return;
+      val = parseInt(mins, 10);
+      if(isNaN(val) || val < 0){ window.alert("Enter a valid number of minutes."); return; }
+    } else {
+      var pages = window.prompt(
+        'New current page for "' + book.title + '"' + (book.totalPages ? " (out of " + book.totalPages + "):" : ":"),
+        book.currentPage != null ? String(book.currentPage) : ""
+      );
+      if(pages === null) return;
+      val = parseInt(pages, 10);
+      if(isNaN(val) || val < 0){ window.alert("Enter a valid page number."); return; }
+    }
+    if(book.totalPages && val > book.totalPages) val = book.totalPages;
+    book.currentPage = val;
+    book.lastReadDate = bwTodayKey();
+    bwSaveState();
+    bwRenderAll();
+  }
+
   function bwBuildReadingCard(book){
     var card = document.createElement("div");
     card.className = "bw-card bw-card-reading bw-priority-" + book.priority;
@@ -1622,12 +1775,15 @@
         '<div class="bw-foreedge-bar">' +
           '<div class="bw-foreedge-read" style="width:' + pct + '%;"></div>' +
         '</div>' +
-        '<span class="bw-foreedge-pages">' + (book.currentPage || 0) + ' / ' + book.totalPages + '</span>';
+        '<span class="bw-foreedge-pages">' + bwFormatProgress(book, book.currentPage || 0) +
+          ' / ' + bwFormatProgress(book, book.totalPages) + '</span>';
       body.appendChild(foreedge);
     } else if(book.currentPage){
       var pageOnly = document.createElement("div");
       pageOnly.className = "bw-foreedge-pages";
-      pageOnly.textContent = "page " + book.currentPage + " (no total page count set)";
+      pageOnly.textContent = bwIsAudiobook(book) ?
+        (bwFormatDuration(book.currentPage) + " listened (no total length set)") :
+        ("page " + book.currentPage + " (no total page count set)");
       body.appendChild(pageOnly);
     }
 
@@ -1662,6 +1818,14 @@
       bwRenderLibrary();
     });
     actions.appendChild(editBtn);
+
+    var progressBtn = document.createElement("button");
+    progressBtn.type = "button";
+    progressBtn.className = "bw-btn";
+    progressBtn.textContent = "Update progress";
+    progressBtn.title = "Log progress made without timing a session (e.g. read offline)";
+    progressBtn.addEventListener("click", function(){ bwUpdateProgressPrompt(book); });
+    actions.appendChild(progressBtn);
 
     var finishBtn = document.createElement("button");
     finishBtn.type = "button";
@@ -1884,6 +2048,26 @@
     bwRefreshLogBookFilter();
   }
 
+  // Reads a pair of hours/minutes number inputs as total minutes, or null
+  // if both are empty -- shared by the add form and (via re-derivation) the
+  // edit form's audiobook fields.
+  function bwReadDurationPair(hrsInput, minInput){
+    var h = hrsInput.value ? parseInt(hrsInput.value, 10) : 0;
+    var m = minInput.value ? parseInt(minInput.value, 10) : 0;
+    if(!hrsInput.value && !minInput.value) return null;
+    return Math.max(0, h) * 60 + Math.max(0, m);
+  }
+
+  var bwBookFormatInput = document.getElementById("bw-book-format-input");
+  function bwSyncBookAddFieldsToFormat(){
+    var isAudio = bwBookFormatInput.value === "audiobook";
+    document.getElementById("bw-book-pages-label").style.display = isAudio ? "none" : "";
+    document.getElementById("bw-book-currentpage-label").style.display = isAudio ? "none" : "";
+    document.getElementById("bw-book-length-label").style.display = isAudio ? "" : "none";
+    document.getElementById("bw-book-currentlen-label").style.display = isAudio ? "" : "none";
+  }
+  bwBookFormatInput.addEventListener("change", bwSyncBookAddFieldsToFormat);
+
   document.getElementById("bw-book-add-form").addEventListener("submit", function(e){
     e.preventDefault();
     var titleInput = document.getElementById("bw-book-title-input");
@@ -1900,11 +2084,26 @@
     var title = titleInput.value.trim();
     if(!title) return;
 
-    var pages = pagesInput.value ? parseInt(pagesInput.value, 10) : null;
-    var currentPage = currentPageInput.value ? parseInt(currentPageInput.value, 10) : null;
+    var format = bwBookFormatInput.value === "audiobook" ? "audiobook" : "print";
+    var pages, currentPage;
+    if(format === "audiobook"){
+      pages = bwReadDurationPair(
+        document.getElementById("bw-book-lengthhrs-input"),
+        document.getElementById("bw-book-lengthmin-input")
+      );
+      currentPage = bwReadDurationPair(
+        document.getElementById("bw-book-curhrs-input"),
+        document.getElementById("bw-book-curmin-input")
+      );
+    } else {
+      pages = pagesInput.value ? parseInt(pagesInput.value, 10) : null;
+      currentPage = currentPageInput.value ? parseInt(currentPageInput.value, 10) : null;
+    }
     if(currentPage != null && currentPage < 0) currentPage = null;
     if(currentPage != null && pages && currentPage > pages){
-      errorEl.textContent = "Current page can't be past the total page count (" + pages + ").";
+      errorEl.textContent = (format === "audiobook" ?
+        "Current position can't be past the total length (" + bwFormatDuration(pages) + ")." :
+        "Current page can't be past the total page count (" + pages + ").");
       errorEl.style.display = "block";
       return;
     }
@@ -1922,6 +2121,7 @@
       note: noteInput.value,
       readByDate: readbyInput.value || null,
       priority: priorityInput.value,
+      format: format,
       totalPages: (pages && pages > 0) ? pages : null,
       currentPage: currentPage,
       status: "upcoming",
@@ -1941,6 +2141,7 @@
       bwState.books.push(book);
       bwSaveState();
       document.getElementById("bw-book-add-form").reset();
+      bwSyncBookAddFieldsToFormat();
       bwRenderAll();
     }).catch(function(err){
       window.alert(err.message);
@@ -1978,7 +2179,7 @@
     var totalPages = 0;
     weekSessions.forEach(function(s){
       byBook[s.bookId] = (byBook[s.bookId] || 0) + (s.actualMinutes || 0);
-      if(s.pageStart != null && s.pageEnd != null && s.pageEnd >= s.pageStart){
+      if(s.pageStart != null && s.pageEnd != null && s.pageEnd >= s.pageStart && !bwIsAudiobook(bwBookById(s.bookId))){
         totalPages += (s.pageEnd - s.pageStart);
       }
     });
@@ -2021,7 +2222,7 @@
       var delta = (s.actualMinutes || 0) - s.plannedMinutes;
       var entry = document.createElement("div");
       entry.className = "bw-log-entry";
-      var pagesText = (s.pageStart != null && s.pageEnd != null && s.pageEnd >= s.pageStart) ?
+      var pagesText = (s.pageStart != null && s.pageEnd != null && s.pageEnd >= s.pageStart && !bwIsAudiobook(book)) ?
         (", +" + (s.pageEnd - s.pageStart) + " pages") : "";
       entry.innerHTML =
         '<div class="bw-log-entry-top">' +
@@ -2049,7 +2250,11 @@
 
   // The exact guard bwRenderLog already applies for "does this session carry
   // real page numbers" -- reused rather than re-derived, per the build spec.
+  // Audiobook sessions are excluded: their pageStart/pageEnd delta is always
+  // equal to actualMinutes by construction (position advances 1:1 with
+  // listening time), so a "pages per minute" pace for them is meaningless.
   function bwSessionUsableForSpeed(s){
+    if(bwIsAudiobook(bwBookById(s.bookId))) return false;
     return s.status === "done" && s.pageStart != null && s.pageEnd != null &&
       s.pageEnd >= s.pageStart && (s.actualMinutes || 0) > 0;
   }
@@ -2331,7 +2536,7 @@
   // page count and "upcoming" without one both land in the same excluded list.
   function bwTrackerLengthChartBooks(){
     return bwState.books.filter(function(b){
-      return b.totalPages != null &&
+      return b.totalPages != null && !bwIsAudiobook(b) &&
         (b.status === "reading" || b.status === "finished" || b.status === "upcoming");
     });
   }
